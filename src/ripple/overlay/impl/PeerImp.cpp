@@ -704,8 +704,8 @@ PeerImp::doProtocolStart()
     protocol::TMManifests tm;
     tm.set_history (true);
 
-    overlay_.manifestCache ().for_each_manifest (
-        [&tm](size_t s){tm.mutable_list()->Reserve(s);},
+    app_.manifestCache ().for_each_manifest (
+        [&tm](std::size_t s){tm.mutable_list()->Reserve(s);},
         [&tm](Manifest const& manifest)
         {
             auto const& s = manifest.serialized;
