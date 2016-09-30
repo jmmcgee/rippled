@@ -17,42 +17,33 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_CONSENSUS_RCLCXTRAITS_H_INCLUDED
-#define RIPPLE_APP_CONSENSUS_RCLCXTRAITS_H_INCLUDED
-
-#include <ripple/basics/chrono.h>
-#include <ripple/basics/base_uint.h>
+#ifndef RIPPLE_APP_CONSENSUS_RCLCXCALLS_H_INCLUDED
+#define RIPPLE_APP_CONSENSUS_RCLCXCALLS_H_INCLUDED
 
 #include <ripple/protocol/UintTypes.h>
-#include <ripple/protocol/RippleLedgerHash.h>
-
-#include <ripple/app/consensus/RCLCxPos.h>
-#include <ripple/app/consensus/RCLCxTx.h>
-#include <ripple/app/consensus/RCLCxCalls.h>
+#include <ripple/app/misc/Validations.h>
+#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/misc/NetworkOPs.h>
 
 namespace ripple {
 
-// Consensus traits class
-// For adapting consensus to RCL
-
-class RCLCxTraits
+class RCLCxCalls
 {
 public:
 
-    using Callback_t = RCLCxCalls;
+    RCLCxCalls (Application& app) : app_ (app)
+    { }
 
-    using Time_t    = NetClock::time_point;
+    uint256 getLCL (
+        uint256 const& currentLedger,
+        uint256 const& priorLedger,
+        bool believedCorrect);
 
-    using Pos_t      = RCLCxPos;
-    using TxSet_t    = RCLTxSet;
-    using Tx_t       = RCLCxTx;
+protected:
 
-    using LgrID_t   = LedgerHash;
-    using TxID_t    = uint256;
-    using TxSetID_t = uint256;
-    using NodeID_t  = NodeID;
+    Application& app_;
+
 };
 
-}
-
+} // namespace ripple
 #endif

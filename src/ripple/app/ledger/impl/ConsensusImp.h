@@ -25,6 +25,7 @@
 #include <ripple/app/ledger/LedgerConsensus.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/basics/Log.h>
+#include <ripple/app/consensus/RCLCxCalls.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <ripple/beast/utility/Journal.h>
@@ -100,6 +101,7 @@ public:
 private:
     beast::Journal journal_;
     std::unique_ptr <FeeVote> feeVote_;
+    std::unique_ptr <RCLCxCalls> callbacks_;
 
     bool proposing_;
     bool validating_;

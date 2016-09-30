@@ -68,6 +68,7 @@ private:
 
 public:
 
+    using typename Traits::Callback_t;
     using typename Traits::Time_t;
     using typename Traits::Pos_t;
     using typename Traits::TxSet_t;
@@ -103,7 +104,8 @@ public:
         InboundTransactions& inboundTransactions,
         LocalTxs& localtx,
         LedgerMaster& ledgerMaster,
-        FeeVote& feeVote);
+        FeeVote& feeVote,
+        Callback_t& callbacks);
 
     /**
         @param prevLCLHash The hash of the Last Closed Ledger (LCL).
@@ -292,8 +294,6 @@ private:
     /** We have a new LCL and must accept it */
     void beginAccept (bool synchronous);
 
-    void endConsensus (bool correctLCL);
-
 
     /** Add our load fee to our validation */
     void addLoad(STValidation::ref val);
@@ -302,6 +302,9 @@ private:
     NetClock::time_point effectiveCloseTime(NetClock::time_point closeTime);
 
 private:
+    Callback_t& callbacks_;
+
+    // to be removed in favor of callbacks
     Application& app_;
     ConsensusImp& consensus_;
     InboundTransactions& inboundTransactions_;
@@ -371,7 +374,8 @@ make_LedgerConsensus (
     InboundTransactions& inboundTransactions,
     LocalTxs& localtx,
     LedgerMaster& ledgerMaster,
-    FeeVote& feeVote);
+    FeeVote& feeVote,
+    RCLCxCalls& callbacks);
 
 //------------------------------------------------------------------------------
 /** Apply a set of transactions to a ledger

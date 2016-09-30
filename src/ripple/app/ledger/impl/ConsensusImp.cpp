@@ -70,8 +70,12 @@ ConsensusImp::makeLedgerConsensus (
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs)
 {
+    if (!callbacks_)
+        callbacks_ = std::make_unique <RCLCxCalls>(app);
+
     return make_LedgerConsensus (app, *this,
-        inboundTransactions, localTxs, ledgerMaster, *feeVote_);
+        inboundTransactions, localTxs, ledgerMaster,
+        *feeVote_, *callbacks_);
 }
 
 void

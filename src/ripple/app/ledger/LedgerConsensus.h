@@ -41,6 +41,7 @@ class LedgerConsensus : public Traits
 {
 public:
 
+    using typename Traits::Callback_t;
     using typename Traits::Time_t;
     using typename Traits::Pos_t;
     using typename Traits::TxSet_t;

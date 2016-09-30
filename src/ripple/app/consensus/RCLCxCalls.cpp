@@ -17,42 +17,49 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_CONSENSUS_RCLCXTRAITS_H_INCLUDED
-#define RIPPLE_APP_CONSENSUS_RCLCXTRAITS_H_INCLUDED
-
-#include <ripple/basics/chrono.h>
-#include <ripple/basics/base_uint.h>
-
-#include <ripple/protocol/UintTypes.h>
-#include <ripple/protocol/RippleLedgerHash.h>
-
-#include <ripple/app/consensus/RCLCxPos.h>
-#include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
 
 namespace ripple {
 
-// Consensus traits class
-// For adapting consensus to RCL
-
-class RCLCxTraits
+uint256 RCLCxCalls::getLCL (
+    uint256 const& currentLedger,
+    uint256 const& priorLedger,
+    bool believedCorrect)
 {
-public:
+    // Get validators that are on our ledger, or  "close" to being on
+    // our ledger.
+    auto vals =
+        app_.getValidations().getCurrentValidations(
+            currentLedger, priorLedger,
+            app_.getLedgerMaster().getValidLedgerIndex());
 
-    using Callback_t = RCLCxCalls;
+    uint256 netLgr = currentLedger;
+    int netLgrCount = 0;
+    for (auto& it : vals)
+    {
+        if ((it.second.first > netLgrCount) ||
+            ((it.second.first == netLgrCount) && (it.first == priorLedger)))
+        {
+           netLgr = it.first;
+           netLgrCount = it.second.first;
+        }
+    }
 
-    using Time_t    = NetClock::time_point;
+    if (believedCorrect && (netLgr != currentLedger))
+    {
+#if 0 // FIXME
+        if (auto stream = j_.debug())
+        {
+            for (auto& it : vals)
+                stream
+                    << "V: " << it.first << ", " << it.second.first;
+        }
+#endif
 
-    using Pos_t      = RCLCxPos;
-    using TxSet_t    = RCLTxSet;
-    using Tx_t       = RCLCxTx;
+        app_.getOPs().consensusViewChange();
+    }
 
-    using LgrID_t   = LedgerHash;
-    using TxID_t    = uint256;
-    using TxSetID_t = uint256;
-    using NodeID_t  = NodeID;
-};
-
+    return netLgr;
 }
 
-#endif
+} // namespace ripple

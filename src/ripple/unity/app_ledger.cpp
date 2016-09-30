@@ -43,3 +43,5 @@
 #include <ripple/app/ledger/impl/LedgerToJson.cpp>
 #include <ripple/app/ledger/impl/TransactionAcquire.cpp>
 #include <ripple/app/ledger/impl/TransactionMaster.cpp>
+
+#include <ripple/app/consensus/RCLCxCalls.cpp>

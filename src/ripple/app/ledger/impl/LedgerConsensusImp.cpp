@@ -62,8 +62,10 @@ LedgerConsensusImp<Traits>::LedgerConsensusImp (
         InboundTransactions& inboundTransactions,
         LocalTxs& localtx,
         LedgerMaster& ledgerMaster,
-        FeeVote& feeVote)
-    : app_ (app)
+        FeeVote& feeVote,
+        Callback_t& callbacks)
+    : callbacks_ (callbacks)
+    , app_ (app)
     , consensus_ (consensus)
     , inboundTransactions_ (inboundTransactions)
     , localTX_ (localtx)
@@ -320,31 +322,10 @@ void LedgerConsensusImp<Traits>::gotMap (
 template <class Traits>
 void LedgerConsensusImp<Traits>::checkLCL ()
 {
-    uint256 netLgr = prevLedgerHash_;
-    int netLgrCount = 0;
-
-    uint256 favoredLedger = prevLedgerHash_; // Don't jump forward
-    uint256 priorLedger;
-
-    if (haveCorrectLCL_)
-        priorLedger = previousLedger_->info().parentHash; // don't jump back
-
-    // Get validators that are on our ledger, or  "close" to being on
-    // our ledger.
-    hash_map<uint256, ValidationCounter> vals =
-        app_.getValidations ().getCurrentValidations(
-            favoredLedger, priorLedger,
-            ledgerMaster_.getValidLedgerIndex ());
-
-    for (auto& it : vals)
-    {
-        if ((it.second.first > netLgrCount) ||
-            ((it.second.first == netLgrCount) && (it.first == prevLedgerHash_)))
-        {
-           netLgr = it.first;
-           netLgrCount = it.second.first;
-        }
-    }
+    LgrID_t netLgr = callbacks_.getLCL (
+        prevLedgerHash_,
+        haveCorrectLCL_ ? previousLedger_->info().parentHash : uint256(),
+        haveCorrectLCL_);
 
     if (netLgr != prevLedgerHash_)
     {
@@ -375,14 +356,16 @@ void LedgerConsensusImp<Traits>::checkLCL ()
 
         JLOG (j_.warn())
             << "View of consensus changed during " << status
-            << " (" << netLgrCount << ") status="
-            << status << ", "
+            << " status=" << status << ", "
             << (haveCorrectLCL_ ? "CorrectLCL" : "IncorrectLCL");
         JLOG (j_.warn()) << prevLedgerHash_
             << " to " << netLgr;
         JLOG (j_.warn())
             << ripple::getJson (*previousLedger_);
+        JLOG (j_.warn())
+            << getJson (true);
 
+#if 0 // FIXME
         if (auto stream = j_.debug())
         {
             for (auto& it : vals)
@@ -390,14 +373,10 @@ void LedgerConsensusImp<Traits>::checkLCL ()
                     << "V: " << it.first << ", " << it.second.first;
             stream << getJson (true);
         }
-
-        if (haveCorrectLCL_)
-            app_.getOPs ().consensusViewChange ();
+#endif
 
         handleLCL (netLgr);
     }
-    else if (previousLedger_->info().hash != prevLedgerHash_)
-        handleLCL (netLgr);
 }
 
 // Handle a change in the LCL during a consensus round
@@ -1069,7 +1048,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         correct = haveCorrectLCL_;
     }
 
-    endConsensus (correct);
+    app_.getOPs ().endConsensus (correct);
 }
 
 template <class Traits>
@@ -1673,12 +1652,6 @@ void LedgerConsensusImp<Traits>::beginAccept (bool synchronous)
 }
 
 template <class Traits>
-void LedgerConsensusImp<Traits>::endConsensus (bool correctLCL)
-{
-    app_.getOPs ().endConsensus (correctLCL);
-}
-
-template <class Traits>
 void LedgerConsensusImp<Traits>::startRound (
     Time_t const& now,
     LgrID_t const& prevLCLHash,
@@ -1796,10 +1769,11 @@ make_LedgerConsensus (
     InboundTransactions& inboundTransactions,
     LocalTxs& localtx,
     LedgerMaster& ledgerMaster,
-    FeeVote& feeVote)
+    FeeVote& feeVote,
+    RCLCxCalls& callbacks)
 {
     return std::make_shared <LedgerConsensusImp <RCLCxTraits>> (app, consensus,
-        inboundTransactions, localtx, ledgerMaster, feeVote);
+        inboundTransactions, localtx, ledgerMaster, feeVote, callbacks);
 }
 
 //------------------------------------------------------------------------------
