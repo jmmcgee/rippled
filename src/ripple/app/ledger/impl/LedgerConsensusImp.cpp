@@ -1185,74 +1185,9 @@ void LedgerConsensusImp<Traits>::statusChange (
 }
 
 template <class Traits>
-auto
-LedgerConsensusImp<Traits>::makeInitialPosition () ->
-    std::pair <TxSet_t, Pos_t>
-{
-    // Tell the ledger master not to acquire the ledger we're probably building
-    ledgerMaster_.setBuildingLedger (previousLedger_->info().seq + 1);
-
-    auto initialLedger = app_.openLedger().current();
-
-    auto initialSet = std::make_shared <SHAMap> (
-        SHAMapType::TRANSACTION, app_.family(), SHAMap::version{1});
-    initialSet->setUnbacked ();
-
-    // Build SHAMap containing all transactions in our open ledger
-    for (auto const& tx : initialLedger->txs)
-    {
-        Serializer s (2048);
-        tx.first->add(s);
-        initialSet->addItem (
-            SHAMapItem (tx.first->getTransactionID(), std::move (s)), true, false);
-    }
-
-    // Add pseudo-transactions to the set
-    if ((app_.config().standalone() || (proposing_ && haveCorrectLCL_))
-            && ((previousLedger_->info().seq % 256) == 0))
-    {
-        // previous ledger was flag ledger, add pseudo-transactions
-        auto const validations =
-            app_.getValidations().getValidations (
-                previousLedger_->info().parentHash);
-
-        auto const count = std::count_if (
-            validations.begin(), validations.end(),
-            [](auto const& v)
-            {
-                return v.second->isTrusted();
-            });
-
-        if (count >= ledgerMaster_.getMinValidations())
-        {
-            feeVote_.doVoting (
-                previousLedger_,
-                validations,
-                initialSet);
-            app_.getAmendmentTable ().doVoting (
-                previousLedger_,
-                validations,
-                initialSet);
-        }
-    }
-
-    // Now we need an immutable snapshot
-    initialSet = initialSet->snapShot(false);
-    auto setHash = initialSet->getHash().as_uint256();
-
-    return std::make_pair<RCLTxSet, RCLCxPos> (
-        std::move (initialSet),
-        LedgerProposal {
-            initialLedger->info().parentHash,
-            setHash,
-            closeTime_,
-            now_});
-}
-
-template <class Traits>
 void LedgerConsensusImp<Traits>::takeInitialPosition()
 {
-    auto pair = makeInitialPosition();
+    auto pair = callbacks_.makeInitialPosition();
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
     assert (initialSet.getID() == initialPos.getCurrentHash());
@@ -1510,7 +1445,6 @@ void LedgerConsensusImp<Traits>::closeLedger ()
     closeTime_ = now_;
     consensus_.setLastCloseTime(closeTime_);
     statusChange (protocol::neCLOSING_LEDGER, *previousLedger_);
-    ledgerMaster_.applyHeldTransactions ();
     takeInitialPosition ();
 }
 

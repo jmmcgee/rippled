@@ -22,9 +22,14 @@
 
 namespace ripple {
 
-RCLCxCalls::RCLCxCalls (Application& app, ConsensusImp& consensus, beast::Journal& j)
+RCLCxCalls::RCLCxCalls (
+    Application& app,
+    ConsensusImp& consensus,
+    FeeVote& feeVote,
+    beast::Journal& j)
         : app_ (app)
         , consensus_ (consensus)
+        , feeVote_ (feeVote)
         , j_ (j)
         , valPublic_ (app_.config().VALIDATION_PUB)
         , valSecret_ (app_.config().VALIDATION_PRIV)
@@ -166,6 +171,78 @@ std::pair <bool, bool> RCLCxCalls::getMode (bool correctLCL)
         consensus_.setProposing (propose, validate);
 
     return { propose, validate };
+}
+
+std::pair <RCLTxSet, RCLCxPos>
+    RCLCxCalls::makeInitialPosition ()
+{
+    auto prevLedger = ledgerConsensus_->prevLedger();
+    auto proposing = ledgerConsensus_->isProposing();
+    auto correctLCL = ledgerConsensus_->isCorrectLCL();
+    auto closeTime = ledgerConsensus_->closeTime();
+    auto now = ledgerConsensus_->now();
+
+    auto& ledgerMaster = app_.getLedgerMaster();
+
+    // Tell the ledger master not to acquire the ledger we're probably building
+    ledgerMaster.setBuildingLedger (prevLedger->info().seq + 1);
+
+    ledgerMaster.applyHeldTransactions ();
+    auto initialLedger = app_.openLedger().current();
+
+    auto initialSet = std::make_shared <SHAMap> (
+        SHAMapType::TRANSACTION, app_.family(), SHAMap::version{1});
+    initialSet->setUnbacked ();
+
+    // Build SHAMap containing all transactions in our open ledger
+    for (auto const& tx : initialLedger->txs)
+    {
+        Serializer s (2048);
+        tx.first->add(s);
+        initialSet->addItem (
+            SHAMapItem (tx.first->getTransactionID(), std::move (s)), true, false);
+    }
+
+    // Add pseudo-transactions to the set
+    if ((app_.config().standalone() || (proposing && correctLCL))
+            && ((prevLedger->info().seq % 256) == 0))
+    {
+        // previous ledger was flag ledger, add pseudo-transactions
+        auto const validations =
+            app_.getValidations().getValidations (
+                prevLedger->info().parentHash);
+
+        auto const count = std::count_if (
+            validations.begin(), validations.end(),
+            [](auto const& v)
+            {
+                return v.second->isTrusted();
+            });
+
+        if (count >= ledgerMaster.getMinValidations())
+        {
+            feeVote_.doVoting (
+                prevLedger,
+                validations,
+                initialSet);
+            app_.getAmendmentTable ().doVoting (
+                prevLedger,
+                validations,
+                initialSet);
+        }
+    }
+
+    // Now we need an immutable snapshot
+    initialSet = initialSet->snapShot(false);
+    auto setHash = initialSet->getHash().as_uint256();
+
+    return std::make_pair<RCLTxSet, RCLCxPos> (
+        std::move (initialSet),
+        LedgerProposal {
+            initialLedger->info().parentHash,
+            setHash,
+            closeTime,
+            now});
 }
 
 

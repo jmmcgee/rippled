@@ -22,18 +22,25 @@
 
 #include <ripple/protocol/UintTypes.h>
 #include <ripple/app/misc/Validations.h>
-#include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NetworkOPs.h>
+#include <ripple/app/ledger/LedgerMaster.h>
 
 namespace ripple {
 
 class ConsensusImp;
+class RCLCxTraits;
+template<class Traits> class LedgerConsensus;
 
 class RCLCxCalls
 {
 public:
 
-    RCLCxCalls (Application& app, ConsensusImp& consensus, beast::Journal& j);
+    RCLCxCalls (
+        Application&,
+        ConsensusImp&,
+        FeeVote&,
+        beast::Journal&);
 
     uint256 getLCL (
         uint256 const& currentLedger,
@@ -49,10 +56,19 @@ public:
     void getProposals (LedgerHash const& prevLedger,
         std::function <bool (RCLCxPos const&)>);
 
+    std::pair <RCLTxSet, RCLCxPos> makeInitialPosition ();
+
+    void setLedgerConsensus (LedgerConsensus<RCLCxTraits>* lc)
+    {
+        ledgerConsensus_ = lc;
+    }
+
 protected:
 
+    LedgerConsensus<RCLCxTraits>* ledgerConsensus_;
     Application& app_;
     ConsensusImp& consensus_;
+    FeeVote& feeVote_;
     beast::Journal j_;
     PublicKey valPublic_;
     SecretKey valSecret_;

@@ -96,7 +96,7 @@ public:
         @param localtx transactions issued by local clients
         @param inboundTransactions set of inbound transaction sets
         @param localtx A set of local transactions to apply
-        @param feeVote Our desired fee levels and voting logic.
+        @param feeVote Our designed feel levels and voting logic
     */
     LedgerConsensusImp (
         Application& app,
@@ -161,6 +161,36 @@ public:
     void simulate(
         Time_t const& now,
         boost::optional<std::chrono::milliseconds> consensusDelay) override;
+
+    bool isProposing() const
+    {
+        return proposing_;
+    }
+
+    bool isValidating() const
+    {
+        return validating_;
+    }
+
+    bool isCorrectLCL() const
+    {
+        return haveCorrectLCL_;
+    }
+
+    Time_t const& now() const
+    {
+        return now_;
+    }
+
+    Time_t const& closeTime() const
+    {
+        return closeTime_;
+    }
+
+    std::shared_ptr <Ledger const> const& prevLedger() const
+    {
+        return previousLedger_;
+    }
 
 private:
     /**
@@ -250,11 +280,6 @@ private:
       @param ledger  The ledger associated with the event.
     */
     void statusChange (protocol::NodeEvent event, ReadView const& ledger);
-
-    /** Determine our initial proposed transaction set based on
-        our open ledger
-    */
-    std::pair <TxSet_t, Pos_t> makeInitialPosition();
 
     /** Take an initial position on what we think the consensus set should be
     */

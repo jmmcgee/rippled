@@ -82,6 +82,14 @@ public:
     virtual void simulate (
         Time_t const& now,
         boost::optional<std::chrono::milliseconds> consensusDelay) = 0;
+
+    virtual bool isProposing() const = 0;
+    virtual bool isValidating() const = 0;
+    virtual bool isCorrectLCL() const = 0;
+    virtual Time_t const& now() const = 0;
+    virtual Time_t const& closeTime() const = 0;
+    virtual std::shared_ptr <Ledger const> const& prevLedger() const = 0;
+
 };
 
 } // ripple
