@@ -39,6 +39,8 @@ public:
         uint256 const& priorLedger,
         bool believedCorrect);
 
+    void shareSet (RCLTxSet const& set);
+
 protected:
 
     Application& app_;

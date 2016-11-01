@@ -162,11 +162,6 @@ public:
         Time_t const& now,
         boost::optional<std::chrono::milliseconds> consensusDelay) override;
 
-    /**
-      Put a transaction set where peers can find it
-    */
-    void shareSet (TxSet_t const&);
-
 private:
     /**
       Handle pre-close state.

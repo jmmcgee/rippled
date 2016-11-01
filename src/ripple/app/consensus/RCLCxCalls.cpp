@@ -62,4 +62,11 @@ uint256 RCLCxCalls::getLCL (
     return netLgr;
 }
 
+void RCLCxCalls::shareSet (RCLTxSet const& set)
+{
+    app_.getInboundTransactions().giveSet (set.getID(),
+        set.map(), false);
+}
+
+
 } // namespace ripple

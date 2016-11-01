@@ -209,13 +209,6 @@ LedgerConsensusImp<Traits>::getLCL () -> LgrID_t
     return prevLedgerHash_;
 }
 
-template <class Traits>
-void LedgerConsensusImp<Traits>::shareSet (TxSet_t const& set)
-{
-    // Temporary until Consensus refactor is complete
-    inboundTransactions_.giveSet (set.getID(),
-        set.map(), false);
-}
 
 // Called when:
 // 1) We take our initial position
@@ -248,7 +241,7 @@ LedgerConsensusImp<Traits>::mapCompleteInternal (
         // If we generated this locally,
         // put the map where others can get it
         // If we acquired it, it's already shared
-        shareSet (map);
+        callbacks_.shareSet (map);
     }
 
     if (! ourPosition_)
