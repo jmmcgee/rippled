@@ -1140,41 +1140,9 @@ void LedgerConsensusImp<Traits>::leaveConsensus ()
     if (ourPosition_ && ! ourPosition_->isBowOut ())
     {
         ourPosition_->bowOut(now_);
-        propose();
+        callbacks_.propose(*ourPosition_);
     }
     proposing_ = false;
-}
-
-template <class Traits>
-void LedgerConsensusImp<Traits>::propose ()
-{
-    JLOG (j_.trace()) << "We propose: " <<
-        (ourPosition_->isBowOut ()
-            ? std::string ("bowOut")
-            : to_string (ourPosition_->getCurrentHash ()));
-    protocol::TMProposeSet prop;
-
-    prop.set_currenttxhash (ourPosition_->getCurrentHash ().begin ()
-        , 256 / 8);
-    prop.set_previousledger (ourPosition_->getPrevLedger ().begin ()
-        , 256 / 8);
-    prop.set_proposeseq (ourPosition_->getProposeSeq ());
-    prop.set_closetime(ourPosition_->getCloseTime().time_since_epoch().count());
-
-    prop.set_nodepubkey (valPublic_.data(), valPublic_.size());
-
-    auto signingHash = sha512Half(
-        HashPrefix::proposal,
-        std::uint32_t(ourPosition_->getSequence()),
-        ourPosition_->getCloseTime().time_since_epoch().count(),
-        ourPosition_->getPrevLedger(), ourPosition_->getCurrentHash());
-
-    auto sig = signDigest (
-        valPublic_, valSecret_, signingHash);
-
-    prop.set_signature (sig.data(), sig.size());
-
-    app_.overlay().send(prop);
 }
 
 template <class Traits>
@@ -1315,7 +1283,7 @@ void LedgerConsensusImp<Traits>::takeInitialPosition()
     mapCompleteInternal (initialSet, false);
 
     if (proposing_)
-        propose ();
+        callbacks_.propose (*ourPosition_);
 }
 
 /** How many of the participants must agree to reach a given threshold?
@@ -1516,7 +1484,7 @@ void LedgerConsensusImp<Traits>::updateOurPositions ()
             newHash, closeTime, now_))
         {
             if (proposing_)
-                propose ();
+                callbacks_.propose (*ourPosition_);
 
             mapCompleteInternal (*ourSet, false);
         }

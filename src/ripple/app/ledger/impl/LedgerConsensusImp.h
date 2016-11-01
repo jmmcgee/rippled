@@ -243,10 +243,6 @@ private:
     */
     void leaveConsensus ();
 
-    /** Make and send a proposal
-    */
-    void propose ();
-
     /** Send a node status change message to our directly connected peers
 
       @param event   The event which caused the status change.  This is

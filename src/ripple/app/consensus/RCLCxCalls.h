@@ -31,7 +31,11 @@ class RCLCxCalls
 {
 public:
 
-    RCLCxCalls (Application& app) : app_ (app)
+    RCLCxCalls (Application& app, beast::Journal& j)
+        : app_ (app)
+        , j_ (j)
+        , valPublic_ (app_.config().VALIDATION_PUB)
+        , valSecret_ (app_.config().VALIDATION_PRIV)
     { }
 
     uint256 getLCL (
@@ -41,10 +45,14 @@ public:
 
     void shareSet (RCLTxSet const& set);
 
+    void propose (RCLCxPos const& position);
+
 protected:
 
     Application& app_;
-
+    beast::Journal j_;
+    PublicKey valPublic_;
+    SecretKey valSecret_;
 };
 
 } // namespace ripple

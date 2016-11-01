@@ -68,5 +68,37 @@ void RCLCxCalls::shareSet (RCLTxSet const& set)
         set.map(), false);
 }
 
+void RCLCxCalls::propose (RCLCxPos const& position)
+{
+    JLOG (j_.trace()) << "We propose: " <<
+        (position.isBowOut () ?  std::string ("bowOut") :
+            to_string (position.getCurrentHash ()));
+
+    protocol::TMProposeSet prop;
+
+    prop.set_currenttxhash (position.getCurrentHash().begin(),
+        256 / 8);
+    prop.set_previousledger (position.getPrevLedger().begin(),
+        256 / 8);
+    prop.set_proposeseq (position.getProposeSeq ());
+    prop.set_closetime (
+        position.getCloseTime().time_since_epoch().count());
+
+    prop.set_nodepubkey (valPublic_.data(), valPublic_.size());
+
+    auto signingHash = sha512Half(
+        HashPrefix::proposal,
+        std::uint32_t(position.getSequence()),
+        position.getCloseTime().time_since_epoch().count(),
+        position.getPrevLedger(), position.getCurrentHash());
+
+    auto sig = signDigest (
+        valPublic_, valSecret_, signingHash);
+
+    prop.set_signature (sig.data(), sig.size());
+
+    app_.overlay().send(prop);
+}
+
 
 } // namespace ripple
