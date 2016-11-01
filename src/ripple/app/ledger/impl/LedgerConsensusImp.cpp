@@ -1491,46 +1491,14 @@ void LedgerConsensusImp<Traits>::updateOurPositions ()
     }
 }
 
-static void
-relay (Application& app, RCLCxPos const& pos)
-{
-    auto& proposal = pos.peek();
-
-    protocol::TMProposeSet prop;
-
-    prop.set_proposeseq (
-        proposal.getProposeSeq ());
-    prop.set_closetime (
-        proposal.getCloseTime ().time_since_epoch().count());
-
-    prop.set_currenttxhash (
-        proposal.getCurrentHash().begin(), 256 / 8);
-    prop.set_previousledger (
-        proposal.getPrevLedger().begin(), 256 / 8);
-
-    auto const pk = proposal.getPublicKey().slice();
-    prop.set_nodepubkey (pk.data(), pk.size());
-
-    auto const sig = proposal.getSignature();
-    prop.set_signature (sig.data(), sig.size());
-
-    app.overlay().relay (prop, proposal.getSuppressionID ());
-}
-
 template <class Traits>
 void LedgerConsensusImp<Traits>::playbackProposals ()
 {
-    auto proposals = consensus_.getStoredProposals (prevLedgerHash_);
-
-    for (auto& proposal : proposals)
-    {
-        if (peerPosition (now_, proposal))
+    callbacks_.getProposals (prevLedgerHash_,
+        [=](Pos_t const& pos)
         {
-            // Now that we know this proposal
-            // is useful, relay it
-            relay (app_, proposal);
-        }
-    }
+            return peerPosition (now_, pos);
+        });
 }
 
 template <class Traits>

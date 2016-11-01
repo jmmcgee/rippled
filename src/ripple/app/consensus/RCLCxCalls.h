@@ -27,16 +27,13 @@
 
 namespace ripple {
 
+class ConsensusImp;
+
 class RCLCxCalls
 {
 public:
 
-    RCLCxCalls (Application& app, beast::Journal& j)
-        : app_ (app)
-        , j_ (j)
-        , valPublic_ (app_.config().VALIDATION_PUB)
-        , valSecret_ (app_.config().VALIDATION_PRIV)
-    { }
+    RCLCxCalls (Application& app, ConsensusImp& consensus, beast::Journal& j);
 
     uint256 getLCL (
         uint256 const& currentLedger,
@@ -49,9 +46,13 @@ public:
 
     void propose (RCLCxPos const& position);
 
+    void getProposals (LedgerHash const& prevLedger,
+        std::function <bool (RCLCxPos const&)>);
+
 protected:
 
     Application& app_;
+    ConsensusImp& consensus_;
     beast::Journal j_;
     PublicKey valPublic_;
     SecretKey valSecret_;

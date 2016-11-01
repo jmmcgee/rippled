@@ -18,8 +18,18 @@
 //==============================================================================
 
 #include <ripple/app/consensus/RCLCxCalls.h>
+#include <ripple/app/ledger/impl/ConsensusImp.h>
 
 namespace ripple {
+
+RCLCxCalls::RCLCxCalls (Application& app, ConsensusImp& consensus, beast::Journal& j)
+        : app_ (app)
+        , consensus_ (consensus)
+        , j_ (j)
+        , valPublic_ (app_.config().VALIDATION_PUB)
+        , valSecret_ (app_.config().VALIDATION_PRIV)
+{ }
+
 
 uint256 RCLCxCalls::getLCL (
     uint256 const& currentLedger,
@@ -99,6 +109,40 @@ void RCLCxCalls::propose (RCLCxPos const& position)
 
     app_.overlay().send(prop);
 }
+
+void RCLCxCalls::getProposals (LedgerHash const& prevLedger,
+    std::function <bool (RCLCxPos const&)> func)
+{
+    auto proposals = consensus_.getStoredProposals (prevLedger);
+    for (auto& prop : proposals)
+    {
+        if (func (prop))
+        {
+            auto& proposal = prop.peek();
+
+            protocol::TMProposeSet prop;
+
+            prop.set_proposeseq (
+                proposal.getProposeSeq ());
+            prop.set_closetime (
+                proposal.getCloseTime ().time_since_epoch().count());
+
+            prop.set_currenttxhash (
+                proposal.getCurrentHash().begin(), 256 / 8);
+            prop.set_previousledger (
+                proposal.getPrevLedger().begin(), 256 / 8);
+
+            auto const pk = proposal.getPublicKey().slice();
+            prop.set_nodepubkey (pk.data(), pk.size());
+
+            auto const sig = proposal.getSignature();
+            prop.set_signature (sig.data(), sig.size());
+
+            app_.overlay().relay (prop, proposal.getSuppressionID ());
+        }
+    }
+}
+
 
 // First bool is whether or not we can propose
 // Second bool is whether or not we can validate
