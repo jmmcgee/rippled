@@ -100,5 +100,29 @@ void RCLCxCalls::propose (RCLCxPos const& position)
     app_.overlay().send(prop);
 }
 
+// First bool is whether or not we can propose
+// Second bool is whether or not we can validate
+std::pair <bool, bool> RCLCxCalls::getMode (bool correctLCL)
+{
+    bool propose = false;
+    bool validate = false;
+
+
+    if (! app_.getOPs().isNeedNetworkLedger() && (valPublic_.size() != 0))
+    {
+        // We have a key, and we have some idea what the ledger is
+        validate = true;
+
+        // propose only if we're in sync with the network
+        propose = app_.getOPs().getOperatingMode() == NetworkOPs::omFULL;
+    }
+    if (! correctLCL)
+        consensus_.setProposing (false, false);
+    else
+        consensus_.setProposing (propose, validate);
+
+    return { propose, validate };
+}
+
 
 } // namespace ripple

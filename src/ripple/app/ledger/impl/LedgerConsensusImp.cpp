@@ -1656,32 +1656,31 @@ void LedgerConsensusImp<Traits>::startRound (
         getCloseAgree (previousLedger_->info()),
         previousLedger_->info().seq + 1);
 
-    if (valPublic_.size () && ! app_.getOPs ().isNeedNetworkLedger ())
+
+    haveCorrectLCL_ = (previousLedger_->info().hash == prevLedgerHash_);
+
+    // We should not be proposing but not validating
+    // Okay to validate but not propose
+    std::tie(proposing_, validating_) = callbacks_.getMode(haveCorrectLCL_);
+    assert (! proposing_ || validating_);
+
+    if (validating_)
     {
-        // If the validation keys were set, and if we need a ledger,
-        // then we want to validate, and possibly propose a ledger.
         JLOG (j_.info())
             << "Entering consensus process, validating";
-        validating_ = true;
-        // Propose if we are in sync with the network
-        proposing_ =
-            app_.getOPs ().getOperatingMode () == NetworkOPs::omFULL;
     }
     else
     {
         // Otherwise we just want to monitor the validation process.
         JLOG (j_.info())
             << "Entering consensus process, watching";
-        proposing_ = validating_ = false;
     }
 
-    haveCorrectLCL_ = (previousLedger_->info().hash == prevLedgerHash_);
 
     if (! haveCorrectLCL_)
     {
         // If we were not handed the correct LCL, then set our state
         // to not proposing.
-        consensus_.setProposing (false, false);
         handleLCL (prevLedgerHash_);
 
         if (! haveCorrectLCL_)
@@ -1692,12 +1691,6 @@ void LedgerConsensusImp<Traits>::startRound (
             JLOG (j_.info())
                 << "Correct LCL is: " << prevLCLHash;
         }
-    }
-    else
-    {
-        // update the network status table as to whether we're
-        // proposing/validating
-        consensus_.setProposing (proposing_, validating_);
     }
 
     playbackProposals ();

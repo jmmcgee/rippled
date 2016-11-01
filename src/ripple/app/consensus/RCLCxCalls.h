@@ -43,6 +43,8 @@ public:
         uint256 const& priorLedger,
         bool believedCorrect);
 
+    std::pair <bool, bool> getMode (bool correctLCL);
+
     void shareSet (RCLTxSet const& set);
 
     void propose (RCLCxPos const& position);
