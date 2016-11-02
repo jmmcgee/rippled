@@ -441,7 +441,6 @@ void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
         buildLCL,
         previousProposers_,
         previousRoundTime_);
-    proposing_ = false;
 }
 
 template <class Traits>
