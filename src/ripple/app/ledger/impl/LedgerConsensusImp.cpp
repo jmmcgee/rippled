@@ -573,7 +573,7 @@ bool LedgerConsensusImp<Traits>::haveConsensus ()
 {
     // CHECKME: should possibly count unacquired TX sets as disagreeing
     int agree = 0, disagree = 0;
-    uint256 ourPosition = ourPosition_->getCurrentHash ();
+    auto  ourPosition = ourPosition_->getCurrentHash ();
 
     // Count number of agreements/disagreements with our position
     for (auto& it : peerPositions_)
@@ -592,7 +592,7 @@ bool LedgerConsensusImp<Traits>::haveConsensus ()
             ++disagree;
             if (compares_.count(it.second.getCurrentHash()) == 0)
             { // Make sure we have generated disputes
-                uint256 hash = it.second.getCurrentHash();
+                auto hash = it.second.getCurrentHash();
                 JLOG (j_.debug())
                     << "We have not compared to " << hash;
                 auto it1 = acquired_.find (hash);
@@ -872,7 +872,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         sharedLCL = std::move(buildLCL);
     }
 
-    uint256 const newLCLHash = sharedLCL->info().hash;
+    auto const newLCLHash = sharedLCL->info().hash;
     JLOG (j_.debug())
         << "Report: NewL  = " << newLCLHash
         << ":" << sharedLCL->info().seq;
