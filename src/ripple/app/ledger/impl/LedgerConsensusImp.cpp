@@ -973,9 +973,6 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
             ledgerMaster_.peekMutex (), std::defer_lock);
         std::lock(lock, sl);
 
-        auto const localTx = localTX_.getTxSet();
-        auto const oldOL = ledgerMaster_.getCurrentLedger();
-
         auto const lastVal = ledgerMaster_.getValidatedLedger();
         boost::optional<Rules> rules;
         if (lastVal)
@@ -983,7 +980,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         else
             rules.emplace();
         app_.openLedger().accept(app_, *rules,
-            sharedLCL, localTx, anyDisputes, retriableTxs, tapNONE,
+            sharedLCL, localTX_.getTxSet(), anyDisputes, retriableTxs, tapNONE,
                 "consensus",
                     [&](OpenView& view, beast::Journal j)
                     {
@@ -997,8 +994,9 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
     assert (ledgerMaster_.getClosedLedger()->info().hash == sharedLCL->info().hash);
     assert (app_.openLedger().current()->info().parentHash == sharedLCL->info().hash);
 
-    if (validating_)
+    if (haveCorrectLCL_ && ! consensusFail_)
     {
+        // we entered the round with the network,
         // see how close our close time is to other node's
         //  close time reports, and update our clock.
         JLOG (j_.info())
