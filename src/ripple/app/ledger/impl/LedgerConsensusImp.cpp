@@ -1163,7 +1163,8 @@ void LedgerConsensusImp<Traits>::statusChange (
 template <class Traits>
 void LedgerConsensusImp<Traits>::takeInitialPosition()
 {
-    auto pair = callbacks_.makeInitialPosition();
+    auto pair = callbacks_.makeInitialPosition(previousLedger_, proposing_,
+       haveCorrectLCL_,  closeTime_, now_ );
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
     assert (initialSet.getID() == initialPos.getCurrentHash());
@@ -1594,7 +1595,7 @@ void LedgerConsensusImp<Traits>::addLoad(STValidation::ref val)
 }
 
 //------------------------------------------------------------------------------
-std::shared_ptr <LedgerConsensus<RCLCxTraits>>
+std::shared_ptr <LedgerConsensusImp<RCLCxTraits>>
 make_LedgerConsensus (
     Application& app,
     ConsensusImp& consensus,

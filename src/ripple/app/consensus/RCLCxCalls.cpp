@@ -16,15 +16,25 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
-
+#include <BeastConfig.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
+#include <ripple/app/ledger/InboundTransactions.h>
+#include <ripple/app/misc/AmendmentTable.h>
+#include <ripple/app/ledger/OpenLedger.h>
+#include <ripple/app/ledger/InboundLedgers.h>
+#include <ripple/app/consensus/RCLCxLedger.h>
+#include <ripple/app/consensus/RCLCxPos.h>
+#include <ripple/app/consensus/RCLCxTx.h>
+#include <ripple/protocol/digest.h>
+#include <ripple/overlay/Overlay.h>
+
 #include <ripple/app/ledger/impl/ConsensusImp.h>
 
 namespace ripple {
 
 RCLCxCalls::RCLCxCalls (
     Application& app,
-    ConsensusImp& consensus,
+    ConsensusImp & consensus,
     FeeVote& feeVote,
     LedgerMaster& ledgerMaster,
     beast::Journal& j)
@@ -176,16 +186,14 @@ std::pair <bool, bool> RCLCxCalls::getMode (bool correctLCL)
 }
 
 std::pair <RCLTxSet, RCLCxPos>
-    RCLCxCalls::makeInitialPosition ()
+RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
+        bool proposing,
+        bool correctLCL,
+        NetClock::time_point closeTime,
+        NetClock::time_point now)
 {
-    auto prevLedger = ledgerConsensus_->prevLedger().hackAccess();
-    auto proposing = ledgerConsensus_->isProposing();
-    auto correctLCL = ledgerConsensus_->isCorrectLCL();
-    auto closeTime = ledgerConsensus_->closeTime();
-    auto now = ledgerConsensus_->now();
-
     auto& ledgerMaster = app_.getLedgerMaster();
-
+    auto const &prevLedger = prevLedgerT.hackAccess();
     // Tell the ledger master not to acquire the ledger we're probably building
     ledgerMaster.setBuildingLedger (prevLedger->info().seq + 1);
 

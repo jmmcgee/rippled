@@ -29,9 +29,9 @@
 namespace ripple {
 
 class ConsensusImp;
-class RCLCxTraits;
-template<class Traits> class LedgerConsensus;
-class LedgerMaster;
+class RCLTxSet;
+class RCLCxPos;
+class RCLCxLedger;
 
 class RCLCxCalls
 {
@@ -58,28 +58,27 @@ public:
     void getProposals (LedgerHash const& prevLedger,
         std::function <bool (RCLCxPos const&)>);
 
-    std::pair <RCLTxSet, RCLCxPos> makeInitialPosition ();
-
-    void setLedgerConsensus (LedgerConsensus<RCLCxTraits>* lc)
-    {
-        ledgerConsensus_ = lc;
-    }
+    std::pair <RCLTxSet, RCLCxPos>
+    makeInitialPosition (
+        RCLCxLedger const & prevLedger,
+        bool isProposing,
+        bool isCorrectLCL,
+        NetClock::time_point closeTime,
+        NetClock::time_point now);
 
     RCLCxLedger acquireLedger(LedgerHash const & ledgerHash);
 
-protected:
+private:
 
-    LedgerConsensus<RCLCxTraits>* ledgerConsensus_;
     Application& app_;
-    ConsensusImp& consensus_;
     LedgerMaster & ledgerMaster_;
     FeeVote& feeVote_;
     beast::Journal j_;
     PublicKey valPublic_;
     SecretKey valSecret_;
-
-private:
     LedgerHash acquiringLedger_;
+
+    ConsensusImp& consensus_;
 };
 
 } // namespace ripple

@@ -20,7 +20,6 @@
 #ifndef RIPPLE_APP_LEDGER_CONSENSUS_H_INCLUDED
 #define RIPPLE_APP_LEDGER_CONSENSUS_H_INCLUDED
 
-#include <ripple/app/ledger/LedgerConsensus.h>
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/InboundTransactions.h>
 #include <ripple/app/consensus/RCLCxTraits.h>
@@ -33,6 +32,8 @@
 namespace ripple {
 
 class LocalTxs;
+
+template <class T> class LedgerConsensusImp;
 
 /** Implements the consensus process and provides inter-round state. */
 class Consensus
@@ -65,7 +66,7 @@ public:
 
     /** Called to create a LedgerConsensus instance */
     virtual
-    std::shared_ptr<LedgerConsensus<RCLCxTraits>>
+    std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
     makeLedgerConsensus (
         Application& app,
         InboundTransactions& inboundTransactions,
@@ -77,7 +78,7 @@ public:
     void
     startRound (
         NetClock::time_point now,
-        LedgerConsensus<RCLCxTraits>& consensus,
+        LedgerConsensusImp<RCLCxTraits>& consensus,
         LedgerHash const &prevLCLHash,
         std::shared_ptr<Ledger const> const& prevLedger) = 0;
 

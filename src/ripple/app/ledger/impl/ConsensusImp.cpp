@@ -63,7 +63,7 @@ ConsensusImp::getLastCloseDuration () const
     return lastCloseConvergeTook_;
 }
 
-std::shared_ptr<LedgerConsensus<RCLCxTraits>>
+std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
 ConsensusImp::makeLedgerConsensus (
     Application& app,
     InboundTransactions& inboundTransactions,
@@ -77,7 +77,6 @@ ConsensusImp::makeLedgerConsensus (
     auto ret = make_LedgerConsensus (app, *this,
         inboundTransactions, localTxs, ledgerMaster,
         *feeVote_, *callbacks_);
-    callbacks_->setLedgerConsensus (ret.get());
 
     return ret;
 }
@@ -85,7 +84,7 @@ ConsensusImp::makeLedgerConsensus (
 void
 ConsensusImp::startRound (
     NetClock::time_point now,
-    LedgerConsensus<RCLCxTraits>& consensus,
+    LedgerConsensusImp<RCLCxTraits>& consensus,
     LedgerHash const &prevLCLHash,
     std::shared_ptr<Ledger const> const& prevLedger)
 {

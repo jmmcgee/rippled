@@ -44,7 +44,7 @@ namespace ripple {
 */
 template <class Traits>
 class LedgerConsensusImp
-    : public LedgerConsensus<Traits>
+    : public Traits
     , public std::enable_shared_from_this <LedgerConsensusImp<Traits>>
     , public CountedObject <LedgerConsensusImp<Traits>>
 {
@@ -120,7 +120,7 @@ public:
         LgrID_t const& prevLCLHash,
         Ledger_t const& prevLedger,
         int previousProposers,
-        std::chrono::milliseconds previousConvergeTime) override;
+        std::chrono::milliseconds previousConvergeTime);
 
     /**
       Get the Json state of the consensus process.
@@ -129,10 +129,10 @@ public:
       @param full True if verbose response desired.
       @return     The Json state.
     */
-    Json::Value getJson (bool full) override;
+    Json::Value getJson (bool full);
 
     /* The hash of the last closed ledger */
-    LgrID_t getLCL () override;
+    LgrID_t getLCL ();
 
     /**
       We have a complete transaction set, typically acquired from the network
@@ -141,12 +141,12 @@ public:
     */
     void gotMap (
         Time_t const& now,
-        TxSet_t const& map) override;
+        TxSet_t const& map);
 
     /**
       On timer call the correct handler for each state.
     */
-    void timerEntry (Time_t const& now) override;
+    void timerEntry (Time_t const& now);
 
     /**
       A server has taken a new position, adjust our tracking
@@ -157,11 +157,11 @@ public:
     */
     bool peerPosition (
         Time_t const& now,
-        Pos_t const& newPosition) override;
+        Pos_t const& newPosition);
 
     void simulate(
         Time_t const& now,
-        boost::optional<std::chrono::milliseconds> consensusDelay) override;
+        boost::optional<std::chrono::milliseconds> consensusDelay);
 
     bool isProposing() const
     {
@@ -383,7 +383,7 @@ private:
 
 //------------------------------------------------------------------------------
 
-std::shared_ptr <LedgerConsensus <RCLCxTraits>>
+std::shared_ptr <LedgerConsensusImp <RCLCxTraits>>
 make_LedgerConsensus (
     Application& app,
     ConsensusImp& consensus,

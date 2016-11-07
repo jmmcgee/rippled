@@ -22,7 +22,6 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/ledger/Consensus.h>
-#include <ripple/app/ledger/LedgerConsensus.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/basics/Log.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
@@ -53,7 +52,7 @@ public:
     std::chrono::milliseconds
     getLastCloseDuration () const override;
 
-    std::shared_ptr<LedgerConsensus<RCLCxTraits>>
+    std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
     makeLedgerConsensus (
         Application& app,
         InboundTransactions& inboundTransactions,
@@ -63,7 +62,7 @@ public:
     void
     startRound (
         NetClock::time_point now,
-        LedgerConsensus<RCLCxTraits>& ledgerConsensus,
+        LedgerConsensusImp<RCLCxTraits>& ledgerConsensus,
         LedgerHash const& prevLCLHash,
         std::shared_ptr<Ledger const> const& previousLedger) override;
 

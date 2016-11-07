@@ -1311,6 +1311,15 @@
     <ClInclude Include="..\..\src\protobuf\vsprojects\config.h">
       <Filter>protobuf\vsprojects</Filter>
     </ClInclude>
+    <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxCalls.cpp">
+      <Filter>ripple\app\consensus</Filter>
+    </ClCompile>
+    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxCalls.h">
+      <Filter>ripple\app\consensus</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxLedger.h">
+      <Filter>ripple\app\consensus</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxPos.h">
       <Filter>ripple\app\consensus</Filter>
     </ClInclude>
@@ -1423,9 +1432,6 @@
       <Filter>ripple\app\ledger</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\ledger\LedgerCleaner.h">
-      <Filter>ripple\app\ledger</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ripple\app\ledger\LedgerConsensus.h">
       <Filter>ripple\app\ledger</Filter>
     </ClInclude>
     <ClCompile Include="..\..\src\ripple\app\ledger\LedgerHistory.cpp">
@@ -5714,11 +5720,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\websocketpp_02\src\websocket_frame.hpp">
       <Filter>websocketpp_02\src</Filter>
-    </ClInclude>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxLedger.h">
-      <Filter>ripple\app\consensus</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
