@@ -83,6 +83,11 @@ public:
         return previousLedger_.operator bool();
     }
 
+    auto const & hackAccess() const
+    {
+        return previousLedger_;
+    }
+
 protected:
 
     std::shared_ptr<Ledger const> previousLedger_;

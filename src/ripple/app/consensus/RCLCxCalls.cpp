@@ -25,8 +25,8 @@ namespace ripple {
 RCLCxCalls::RCLCxCalls (
     Application& app,
     ConsensusImp& consensus,
-    LedgerMaster& ledgerMaster,
     FeeVote& feeVote,
+    LedgerMaster& ledgerMaster,
     beast::Journal& j)
         : app_ (app)
         , consensus_ (consensus)
@@ -178,7 +178,7 @@ std::pair <bool, bool> RCLCxCalls::getMode (bool correctLCL)
 std::pair <RCLTxSet, RCLCxPos>
     RCLCxCalls::makeInitialPosition ()
 {
-    auto prevLedger = ledgerConsensus_->prevLedger();
+    auto prevLedger = ledgerConsensus_->prevLedger().hackAccess();
     auto proposing = ledgerConsensus_->isProposing();
     auto correctLCL = ledgerConsensus_->isCorrectLCL();
     auto closeTime = ledgerConsensus_->closeTime();
@@ -272,11 +272,11 @@ RCLCxLedger RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
                         hash, 0, InboundLedger::fcCONSENSUS);
                 });
         }
-        return;
+        return RCLCxLedger{};
     }
 
     assert (!buildLCL->open() && buildLCL->isImmutable ());
-    assert (buildLCL->info().hash == lclHash);
+    assert (buildLCL->info().hash == ledgerHash);
 
     return RCLCxLedger(buildLCL);
 }

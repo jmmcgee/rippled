@@ -774,7 +774,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
     {
         // Build the new last closed ledger
         auto buildLCL = std::make_shared<Ledger>(
-            *previousLedger_, now_);
+            *previousLedger_.hackAccess(), now_);
         auto const v2_enabled = buildLCL->rules().enabled(featureSHAMapV2,
                                                        app_.config().features);
         auto v2_transition = false;
@@ -1420,7 +1420,7 @@ void LedgerConsensusImp<Traits>::closeLedger ()
     consensusStartTime_ = std::chrono::steady_clock::now ();
     closeTime_ = now_;
     consensus_.setLastCloseTime(closeTime_);
-    statusChange (protocol::neCLOSING_LEDGER, *previousLedger_);
+    statusChange (protocol::neCLOSING_LEDGER, *previousLedger_.hackAccess());
     takeInitialPosition ();
 }
 
