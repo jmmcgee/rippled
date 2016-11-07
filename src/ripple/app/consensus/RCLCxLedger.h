@@ -21,6 +21,8 @@
 #define RIPPLE_APP_CONSENSUS_RCLCXLEDGER_H_INCLUDED
 
 #include <ripple/app/ledger/Ledger.h>
+#include <ripple/ledger/ReadView.h>
+
 #include <memory>
 
 namespace ripple {
@@ -32,9 +34,24 @@ public:
 
     RCLCxLedger() = default;
 
-    LedgerIndex seq() const
+    auto seq() const
     {
         return previousLedger_->info().seq;
+    }
+
+    auto closeTimeResolution() const
+    {
+        return previousLedger_->info().closeTimeResolution;
+    }
+
+    bool getCloseAgree() const
+    {
+        return ripple::getCloseAgree(previousLedger_->info());
+    }
+
+    auto hash() const
+    {
+        return previousLedger_->info().hash;
     }
 
 protected:

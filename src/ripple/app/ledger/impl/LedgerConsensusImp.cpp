@@ -377,7 +377,7 @@ template <class Traits>
 void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
 {
     assert (lclHash != prevLedgerHash_ ||
-            previousLedger_->info().hash != lclHash);
+            previousLedger_.hash() != lclHash);
 
     if (prevLedgerHash_ != lclHash)
     {
@@ -401,7 +401,7 @@ void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
         playbackProposals ();
     }
 
-    if (previousLedger_->info().hash == prevLedgerHash_)
+    if (previousLedger_.hash() == prevLedgerHash_)
         return;
 
     // we need to switch the ledger we're working from
@@ -530,7 +530,7 @@ void LedgerConsensusImp<Traits>::statePreClose ()
     }
 
     auto const idleInterval = std::max<seconds>(LEDGER_IDLE_INTERVAL,
-        2 * previousLedger_->info().closeTimeResolution);
+        2 * previousLedger_.closeTimeResolution());
 
     // Decide if we should close the ledger
     if (shouldCloseLedger (anyTransactions
@@ -1469,7 +1469,7 @@ void LedgerConsensusImp<Traits>::checkOurValidation ()
             return;
     }
 
-    auto v = std::make_shared<STValidation> (previousLedger_->info().hash,
+    auto v = std::make_shared<STValidation> (previousLedger_.hash(),
         consensus_.validationTimestamp(app_.timeKeeper().now()),
         valPublic_, false);
     addLoad(v);
@@ -1551,12 +1551,12 @@ void LedgerConsensusImp<Traits>::startRound (
     deadNodes_.clear();
 
     closeResolution_ = getNextLedgerTimeResolution (
-        previousLedger_->info().closeTimeResolution,
-        getCloseAgree (previousLedger_->info()),
+        previousLedger_.closeTimeResolution(),
+        previousLedger_.getCloseAgree(),
         previousLedger_.seq() + 1);
 
 
-    haveCorrectLCL_ = (previousLedger_->info().hash == prevLedgerHash_);
+    haveCorrectLCL_ = (previousLedger_.hash() == prevLedgerHash_);
 
     // We should not be proposing but not validating
     // Okay to validate but not propose
@@ -1586,7 +1586,7 @@ void LedgerConsensusImp<Traits>::startRound (
         {
             JLOG (j_.info())
                 << "Entering consensus with: "
-                << previousLedger_->info().hash;
+                << previousLedger_.hash();
             JLOG (j_.info())
                 << "Correct LCL is: " << prevLCLHash;
         }
