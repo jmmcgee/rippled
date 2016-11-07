@@ -22,6 +22,7 @@
 
 #include <ripple/app/ledger/Ledger.h>
 #include <ripple/ledger/ReadView.h>
+#include <ripple/app/ledger/LedgerToJson.h>
 
 #include <memory>
 
@@ -69,6 +70,10 @@ public:
         return previousLedger_->info().parentCloseTime;
     }
 
+    Json::Value getJson() const
+    {
+        return ripple::getJson(*previousLedger_);
+    }
 
 protected:
 

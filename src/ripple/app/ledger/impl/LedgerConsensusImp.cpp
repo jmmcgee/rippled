@@ -22,7 +22,6 @@
 #include <ripple/app/ledger/InboundLedgers.h>
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/LedgerTiming.h>
-#include <ripple/app/ledger/LedgerToJson.h>
 #include <ripple/app/ledger/LocalTxs.h>
 #include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/ledger/impl/LedgerConsensusImp.h>
@@ -354,7 +353,7 @@ void LedgerConsensusImp<Traits>::checkLCL ()
         JLOG (j_.warn()) << prevLedgerHash_
             << " to " << netLgr;
         JLOG (j_.warn())
-            << ripple::getJson (*previousLedger_);
+            << previousLedger_.getJson();
         JLOG (j_.warn())
             << getJson (true);
 
