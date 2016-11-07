@@ -54,6 +54,10 @@ public:
         return previousLedger_->info().hash;
     }
 
+    auto parentHash() const
+    {
+        return previousLedger_->info().parentHash;
+    }
 
     auto closeTime() const
     {

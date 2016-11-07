@@ -317,7 +317,7 @@ void LedgerConsensusImp<Traits>::checkLCL ()
 {
     LgrID_t netLgr = callbacks_.getLCL (
         prevLedgerHash_,
-        haveCorrectLCL_ ? previousLedger_->info().parentHash : uint256(),
+        haveCorrectLCL_ ? previousLedger_.parentHash() : uint256(),
         haveCorrectLCL_);
 
     if (netLgr != prevLedgerHash_)
