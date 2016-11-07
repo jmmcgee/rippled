@@ -515,12 +515,12 @@ void LedgerConsensusImp<Traits>::statePreClose ()
     milliseconds sinceClose;
     {
         bool previousCloseCorrect = haveCorrectLCL_
-            && getCloseAgree (previousLedger_->info())
-            && (previousLedger_->info().closeTime !=
-                (previousLedger_->info().parentCloseTime + 1s));
+            && previousLedger_.getCloseAgree ()
+            && (previousLedger_.closeTime() !=
+                (previousLedger_.parentCloseTime() + 1s));
 
         auto closeTime = previousCloseCorrect
-            ? previousLedger_->info().closeTime // use consensus timing
+            ? previousLedger_.closeTime() // use consensus timing
             : consensus_.getLastCloseTime(); // use the time we saw
 
         if (now_ >= closeTime)
@@ -765,7 +765,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
     else if (closeTime == NetClock::time_point{})
     {
         // We agreed to disagree on the close time
-        closeTime = previousLedger_->info().closeTime + 1s;
+        closeTime = previousLedger_.closeTime() + 1s;
         closeTimeCorrect = false;
     }
     else
@@ -1248,7 +1248,7 @@ LedgerConsensusImp<Traits>::effectiveCloseTime(NetClock::time_point closeTime)
 
     return std::max<NetClock::time_point>(
         roundCloseTime (closeTime, closeResolution_),
-        (previousLedger_->info().closeTime + 1s));
+        (previousLedger_.closeTime() + 1s));
 }
 
 template <class Traits>

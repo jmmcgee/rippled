@@ -54,6 +54,18 @@ public:
         return previousLedger_->info().hash;
     }
 
+
+    auto closeTime() const
+    {
+        return previousLedger_->info().closeTime;
+    }
+
+    auto parentCloseTime() const
+    {
+        return previousLedger_->info().parentCloseTime;
+    }
+
+
 protected:
 
     std::shared_ptr<Ledger const> previousLedger_;
