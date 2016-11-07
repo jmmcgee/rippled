@@ -404,36 +404,16 @@ void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
         return;
 
     // we need to switch the ledger we're working from
-    auto buildLCL = ledgerMaster_.getLedgerByHash (prevLedgerHash_);
+    auto buildLCL =  callbacks_.acquireLedger(prevLedgerHash_);
     if (! buildLCL)
     {
-        if (acquiringLedger_ != lclHash)
-        {
-            // need to start acquiring the correct consensus LCL
-            JLOG (j_.warn()) <<
-                "Need consensus ledger " << prevLedgerHash_;
-
-            // Tell the ledger acquire system that we need the consensus ledger
-            acquiringLedger_ = prevLedgerHash_;
-
-            auto app = &app_;
-            auto hash = acquiringLedger_;
-            app_.getJobQueue().addJob (
-                jtADVANCE, "getConsensusLedger",
-                [app, hash] (Job&) {
-                    app->getInboundLedgers().acquire(
-                        hash, 0, InboundLedger::fcCONSENSUS);
-                });
-
-            haveCorrectLCL_ = false;
-        }
+        haveCorrectLCL_ = false;
         return;
     }
 
-    assert (!buildLCL->open() && buildLCL->isImmutable ());
-    assert (buildLCL->info().hash == lclHash);
     JLOG (j_.info()) <<
         "Have the consensus ledger " << prevLedgerHash_;
+
     startRound (
         now_,
         lclHash,

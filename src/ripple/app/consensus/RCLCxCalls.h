@@ -31,6 +31,7 @@ namespace ripple {
 class ConsensusImp;
 class RCLCxTraits;
 template<class Traits> class LedgerConsensus;
+class LedgerMaster;
 
 class RCLCxCalls
 {
@@ -40,6 +41,7 @@ public:
         Application&,
         ConsensusImp&,
         FeeVote&,
+        LedgerMaster&,
         beast::Journal&);
 
     uint256 getLCL (
@@ -63,15 +65,21 @@ public:
         ledgerConsensus_ = lc;
     }
 
+    RCLCxLedger acquireLedger(LedgerHash const & ledgerHash);
+
 protected:
 
     LedgerConsensus<RCLCxTraits>* ledgerConsensus_;
     Application& app_;
     ConsensusImp& consensus_;
+    LedgerMaster & ledgerMaster_;
     FeeVote& feeVote_;
     beast::Journal j_;
     PublicKey valPublic_;
     SecretKey valSecret_;
+
+private:
+    LedgerHash acquiringLedger_;
 };
 
 } // namespace ripple

@@ -25,11 +25,13 @@ namespace ripple {
 RCLCxCalls::RCLCxCalls (
     Application& app,
     ConsensusImp& consensus,
+    LedgerMaster& ledgerMaster,
     FeeVote& feeVote,
     beast::Journal& j)
         : app_ (app)
         , consensus_ (consensus)
         , feeVote_ (feeVote)
+        , ledgerMaster_ (ledgerMaster)
         , j_ (j)
         , valPublic_ (app_.config().VALIDATION_PUB)
         , valSecret_ (app_.config().VALIDATION_PRIV)
@@ -243,6 +245,40 @@ std::pair <RCLTxSet, RCLCxPos>
             setHash,
             closeTime,
             now});
+}
+
+RCLCxLedger RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
+{
+
+    // we need to switch the ledger we're working from
+    auto buildLCL = ledgerMaster_.getLedgerByHash(ledgerHash);
+    if (! buildLCL)
+    {
+        if (acquiringLedger_ != ledgerHash)
+        {
+            // need to start acquiring the correct consensus LCL
+            JLOG (j_.warn()) <<
+                "Need consensus ledger " << ledgerHash;
+
+            // Tell the ledger acquire system that we need the consensus ledger
+            acquiringLedger_ = ledgerHash;
+
+            auto app = &app_;
+            auto hash = acquiringLedger_;
+            app_.getJobQueue().addJob (
+                jtADVANCE, "getConsensusLedger",
+                [app, hash] (Job&) {
+                    app->getInboundLedgers().acquire(
+                        hash, 0, InboundLedger::fcCONSENSUS);
+                });
+        }
+        return;
+    }
+
+    assert (!buildLCL->open() && buildLCL->isImmutable ());
+    assert (buildLCL->info().hash == lclHash);
+
+    return RCLCxLedger(buildLCL);
 }
 
 

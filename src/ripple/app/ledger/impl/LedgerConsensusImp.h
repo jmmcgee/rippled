@@ -338,7 +338,6 @@ private:
     Time_t closeTime_;
 
     LgrID_t prevLedgerHash_;
-    LgrID_t acquiringLedger_;
 
     Ledger_t previousLedger_;
     boost::optional<Pos_t> ourPosition_;
