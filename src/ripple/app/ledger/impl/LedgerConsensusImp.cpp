@@ -1416,53 +1416,12 @@ void LedgerConsensusImp<Traits>::playbackProposals ()
 template <class Traits>
 void LedgerConsensusImp<Traits>::closeLedger ()
 {
-    checkOurValidation ();
     state_ = State::establish;
     consensusStartTime_ = std::chrono::steady_clock::now ();
     closeTime_ = now_;
     consensus_.setLastCloseTime(closeTime_);
     statusChange (protocol::neCLOSING_LEDGER, *previousLedger_.hackAccess());
     takeInitialPosition ();
-}
-
-template <class Traits>
-void LedgerConsensusImp<Traits>::checkOurValidation ()
-{
-    // This only covers some cases - Fix for the case where we can't ever
-    // acquire the consensus ledger
-    if (! haveCorrectLCL_ || ! valPublic_.size ()
-        || app_.getOPs ().isNeedNetworkLedger ())
-    {
-        return;
-    }
-
-    auto lastValidation = consensus_.getLastValidation ();
-
-    if (lastValidation)
-    {
-        if (lastValidation->getFieldU32 (sfLedgerSequence)
-            == previousLedger_.seq())
-        {
-            return;
-        }
-        if (lastValidation->getLedgerHash () == prevLedgerHash_)
-            return;
-    }
-
-    auto v = std::make_shared<STValidation> (previousLedger_.hash(),
-        consensus_.validationTimestamp(app_.timeKeeper().now()),
-        valPublic_, false);
-    addLoad(v);
-    v->setTrusted ();
-    auto const signingHash = v->sign (valSecret_);
-        // FIXME: wrong suppression
-    app_.getHashRouter ().addSuppression (signingHash);
-    app_.getValidations ().addValidation (v, "localMissing");
-    Blob validation = v->getSigned ();
-    protocol::TMValidation val;
-    val.set_validation (&validation[0], validation.size ());
-    consensus_.setLastValidation (v);
-    JLOG (j_.warn()) << "Sending partial validation";
 }
 
 template <class Traits>
