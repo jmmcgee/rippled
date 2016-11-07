@@ -68,6 +68,18 @@ public:
 
     RCLCxLedger acquireLedger(LedgerHash const & ledgerHash);
 
+    enum class ChangeType {Closing, Accepted};
+    /*
+    * Senda status change message to peers due to a change in ledger
+    * @param c the reason for the change
+    * @param ledger the ledger we are changing to
+    * @param haveCorrectLCL whether we believe this is the correct LCL
+    */
+    void statusChange(
+        ChangeType c,
+        RCLCxLedger const & ledger,
+        bool haveCorrectLCL);
+
 private:
 
     Application& app_;

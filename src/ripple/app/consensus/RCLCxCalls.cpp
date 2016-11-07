@@ -27,7 +27,7 @@
 #include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/protocol/digest.h>
 #include <ripple/overlay/Overlay.h>
-
+#include <ripple/overlay/predicates.h>
 #include <ripple/app/ledger/impl/ConsensusImp.h>
 
 namespace ripple {
@@ -288,6 +288,57 @@ RCLCxLedger RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
 
     return RCLCxLedger(buildLCL);
 }
+
+void RCLCxCalls::statusChange(
+    ChangeType c,
+    RCLCxLedger const & ledger,
+    bool haveCorrectLCL)
+{
+    protocol::TMStatusChange s;
+
+    if (!haveCorrectLCL)
+        s.set_newevent (protocol::neLOST_SYNC);
+    else
+    {
+        switch (c)
+        {
+        case ChangeType::Closing:
+            s.set_newevent (protocol::neCLOSING_LEDGER);
+            break;
+        case ChangeType::Accepted:
+            s.set_newevent (protocol::neACCEPTED_LEDGER);
+            break;
+        }
+    }
+
+    s.set_ledgerseq (ledger.seq());
+    s.set_networktime (app_.timeKeeper().now().time_since_epoch().count());
+    s.set_ledgerhashprevious(ledger.parentHash().begin (),
+        std::decay_t<decltype(ledger.parentHash())>::bytes);
+    s.set_ledgerhash (ledger.hash().begin (),
+        std::decay_t<decltype(ledger.hash())>::bytes);
+
+    std::uint32_t uMin, uMax;
+    if (! ledgerMaster_.getFullValidatedRange (uMin, uMax))
+    {
+        uMin = 0;
+        uMax = 0;
+    }
+    else
+    {
+        // Don't advertise ledgers we're not willing to serve
+        std::uint32_t early = ledgerMaster_.getEarliestFetch ();
+        if (uMin < early)
+           uMin = early;
+    }
+    s.set_firstseq (uMin);
+    s.set_lastseq (uMax);
+    app_.overlay ().foreach (send_always (
+        std::make_shared <Message> (
+            s, protocol::mtSTATUS_CHANGE)));
+    JLOG (j_.trace()) << "send status change to peer";
+}
+
 
 
 } // namespace ripple

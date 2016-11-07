@@ -274,14 +274,6 @@ private:
     */
     void leaveConsensus ();
 
-    /** Send a node status change message to our directly connected peers
-
-      @param event   The event which caused the status change.  This is
-                     typically neACCEPTED_LEDGER or neCLOSING_LEDGER.
-      @param ledger  The ledger associated with the event.
-    */
-    void statusChange (protocol::NodeEvent event, ReadView const& ledger);
-
     /** Take an initial position on what we think the consensus set should be
     */
     void takeInitialPosition ();

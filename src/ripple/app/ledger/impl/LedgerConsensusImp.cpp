@@ -856,7 +856,8 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         << "Report: NewL  = " << newLCLHash
         << ":" << sharedLCL->info().seq;
     // Tell directly connected peers that we have a new LCL
-    statusChange (protocol::neACCEPTED_LEDGER, *sharedLCL);
+    callbacks_.statusChange (RCLCxCalls::ChangeType::Accepted,
+        sharedLCL, haveCorrectLCL_);
 
     if (validating_ &&
         ! ledgerMaster_.isCompatible (*sharedLCL,
@@ -1122,45 +1123,6 @@ void LedgerConsensusImp<Traits>::leaveConsensus ()
 }
 
 template <class Traits>
-void LedgerConsensusImp<Traits>::statusChange (
-    protocol::NodeEvent event, ReadView const& ledger)
-{
-    protocol::TMStatusChange s;
-
-    if (!haveCorrectLCL_)
-        s.set_newevent (protocol::neLOST_SYNC);
-    else
-        s.set_newevent (event);
-
-    s.set_ledgerseq (ledger.info().seq);
-    s.set_networktime (app_.timeKeeper().now().time_since_epoch().count());
-    s.set_ledgerhashprevious(ledger.info().parentHash.begin (),
-        std::decay_t<decltype(ledger.info().parentHash)>::bytes);
-    s.set_ledgerhash (ledger.info().hash.begin (),
-        std::decay_t<decltype(ledger.info().hash)>::bytes);
-
-    std::uint32_t uMin, uMax;
-    if (! ledgerMaster_.getFullValidatedRange (uMin, uMax))
-    {
-        uMin = 0;
-        uMax = 0;
-    }
-    else
-    {
-        // Don't advertise ledgers we're not willing to serve
-        std::uint32_t early = ledgerMaster_.getEarliestFetch ();
-        if (uMin < early)
-           uMin = early;
-    }
-    s.set_firstseq (uMin);
-    s.set_lastseq (uMax);
-    app_.overlay ().foreach (send_always (
-        std::make_shared <Message> (
-            s, protocol::mtSTATUS_CHANGE)));
-    JLOG (j_.trace()) << "send status change to peer";
-}
-
-template <class Traits>
 void LedgerConsensusImp<Traits>::takeInitialPosition()
 {
     auto pair = callbacks_.makeInitialPosition(previousLedger_, proposing_,
@@ -1420,7 +1382,12 @@ void LedgerConsensusImp<Traits>::closeLedger ()
     consensusStartTime_ = std::chrono::steady_clock::now ();
     closeTime_ = now_;
     consensus_.setLastCloseTime(closeTime_);
-    statusChange (protocol::neCLOSING_LEDGER, *previousLedger_.hackAccess());
+
+    callbacks_.statusChange (
+        RCLCxCalls::ChangeType::Closing,
+        previousLedger_,
+        haveCorrectLCL_);
+
     takeInitialPosition ();
 }
 
