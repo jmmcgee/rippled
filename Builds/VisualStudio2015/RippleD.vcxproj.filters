@@ -5716,4 +5716,9 @@
       <Filter>websocketpp_02\src</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxLedger.h">
+      <Filter>ripple\app\consensus</Filter>
+    </ClInclude>
+  </ItemGroup>
 </Project>

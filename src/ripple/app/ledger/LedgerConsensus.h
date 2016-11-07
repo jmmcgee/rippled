@@ -43,6 +43,7 @@ public:
 
     using typename Traits::Callback_t;
     using typename Traits::Time_t;
+    using typename Traits::Ledger_t;
     using typename Traits::Pos_t;
     using typename Traits::TxSet_t;
     using typename Traits::Tx_t;
@@ -66,7 +67,7 @@ public:
     virtual void startRound (
         Time_t const& now,
         LgrID_t const& prevLCLHash,
-        std::shared_ptr<Ledger const> const& prevLedger,
+        Ledger_t const& prevLedger,
         int previousProposers,
         std::chrono::milliseconds previousConvergeTime) = 0;
 
@@ -88,7 +89,7 @@ public:
     virtual bool isCorrectLCL() const = 0;
     virtual Time_t const& now() const = 0;
     virtual Time_t const& closeTime() const = 0;
-    virtual std::shared_ptr <Ledger const> const& prevLedger() const = 0;
+    virtual Ledger_t const& prevLedger() const = 0;
 
 };
 

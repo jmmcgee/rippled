@@ -70,6 +70,7 @@ public:
 
     using typename Traits::Callback_t;
     using typename Traits::Time_t;
+    using typename Traits::Ledger_t;
     using typename Traits::Pos_t;
     using typename Traits::TxSet_t;
     using typename Traits::Tx_t;
@@ -117,7 +118,7 @@ public:
     void startRound (
         Time_t const& now,
         LgrID_t const& prevLCLHash,
-        std::shared_ptr<Ledger const> const& prevLedger,
+        Ledger_t const& prevLedger,
         int previousProposers,
         std::chrono::milliseconds previousConvergeTime) override;
 
@@ -187,7 +188,7 @@ public:
         return closeTime_;
     }
 
-    std::shared_ptr <Ledger const> const& prevLedger() const
+    Ledger_t const& prevLedger() const
     {
         return previousLedger_;
     }
@@ -339,7 +340,7 @@ private:
     LgrID_t prevLedgerHash_;
     LgrID_t acquiringLedger_;
 
-    std::shared_ptr<Ledger const> previousLedger_;
+    Ledger_t previousLedger_;
     boost::optional<Pos_t> ourPosition_;
     boost::optional<TxSet_t> ourSet_;
     PublicKey valPublic_;

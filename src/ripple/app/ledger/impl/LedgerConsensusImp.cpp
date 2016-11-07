@@ -101,7 +101,7 @@ Json::Value LedgerConsensusImp<Traits>::getJson (bool full)
     if (haveCorrectLCL_)
     {
         ret["synched"] = true;
-        ret["ledger_seq"] = previousLedger_->info().seq + 1;
+        ret["ledger_seq"] = previousLedger_.seq() + 1;
         ret["close_granularity"] = closeResolution_.count();
     }
     else
@@ -782,7 +782,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         << " fail=" << (consensusFail_ ? "yes" : "no");
     JLOG (j_.debug())
         << "Report: Prev = " << prevLedgerHash_
-        << ":" << previousLedger_->info().seq;
+        << ":" << previousLedger_.seq();
     JLOG (j_.debug())
         << "Report: TxSt = " << set.getID ()
         << ", close " << closeTime.time_since_epoch().count()
@@ -1360,7 +1360,7 @@ void LedgerConsensusImp<Traits>::updateOurPositions ()
         for (auto const& it : closeTimes)
         {
             JLOG (j_.debug()) << "CCTime: seq "
-                << previousLedger_->info().seq + 1 << ": "
+                << previousLedger_.seq() + 1 << ": "
                 << it.first.time_since_epoch().count()
                 << " has " << it.second << ", "
                 << threshVote << " required";
@@ -1461,7 +1461,7 @@ void LedgerConsensusImp<Traits>::checkOurValidation ()
     if (lastValidation)
     {
         if (lastValidation->getFieldU32 (sfLedgerSequence)
-            == previousLedger_->info().seq)
+            == previousLedger_.seq())
         {
             return;
         }
@@ -1515,7 +1515,7 @@ template <class Traits>
 void LedgerConsensusImp<Traits>::startRound (
     Time_t const& now,
     LgrID_t const& prevLCLHash,
-    std::shared_ptr<Ledger const> const& prevLedger,
+    Ledger_t const & prevLedger,
     int previousProposers,
     std::chrono::milliseconds previousConvergeTime)
 {
@@ -1541,7 +1541,7 @@ void LedgerConsensusImp<Traits>::startRound (
     consensusStartTime_ = std::chrono::steady_clock::now();
     previousProposers_ = previousProposers;
     previousRoundTime_ = previousConvergeTime;
-    inboundTransactions_.newRound (previousLedger_->info().seq);
+    inboundTransactions_.newRound (previousLedger_.seq());
 
     peerPositions_.clear();
     acquired_.clear();
@@ -1553,7 +1553,7 @@ void LedgerConsensusImp<Traits>::startRound (
     closeResolution_ = getNextLedgerTimeResolution (
         previousLedger_->info().closeTimeResolution,
         getCloseAgree (previousLedger_->info()),
-        previousLedger_->info().seq + 1);
+        previousLedger_.seq() + 1);
 
 
     haveCorrectLCL_ = (previousLedger_->info().hash == prevLedgerHash_);
