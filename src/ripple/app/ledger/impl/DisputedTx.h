@@ -24,6 +24,7 @@
 #include <ripple/protocol/Serializer.h>
 #include <ripple/basics/base_uint.h>
 #include <ripple/beast/utility/Journal.h>
+#include <ripple/app/ledger/LedgerTiming.h>
 #include <memory>
 
 namespace ripple {

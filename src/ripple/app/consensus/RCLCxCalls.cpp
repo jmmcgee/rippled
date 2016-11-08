@@ -552,7 +552,7 @@ RCLCxLedger RCLCxCalls::buildLastClosedLedger(
     else
         JLOG (j_.debug())
             << "Consensus built new ledger";
-    return buildLCL;
+    return RCLCxLedger{std::move(buildLCL)};
 
 
 }
