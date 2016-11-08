@@ -29,6 +29,7 @@
 namespace ripple {
 
 class ConsensusImp;
+class LocalTxs;
 class RCLTxSet;
 class RCLCxPos;
 class RCLCxLedger;
@@ -42,6 +43,7 @@ public:
         ConsensusImp&,
         FeeVote&,
         LedgerMaster&,
+        LocalTxs &,
         beast::Journal&);
 
     uint256 getLCL (
@@ -117,17 +119,36 @@ public:
         RCLCxLedger const & ledger,
         NetClock::time_point now,
         bool proposing);
+
+    /*
+    * Create the new open ledger based on the prior closed ledger and any
+    * retriable transactions
+    * @param closedLedger the ledger just closed that is the starting point for
+    * the open ledger
+    * @param retriableTxs the set of transactions to attempt to retry in the
+    * newly opened ledger
+    * @param anyDisputes whether any of the retriableTxs were disputed by us
+    * during consensus
+    */
+    void createOpenLedger(
+        RCLCxLedger const & closedLedger,
+        CanonicalTXSet & retriableTxs,
+        bool anyDisputes);
+
 private:
 
     Application& app_;
-    LedgerMaster & ledgerMaster_;
+    ConsensusImp& consensus_;
     FeeVote& feeVote_;
+    LedgerMaster & ledgerMaster_;
+    LocalTxs & localTxs_;
     beast::Journal j_;
+
     PublicKey valPublic_;
     SecretKey valSecret_;
     LedgerHash acquiringLedger_;
 
-    ConsensusImp& consensus_;
+
 };
 
 } // namespace ripple

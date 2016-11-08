@@ -33,8 +33,9 @@
 #include <ripple/overlay/predicates.h>
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/LoadFeeTrack.h>
-
+#include <ripple/basics/make_lock.h>
 #include <ripple/app/ledger/impl/ConsensusImp.h>
+#include <ripple/app/ledger/LocalTxs.h>
 
 namespace ripple {
 
@@ -43,11 +44,13 @@ RCLCxCalls::RCLCxCalls (
     ConsensusImp & consensus,
     FeeVote& feeVote,
     LedgerMaster& ledgerMaster,
+    LocalTxs & localTxs,
     beast::Journal& j)
         : app_ (app)
         , consensus_ (consensus)
         , feeVote_ (feeVote)
         , ledgerMaster_ (ledgerMaster)
+        , localTxs_(localTxs)
         , j_ (j)
         , valPublic_ (app_.config().VALIDATION_PUB)
         , valSecret_ (app_.config().VALIDATION_PRIV)
@@ -346,6 +349,18 @@ void RCLCxCalls::statusChange(
 }
 
 
+//------------------------------------------------------------------------------
+/** Apply a set of transactions to a ledger
+
+  Typically the txFilter is used to reject transactions
+  that already got in the prior ledger
+
+  @param set            set of transactions to apply
+  @param view           ledger to apply to
+  @param txFilter       callback, return false to reject txn
+  @return               retriable transactions
+*/
+
 CanonicalTXSet
 applyTransactions (
     Application& app,
@@ -588,6 +603,34 @@ void RCLCxCalls::validate(
     val.set_validation (&validation[0], validation.size ());
     // Send signed validation to all of our directly connected peers
     app_.overlay().send(val);
+}
+
+void RCLCxCalls::createOpenLedger(
+    RCLCxLedger const & closedLedger,
+    CanonicalTXSet & retriableTxs,
+    bool anyDisputes)
+{
+    // Build new open ledger
+    auto lock = make_lock(
+        app_.getMasterMutex(), std::defer_lock);
+    auto sl = make_lock(
+        ledgerMaster_.peekMutex (), std::defer_lock);
+    std::lock(lock, sl);
+
+    auto const lastVal = ledgerMaster_.getValidatedLedger();
+    boost::optional<Rules> rules;
+    if (lastVal)
+        rules.emplace(*lastVal);
+    else
+        rules.emplace();
+    app_.openLedger().accept(app_, *rules,
+        closedLedger.hackAccess(), localTxs_.getTxSet(), anyDisputes, retriableTxs, tapNONE,
+            "consensus",
+                [&](OpenView& view, beast::Journal j)
+                {
+                    // Stuff the ledger with transactions from the queue.
+                    return app_.getTxQ().accept(app_, view);
+                });
 }
 
 } // namespace ripple

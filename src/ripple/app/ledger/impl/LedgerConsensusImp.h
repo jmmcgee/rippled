@@ -103,7 +103,6 @@ public:
         Application& app,
         ConsensusImp& consensus,
         InboundTransactions& inboundTransactions,
-        LocalTxs& localtx,
         LedgerMaster& ledgerMaster,
         FeeVote& feeVote,
         Callback_t& callbacks);
@@ -307,7 +306,6 @@ private:
     Application& app_;
     ConsensusImp& consensus_;
     InboundTransactions& inboundTransactions_;
-    LocalTxs& localTX_;
     LedgerMaster& ledgerMaster_;
     FeeVote& feeVote_;
     std::recursive_mutex lock_;
@@ -370,28 +368,9 @@ make_LedgerConsensus (
     Application& app,
     ConsensusImp& consensus,
     InboundTransactions& inboundTransactions,
-    LocalTxs& localtx,
     LedgerMaster& ledgerMaster,
     FeeVote& feeVote,
     RCLCxCalls& callbacks);
-
-//------------------------------------------------------------------------------
-/** Apply a set of transactions to a ledger
-
-  Typically the txFilter is used to reject transactions
-  that already got in the prior ledger
-
-  @param set            set of transactions to apply
-  @param view           ledger to apply to
-  @param txFilter       callback, return false to reject txn
-  @return               retriable transactions
-*/
-CanonicalTXSet
-applyTransactions (
-    Application& app,
-    RCLTxSet const& set,
-    OpenView& view,
-    std::function<bool(uint256 const&)> txFilter);
 
 extern template class LedgerConsensusImp <RCLCxTraits>;
 

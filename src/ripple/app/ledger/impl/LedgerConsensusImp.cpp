@@ -22,7 +22,6 @@
 #include <ripple/app/ledger/InboundLedgers.h>
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/LedgerTiming.h>
-#include <ripple/app/ledger/LocalTxs.h>
 #include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/ledger/impl/LedgerConsensusImp.h>
 #include <ripple/app/ledger/impl/TransactionAcquire.h>
@@ -43,7 +42,6 @@
 #include <ripple/overlay/predicates.h>
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/beast/core/LexicalCast.h>
-#include <ripple/basics/make_lock.h>
 #include <type_traits>
 
 
@@ -54,7 +52,6 @@ LedgerConsensusImp<Traits>::LedgerConsensusImp (
         Application& app,
         ConsensusImp& consensus,
         InboundTransactions& inboundTransactions,
-        LocalTxs& localtx,
         LedgerMaster& ledgerMaster,
         FeeVote& feeVote,
         Callback_t& callbacks)
@@ -62,7 +59,6 @@ LedgerConsensusImp<Traits>::LedgerConsensusImp (
     , app_ (app)
     , consensus_ (consensus)
     , inboundTransactions_ (inboundTransactions)
-    , localTX_ (localtx)
     , ledgerMaster_ (ledgerMaster)
     , feeVote_ (feeVote)
     , ourID_ (calcNodeID (app.nodeIdentity().first))
@@ -824,28 +820,8 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
                 }
             }
         }
+        callbacks_.createOpenLedger(sharedLCL, retriableTxs, anyDisputes);
 
-        // Build new open ledger
-        auto lock = make_lock(
-            app_.getMasterMutex(), std::defer_lock);
-        auto sl = make_lock(
-            ledgerMaster_.peekMutex (), std::defer_lock);
-        std::lock(lock, sl);
-
-        auto const lastVal = ledgerMaster_.getValidatedLedger();
-        boost::optional<Rules> rules;
-        if (lastVal)
-            rules.emplace(*lastVal);
-        else
-            rules.emplace();
-        app_.openLedger().accept(app_, *rules,
-            sharedLCL.hackAccess(), localTX_.getTxSet(), anyDisputes, retriableTxs, tapNONE,
-                "consensus",
-                    [&](OpenView& view, beast::Journal j)
-                    {
-                        // Stuff the ledger with transactions from the queue.
-                        return app_.getTxQ().accept(app_, view);
-                    });
     }
 
     ledgerMaster_.switchLCL (sharedLCL.hackAccess());
@@ -1393,13 +1369,12 @@ make_LedgerConsensus (
     Application& app,
     ConsensusImp& consensus,
     InboundTransactions& inboundTransactions,
-    LocalTxs& localtx,
     LedgerMaster& ledgerMaster,
     FeeVote& feeVote,
     RCLCxCalls& callbacks)
 {
     return std::make_shared <LedgerConsensusImp <RCLCxTraits>> (app, consensus,
-        inboundTransactions, localtx, ledgerMaster, feeVote, callbacks);
+        inboundTransactions, ledgerMaster, feeVote, callbacks);
 }
 
 template class LedgerConsensusImp <RCLCxTraits>;
