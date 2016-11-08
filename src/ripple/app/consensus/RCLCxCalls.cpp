@@ -644,6 +644,10 @@ void RCLCxCalls::createOpenLedger(
 void RCLCxCalls::switchLCL(RCLCxLedger const & ledger)
 {
     ledgerMaster_.switchLCL (ledger.hackAccess());
+
+    // Do these need to exist?
+    assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.hash());
+    assert (app_.openLedger().current()->info().parentHash == ledger.hash());
 }
 
 void RCLCxCalls::adjustCloseTime(std::chrono::duration<std::int32_t> offset)

@@ -826,9 +826,6 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
 
     callbacks_.switchLCL(sharedLCL);
 
-    assert (ledgerMaster_.getClosedLedger()->info().hash == sharedLCL.hash());
-    assert (app_.openLedger().current()->info().parentHash == sharedLCL.hash());
-
     if (haveCorrectLCL_ && ! consensusFail_)
     {
         // we entered the round with the network,
