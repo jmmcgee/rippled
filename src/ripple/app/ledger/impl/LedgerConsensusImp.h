@@ -297,10 +297,6 @@ private:
     /** We have a new LCL and must accept it */
     void beginAccept (bool synchronous);
 
-
-    /** Add our load fee to our validation */
-    void addLoad(STValidation::ref val);
-
     /** Convert an advertised close time to an effective close time */
     NetClock::time_point effectiveCloseTime(NetClock::time_point closeTime);
 

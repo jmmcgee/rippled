@@ -31,6 +31,9 @@
 #include <ripple/protocol/digest.h>
 #include <ripple/overlay/Overlay.h>
 #include <ripple/overlay/predicates.h>
+#include <ripple/app/misc/HashRouter.h>
+#include <ripple/app/misc/LoadFeeTrack.h>
+
 #include <ripple/app/ledger/impl/ConsensusImp.h>
 
 namespace ripple {
@@ -537,6 +540,54 @@ RCLCxLedger RCLCxCalls::buildLastClosedLedger(
     return buildLCL;
 
 
+}
+
+bool RCLCxCalls::shouldValidate(RCLCxLedger const & ledger)
+{
+    return  ledgerMaster_.isCompatible(*ledger.hackAccess(),
+        app_.journal("LedgerConsensus").warn(),
+        "Not validating");
+}
+
+void RCLCxCalls::validate(
+    RCLCxLedger const & ledger,
+    NetClock::time_point now,
+    bool proposing)
+{
+    // Build validation
+    auto v = std::make_shared<STValidation> (ledger.hash(),
+        consensus_.validationTimestamp(now),
+        valPublic_, proposing);
+    v->setFieldU32 (sfLedgerSequence, ledger.seq());
+
+    // Add our load fee to the validation
+    auto const& feeTrack = app_.getFeeTrack();
+    std::uint32_t fee = std::max(
+        feeTrack.getLocalFee(),
+        feeTrack.getClusterFee());
+
+    if (fee > feeTrack.getLoadBase())
+        v->setFieldU32(sfLoadFee, fee);
+
+    if (((ledger.seq() + 1) % 256) == 0)
+    // next ledger is flag ledger
+    {
+        // Suggest fee changes and new features
+        feeVote_.doValidation (ledger.hackAccess(), *v);
+        app_.getAmendmentTable ().doValidation (ledger.hackAccess(), *v);
+    }
+
+    auto const signingHash = v->sign (valSecret_);
+    v->setTrusted ();
+    // suppress it if we receive it - FIXME: wrong suppression
+    app_.getHashRouter ().addSuppression (signingHash);
+    app_.getValidations ().addValidation (v, "local");
+    consensus_.setLastValidation (v);
+    Blob validation = v->getSigned ();
+    protocol::TMValidation val;
+    val.set_validation (&validation[0], validation.size ());
+    // Send signed validation to all of our directly connected peers
+    app_.overlay().send(val);
 }
 
 } // namespace ripple

@@ -85,6 +85,8 @@ public:
     * transactions. Since consensus just agrees on which transactions to apply,
     * but not whether they make it into the closed ledger, this function also
     * populates retriableTxs with those that can be retried in the next round.
+    *
+    * @return the newly built ledger
     */
     RCLCxLedger buildLastClosedLedger(
         RCLCxLedger const & previousLedger,
@@ -97,6 +99,24 @@ public:
         CanonicalTXSet & retriableTxs
     );
 
+    /*
+    * @return whether the newly created ledger should be validated during
+    * the accept phase of consensus
+    */
+    bool shouldValidate(RCLCxLedger const & ledger);
+
+    /*
+    * Validate the given ledger and share with peers as necessary
+    * @param ledger the ledger to validate
+    * @param now current time
+    * @param proposing whether we were proposing transactions while generating
+    * this ledger.  If we are not proposing, this message is to inform our peers
+    * that we know we aren't fully participating in consensus.
+    */
+    void validate(
+        RCLCxLedger const & ledger,
+        NetClock::time_point now,
+        bool proposing);
 private:
 
     Application& app_;

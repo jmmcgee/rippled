@@ -29,8 +29,6 @@
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/AmendmentTable.h>
 #include <ripple/app/misc/CanonicalTXSet.h>
-#include <ripple/app/misc/HashRouter.h>
-#include <ripple/app/misc/LoadFeeTrack.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/TxQ.h>
 #include <ripple/app/misc/Validations.h>
@@ -43,7 +41,7 @@
 #include <ripple/json/to_string.h>
 #include <ripple/overlay/Overlay.h>
 #include <ripple/overlay/predicates.h>
-
+#include <ripple/app/misc/HashRouter.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/basics/make_lock.h>
 #include <type_traits>
@@ -759,52 +757,23 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
 
     auto sharedLCL = callbacks_.buildLastClosedLedger(previousLedger_, set,
         closeTime, closeTimeCorrect, closeResolution_, now_,
-        roundTime_, retriableTxs).hackAccess();
+        roundTime_, retriableTxs);
 
-    auto const newLCLHash = sharedLCL->info().hash;
+    auto const newLCLHash = sharedLCL.hash();
     JLOG (j_.debug())
         << "Report: NewL  = " << newLCLHash
-        << ":" << sharedLCL->info().seq;
+        << ":" << sharedLCL.seq();
+
     // Tell directly connected peers that we have a new LCL
     callbacks_.statusChange (RCLCxCalls::ChangeType::Accepted,
         sharedLCL, haveCorrectLCL_);
 
-    if (validating_ &&
-        ! ledgerMaster_.isCompatible (*sharedLCL,
-            app_.journal("LedgerConsensus").warn(),
-            "Not validating"))
-    {
-        validating_ = false;
-    }
+    if (validating_)
+        validating_ = callbacks_.shouldValidate(sharedLCL);
 
     if (validating_ && ! consensusFail_)
     {
-        // Build validation
-        auto v = std::make_shared<STValidation> (newLCLHash,
-            consensus_.validationTimestamp(now_),
-            valPublic_, proposing_);
-        v->setFieldU32 (sfLedgerSequence, sharedLCL->info().seq);
-        addLoad(v);  // Our network load
-
-        if (((sharedLCL->info().seq + 1) % 256) == 0)
-        // next ledger is flag ledger
-        {
-            // Suggest fee changes and new features
-            feeVote_.doValidation (sharedLCL, *v);
-            app_.getAmendmentTable ().doValidation (sharedLCL, *v);
-        }
-
-        auto const signingHash = v->sign (valSecret_);
-        v->setTrusted ();
-        // suppress it if we receive it - FIXME: wrong suppression
-        app_.getHashRouter ().addSuppression (signingHash);
-        app_.getValidations ().addValidation (v, "local");
-        consensus_.setLastValidation (v);
-        Blob validation = v->getSigned ();
-        protocol::TMValidation val;
-        val.set_validation (&validation[0], validation.size ());
-        // Send signed validation to all of our directly connected peers
-        app_.overlay().send(val);
+        callbacks_.validate(sharedLCL, now_, proposing_);
         JLOG (j_.info())
             << "CNF Val " << newLCLHash;
     }
@@ -813,7 +782,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
             << "CNF buildLCL " << newLCLHash;
 
     // See if we can accept a ledger as fully-validated
-    ledgerMaster_.consensusBuilt (sharedLCL, getJson (true));
+    ledgerMaster_.consensusBuilt (sharedLCL.hackAccess(), getJson (true));
 
     {
         // Apply disputed transactions that didn't get in
@@ -870,7 +839,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         else
             rules.emplace();
         app_.openLedger().accept(app_, *rules,
-            sharedLCL, localTX_.getTxSet(), anyDisputes, retriableTxs, tapNONE,
+            sharedLCL.hackAccess(), localTX_.getTxSet(), anyDisputes, retriableTxs, tapNONE,
                 "consensus",
                     [&](OpenView& view, beast::Journal j)
                     {
@@ -879,10 +848,10 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
                     });
     }
 
-    ledgerMaster_.switchLCL (sharedLCL);
+    ledgerMaster_.switchLCL (sharedLCL.hackAccess());
 
-    assert (ledgerMaster_.getClosedLedger()->info().hash == sharedLCL->info().hash);
-    assert (app_.openLedger().current()->info().parentHash == sharedLCL->info().hash);
+    assert (ledgerMaster_.getClosedLedger()->info().hash == sharedLCL.hash());
+    assert (app_.openLedger().current()->info().parentHash == sharedLCL.hash());
 
     if (haveCorrectLCL_ && ! consensusFail_)
     {
@@ -1416,18 +1385,6 @@ void LedgerConsensusImp<Traits>::startRound (
         timerEntry (now_);
     }
 
-}
-
-template <class Traits>
-void LedgerConsensusImp<Traits>::addLoad(STValidation::ref val)
-{
-    auto const& feeTrack = app_.getFeeTrack();
-    std::uint32_t fee = std::max(
-        feeTrack.getLocalFee(),
-        feeTrack.getClusterFee());
-
-    if (fee > feeTrack.getLoadBase())
-        val->setFieldU32(sfLoadFee, fee);
 }
 
 //------------------------------------------------------------------------------
