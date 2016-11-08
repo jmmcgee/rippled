@@ -80,6 +80,23 @@ public:
         RCLCxLedger const & ledger,
         bool haveCorrectLCL);
 
+    /*
+    * Build the last closed ledger given the provided sset of consensus
+    * transactions. Since consensus just agrees on which transactions to apply,
+    * but not whether they make it into the closed ledger, this function also
+    * populates retriableTxs with those that can be retried in the next round.
+    */
+    RCLCxLedger buildLastClosedLedger(
+        RCLCxLedger const & previousLedger,
+        RCLTxSet const & set,
+        NetClock::time_point closeTime,
+        bool closeTimeCorrect,
+        NetClock::duration closeResolution,
+        NetClock::time_point now,
+        std::chrono::milliseconds roundTime,
+        CanonicalTXSet & retriableTxs
+    );
+
 private:
 
     Application& app_;

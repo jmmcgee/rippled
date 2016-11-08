@@ -90,6 +90,8 @@ public:
 
 protected:
 
+    // TODO: Make this shared_ptr<ReadView const> .. requires ability to create
+    // a new ledger from a readview?
     std::shared_ptr<Ledger const> previousLedger_;
 
 };
