@@ -861,7 +861,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         JLOG (j_.info())
             << "Our close offset is estimated at "
             << offset.count() << " (" << closeCount << ")";
-        app_.timeKeeper().adjustCloseTime(offset);
+        callbacks_.adjustCloseTime(offset);
     }
 
     // we have accepted a new ledger
@@ -873,7 +873,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         correct = haveCorrectLCL_;
     }
 
-    app_.getOPs ().endConsensus (correct);
+    callbacks_.endConsensus (correct);
 }
 
 template <class Traits>

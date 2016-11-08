@@ -633,4 +633,13 @@ void RCLCxCalls::createOpenLedger(
                 });
 }
 
+void RCLCxCalls::adjustCloseTime(std::chrono::duration<std::int32_t> offset)
+{
+    app_.timeKeeper().adjustCloseTime(offset);
+}
+
+void RCLCxCalls::endConsensus(bool correctLCL)
+{
+    app_.getOPs ().endConsensus (correctLCL);
+}
 } // namespace ripple

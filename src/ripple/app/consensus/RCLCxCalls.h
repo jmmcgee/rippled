@@ -135,6 +135,18 @@ public:
         CanonicalTXSet & retriableTxs,
         bool anyDisputes);
 
+    /*
+    * Adjust closed time based on observed offset to peers during last round
+    */
+    void adjustCloseTime(std::chrono::duration<std::int32_t> offset);
+
+
+    /*
+    * Signal the end of consensus to the application, which will start the
+    * next round.
+    */
+    void endConsensus(bool correctLCL);
+
 private:
 
     Application& app_;
