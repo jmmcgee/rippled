@@ -605,6 +605,14 @@ void RCLCxCalls::validate(
     app_.overlay().send(val);
 }
 
+void RCLCxCalls::consensusBuilt(
+    RCLCxLedger const & ledger,
+    Json::Value && json)
+{
+    ledgerMaster_.consensusBuilt (ledger.hackAccess(), std::move(json));
+}
+
+
 void RCLCxCalls::createOpenLedger(
     RCLCxLedger const & closedLedger,
     CanonicalTXSet & retriableTxs,
@@ -631,6 +639,11 @@ void RCLCxCalls::createOpenLedger(
                     // Stuff the ledger with transactions from the queue.
                     return app_.getTxQ().accept(app_, view);
                 });
+}
+
+void RCLCxCalls::switchLCL(RCLCxLedger const & ledger)
+{
+    ledgerMaster_.switchLCL (ledger.hackAccess());
 }
 
 void RCLCxCalls::adjustCloseTime(std::chrono::duration<std::int32_t> offset)

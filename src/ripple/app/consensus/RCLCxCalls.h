@@ -121,6 +121,15 @@ public:
         bool proposing);
 
     /*
+    * Notify that consensus has built the given ledger and see if it can be
+    * acccepted as fullyl validated
+    */
+    void consensusBuilt(
+        RCLCxLedger const & ledger,
+        Json::Value && json
+    );
+
+    /*
     * Create the new open ledger based on the prior closed ledger and any
     * retriable transactions
     * @param closedLedger the ledger just closed that is the starting point for
@@ -136,6 +145,11 @@ public:
         bool anyDisputes);
 
     /*
+    * Switch the local last closed ledger.
+    */
+    void switchLCL(RCLCxLedger const & ledger);
+
+    /*
     * Adjust closed time based on observed offset to peers during last round
     */
     void adjustCloseTime(std::chrono::duration<std::int32_t> offset);
@@ -146,6 +160,8 @@ public:
     * next round.
     */
     void endConsensus(bool correctLCL);
+
+
 
 private:
 

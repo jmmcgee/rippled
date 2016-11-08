@@ -778,7 +778,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
             << "CNF buildLCL " << newLCLHash;
 
     // See if we can accept a ledger as fully-validated
-    ledgerMaster_.consensusBuilt (sharedLCL.hackAccess(), getJson (true));
+    callbacks_.consensusBuilt(sharedLCL, getJson(true));
 
     {
         // Apply disputed transactions that didn't get in
@@ -824,7 +824,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
 
     }
 
-    ledgerMaster_.switchLCL (sharedLCL.hackAccess());
+    callbacks_.switchLCL(sharedLCL);
 
     assert (ledgerMaster_.getClosedLedger()->info().hash == sharedLCL.hash());
     assert (app_.openLedger().current()->info().parentHash == sharedLCL.hash());
