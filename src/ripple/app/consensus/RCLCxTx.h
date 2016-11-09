@@ -96,6 +96,11 @@ public:
         assert (map_);
     }
 
+    operator bool() const
+    {
+        return map_.operator bool();
+    }
+
     RCLTxSet (MutableRCLTxSet const& set) :
         map_ (set.map()->snapShot (false))
     { }

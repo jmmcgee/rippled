@@ -29,6 +29,7 @@
 namespace ripple {
 
 class ConsensusImp;
+class InboundTransactions;
 class LocalTxs;
 class RCLCxTx;
 class RCLTxSet;
@@ -46,6 +47,7 @@ public:
         FeeVote&,
         LedgerMaster&,
         LocalTxs &,
+        InboundTransactions &,
         beast::Journal&);
 
     uint256 getLCL (
@@ -195,6 +197,16 @@ public:
     */
     void offloadAccept(JobQueue::JobFunction const & f);
 
+    /*
+    * Notify callback that we have started a new round
+    */
+    void startRound(RCLCxLedger const & ledger);
+
+    /**
+    * @return the transaction set associated with this position
+    */
+    RCLTxSet getTxSet(RCLCxPos const & position);
+
 private:
 
     Application& app_;
@@ -202,6 +214,7 @@ private:
     FeeVote& feeVote_;
     LedgerMaster & ledgerMaster_;
     LocalTxs & localTxs_;
+    InboundTransactions& inboundTransactions_;
     beast::Journal j_;
 
     PublicKey valPublic_;

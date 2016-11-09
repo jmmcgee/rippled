@@ -20,7 +20,6 @@
 #include <BeastConfig.h>
 #include <ripple/app/consensus/RCLCxTraits.h>
 #include <ripple/app/ledger/InboundLedgers.h>
-#include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/LedgerTiming.h>
 #include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/ledger/impl/LedgerConsensusImp.h>
@@ -50,16 +49,10 @@ template <class Traits>
 LedgerConsensusImp<Traits>::LedgerConsensusImp (
         Application& app,
         ConsensusImp& consensus,
-        InboundTransactions& inboundTransactions,
-        LedgerMaster& ledgerMaster,
-        FeeVote& feeVote,
         Callback_t& callbacks)
     : callbacks_ (callbacks)
     , app_ (app)
     , consensus_ (consensus)
-    , inboundTransactions_ (inboundTransactions)
-    , ledgerMaster_ (ledgerMaster)
-    , feeVote_ (feeVote)
     , ourID_ (calcNodeID (app.nodeIdentity().first))
     , state_ (State::open)
     , valPublic_ (app_.config().VALIDATION_PUB)
@@ -665,11 +658,10 @@ bool LedgerConsensusImp<Traits>::peerPosition (
         auto ait = acquired_.find (newPosition.getCurrentHash());
         if (ait == acquired_.end())
         {
-            if (auto setPtr = inboundTransactions_.getSet (
-                newPosition.getCurrentHash(), true))
+            if (auto set = callbacks_.getTxSet(newPosition))
             {
                 ait = acquired_.emplace (newPosition.getCurrentHash(),
-                    std::move(setPtr)).first;
+                    std::move(set)).first;
             }
         }
 
@@ -1267,7 +1259,7 @@ void LedgerConsensusImp<Traits>::startRound (
     consensusStartTime_ = std::chrono::steady_clock::now();
     previousProposers_ = previousProposers;
     previousRoundTime_ = previousConvergeTime;
-    inboundTransactions_.newRound (previousLedger_.seq());
+    callbacks_.startRound(previousLedger_);
 
     peerPositions_.clear();
     acquired_.clear();
@@ -1333,13 +1325,10 @@ std::shared_ptr <LedgerConsensusImp<RCLCxTraits>>
 make_LedgerConsensus (
     Application& app,
     ConsensusImp& consensus,
-    InboundTransactions& inboundTransactions,
-    LedgerMaster& ledgerMaster,
-    FeeVote& feeVote,
     RCLCxCalls& callbacks)
 {
     return std::make_shared <LedgerConsensusImp <RCLCxTraits>> (app, consensus,
-        inboundTransactions, ledgerMaster, feeVote, callbacks);
+        callbacks);
 }
 
 template class LedgerConsensusImp <RCLCxTraits>;

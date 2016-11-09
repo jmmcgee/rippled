@@ -21,12 +21,9 @@
 #define RIPPLE_APP_LEDGER_IMPL_LEDGERCONSENSUSIMP_H_INCLUDED
 
 #include <BeastConfig.h>
-#include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/ledger/impl/ConsensusImp.h>
 #include <ripple/app/ledger/impl/DisputedTx.h>
 #include <ripple/app/main/Application.h>
-#include <ripple/app/misc/CanonicalTXSet.h>
-#include <ripple/app/misc/FeeVote.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/protocol/UintTypes.h>
@@ -103,9 +100,6 @@ public:
     LedgerConsensusImp (
         Application& app,
         ConsensusImp& consensus,
-        InboundTransactions& inboundTransactions,
-        LedgerMaster& ledgerMaster,
-        FeeVote& feeVote,
         Callback_t& callbacks);
 
     /**
@@ -306,9 +300,7 @@ private:
     // to be removed in favor of callbacks
     Application& app_;
     ConsensusImp& consensus_;
-    InboundTransactions& inboundTransactions_;
-    LedgerMaster& ledgerMaster_;
-    FeeVote& feeVote_;
+
     std::recursive_mutex lock_;
 
     NodeID_t ourID_;
@@ -368,9 +360,6 @@ std::shared_ptr <LedgerConsensusImp <RCLCxTraits>>
 make_LedgerConsensus (
     Application& app,
     ConsensusImp& consensus,
-    InboundTransactions& inboundTransactions,
-    LedgerMaster& ledgerMaster,
-    FeeVote& feeVote,
     RCLCxCalls& callbacks);
 
 extern template class LedgerConsensusImp <RCLCxTraits>;

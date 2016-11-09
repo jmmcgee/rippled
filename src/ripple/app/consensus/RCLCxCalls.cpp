@@ -45,12 +45,14 @@ RCLCxCalls::RCLCxCalls (
     FeeVote& feeVote,
     LedgerMaster& ledgerMaster,
     LocalTxs & localTxs,
+    InboundTransactions & inboundTxs,
     beast::Journal& j)
         : app_ (app)
         , consensus_ (consensus)
         , feeVote_ (feeVote)
         , ledgerMaster_ (ledgerMaster)
         , localTxs_(localTxs)
+        , inboundTransactions_{ inboundTxs }
         , j_ (j)
         , valPublic_ (app_.config().VALIDATION_PUB)
         , valSecret_ (app_.config().VALIDATION_PRIV)
@@ -702,6 +704,17 @@ void RCLCxCalls::relayDisputedTx(RCLCxTx const & tx)
 void RCLCxCalls::offloadAccept(JobQueue::JobFunction const & f)
 {
     app_.getJobQueue().addJob(jtACCEPT, "acceptLedger", f);
+}
+
+void RCLCxCalls::startRound(RCLCxLedger const & ledger)
+{
+    inboundTransactions_.newRound (ledger.seq());
+}
+
+RCLTxSet RCLCxCalls::getTxSet(RCLCxPos const & position)
+{
+    return inboundTransactions_.getSet(
+        position.getCurrentHash(), true);
 }
 
 } // namespace ripple
