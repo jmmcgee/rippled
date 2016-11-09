@@ -23,10 +23,7 @@
 #include <BeastConfig.h>
 #include <ripple/app/ledger/impl/ConsensusImp.h>
 #include <ripple/app/ledger/impl/DisputedTx.h>
-#include <ripple/app/main/Application.h>
 #include <ripple/basics/CountedObject.h>
-#include <ripple/protocol/STValidation.h>
-#include <ripple/protocol/UintTypes.h>
 
 namespace ripple {
 
@@ -292,7 +289,7 @@ private:
     void beginAccept (bool synchronous);
 
     /** Convert an advertised close time to an effective close time */
-    NetClock::time_point effectiveCloseTime(NetClock::time_point closeTime);
+    Time_t effectiveCloseTime(Time_t closeTime);
 
 private:
     Callback_t& callbacks_;

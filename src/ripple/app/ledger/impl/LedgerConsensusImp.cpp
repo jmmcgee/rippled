@@ -19,29 +19,10 @@
 
 #include <BeastConfig.h>
 #include <ripple/app/consensus/RCLCxTraits.h>
-#include <ripple/app/ledger/InboundLedgers.h>
 #include <ripple/app/ledger/LedgerTiming.h>
-#include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/ledger/impl/LedgerConsensusImp.h>
-#include <ripple/app/ledger/impl/TransactionAcquire.h>
-#include <ripple/app/main/Application.h>
-#include <ripple/app/misc/AmendmentTable.h>
-#include <ripple/app/misc/NetworkOPs.h>
-#include <ripple/app/misc/TxQ.h>
-#include <ripple/app/misc/Validations.h>
-#include <ripple/basics/contract.h>
-#include <ripple/basics/CountedObject.h>
-#include <ripple/basics/Log.h>
-#include <ripple/core/Config.h>
-#include <ripple/core/JobQueue.h>
-#include <ripple/core/TimeKeeper.h>
 #include <ripple/json/to_string.h>
-#include <ripple/overlay/Overlay.h>
-#include <ripple/overlay/predicates.h>
-#include <ripple/app/misc/HashRouter.h>
 #include <ripple/beast/core/LexicalCast.h>
-#include <type_traits>
-
 
 namespace ripple {
 
@@ -701,7 +682,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
     auto closeTime = ourPosition_->getCloseTime();
     bool closeTimeCorrect;
 
-    if (closeTime == NetClock::time_point{})
+    if (closeTime == Time_t{})
     {
         // We agreed to disagree on the close time
         closeTime = previousLedger_.closeTime() + 1s;
@@ -991,13 +972,13 @@ participantsNeeded (int participants, int percent)
 }
 
 template <class Traits>
-NetClock::time_point
-LedgerConsensusImp<Traits>::effectiveCloseTime(NetClock::time_point closeTime)
+typename Traits::Time_t
+LedgerConsensusImp<Traits>::effectiveCloseTime(Time_t closeTime)
 {
-    if (closeTime == NetClock::time_point{})
+    if (closeTime == Time_t{})
         return closeTime;
 
-    return std::max<NetClock::time_point>(
+    return std::max<Time_t>(
         roundCloseTime (closeTime, closeResolution_),
         (previousLedger_.closeTime() + 1s));
 }
@@ -1010,7 +991,7 @@ void LedgerConsensusImp<Traits>::updateOurPositions ()
     auto ourCutoff = now_ - PROPOSE_INTERVAL;
 
     // Verify freshness of peer positions and compute close times
-    std::map<NetClock::time_point, int> closeTimes;
+    std::map<Time_t, int> closeTimes;
     {
         auto it = peerPositions_.begin ();
         while (it != peerPositions_.end ())
@@ -1078,7 +1059,7 @@ void LedgerConsensusImp<Traits>::updateOurPositions ()
     else
         neededWeight = AV_STUCK_CONSENSUS_PCT;
 
-    NetClock::time_point closeTime = {};
+    Time_t closeTime = {};
     haveCloseTimeConsensus_ = false;
 
     if (peerPositions_.empty ())
