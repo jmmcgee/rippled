@@ -306,7 +306,7 @@ void LedgerConsensusImp<Traits>::checkLCL ()
 {
     LgrID_t netLgr = callbacks_.getLCL (
         prevLedgerHash_,
-        haveCorrectLCL_ ? previousLedger_.parentHash() : uint256(),
+        haveCorrectLCL_ ? previousLedger_.parentId() : uint256(),
         haveCorrectLCL_);
 
     if (netLgr != prevLedgerHash_)
@@ -356,7 +356,7 @@ template <class Traits>
 void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
 {
     assert (lclHash != prevLedgerHash_ ||
-            previousLedger_.hash() != lclHash);
+            previousLedger_.id() != lclHash);
 
     if (prevLedgerHash_ != lclHash)
     {
@@ -380,7 +380,7 @@ void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
         playbackProposals ();
     }
 
-    if (previousLedger_.hash() == prevLedgerHash_)
+    if (previousLedger_.id() == prevLedgerHash_)
         return;
 
     // we need to switch the ledger we're working from
@@ -742,7 +742,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         closeTime, closeTimeCorrect, closeResolution_, now_,
         roundTime_, retriableTxs);
 
-    auto const newLCLHash = sharedLCL.hash();
+    auto const newLCLHash = sharedLCL.id();
     JLOG (j_.debug())
         << "Report: NewL  = " << newLCLHash
         << ":" << sharedLCL.seq();
@@ -1296,7 +1296,7 @@ void LedgerConsensusImp<Traits>::startRound (
         previousLedger_.seq() + 1);
 
 
-    haveCorrectLCL_ = (previousLedger_.hash() == prevLedgerHash_);
+    haveCorrectLCL_ = (previousLedger_.id() == prevLedgerHash_);
 
     // We should not be proposing but not validating
     // Okay to validate but not propose
@@ -1326,7 +1326,7 @@ void LedgerConsensusImp<Traits>::startRound (
         {
             JLOG (j_.info())
                 << "Entering consensus with: "
-                << previousLedger_.hash();
+                << previousLedger_.id();
             JLOG (j_.info())
                 << "Correct LCL is: " << prevLCLHash;
         }
