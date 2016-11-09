@@ -54,6 +54,8 @@ public:
     using TxID_t    = uint256;
     using TxSetID_t = uint256;
     using NodeID_t  = NodeID;
+
+    using MissingTx = SHAMapMissingNode;
 };
 
 }

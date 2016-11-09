@@ -262,7 +262,7 @@ void LedgerConsensusImp<Traits>::gotMap (
     {
         mapCompleteInternal (map, true);
     }
-    catch (SHAMapMissingNode const& mn)
+    catch (MissingTx const& mn)
     {
         // This should never happen
         leaveConsensus();
@@ -277,7 +277,7 @@ void LedgerConsensusImp<Traits>::checkLCL ()
 {
     LgrID_t netLgr = callbacks_.getLCL (
         prevLedgerHash_,
-        haveCorrectLCL_ ? previousLedger_.parentId() : uint256(),
+        haveCorrectLCL_ ? previousLedger_.parentID() : uint256(),
         haveCorrectLCL_);
 
     if (netLgr != prevLedgerHash_)
@@ -327,7 +327,7 @@ template <class Traits>
 void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
 {
     assert (lclHash != prevLedgerHash_ ||
-            previousLedger_.id() != lclHash);
+            previousLedger_.ID() != lclHash);
 
     if (prevLedgerHash_ != lclHash)
     {
@@ -351,7 +351,7 @@ void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
         playbackProposals ();
     }
 
-    if (previousLedger_.id() == prevLedgerHash_)
+    if (previousLedger_.ID() == prevLedgerHash_)
         return;
 
     // we need to switch the ledger we're working from
@@ -420,7 +420,7 @@ void LedgerConsensusImp<Traits>::timerEntry (Time_t const& now)
 
         assert (false);
     }
-    catch (SHAMapMissingNode const& mn)
+    catch (MissingTx const& mn)
     {
         // This should never happen
         leaveConsensus ();
@@ -707,11 +707,11 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
     // Put transactions into a deterministic, but unpredictable, order
     RetryTxSet_t retriableTxs (set.getID());
 
-    auto sharedLCL = callbacks_.buildLastClosedLedger(previousLedger_, set,
+    auto sharedLCL = callbacks_.accept(previousLedger_, set,
         closeTime, closeTimeCorrect, closeResolution_, now_,
         roundTime_, retriableTxs);
 
-    auto const newLCLHash = sharedLCL.id();
+    auto const newLCLHash = sharedLCL.ID();
     JLOG (j_.debug())
         << "Report: NewL  = " << newLCLHash
         << ":" << sharedLCL.seq();
@@ -1252,7 +1252,7 @@ void LedgerConsensusImp<Traits>::startRound (
         previousLedger_.seq() + 1);
 
 
-    haveCorrectLCL_ = (previousLedger_.id() == prevLedgerHash_);
+    haveCorrectLCL_ = (previousLedger_.ID() == prevLedgerHash_);
 
     // We should not be proposing but not validating
     // Okay to validate but not propose
@@ -1282,7 +1282,7 @@ void LedgerConsensusImp<Traits>::startRound (
         {
             JLOG (j_.info())
                 << "Entering consensus with: "
-                << previousLedger_.id();
+                << previousLedger_.ID();
             JLOG (j_.info())
                 << "Correct LCL is: " << prevLCLHash;
         }

@@ -324,10 +324,10 @@ void RCLCxCalls::statusChange(
 
     s.set_ledgerseq (ledger.seq());
     s.set_networktime (app_.timeKeeper().now().time_since_epoch().count());
-    s.set_ledgerhashprevious(ledger.parentId().begin (),
-        std::decay_t<decltype(ledger.parentId())>::bytes);
-    s.set_ledgerhash (ledger.id().begin (),
-        std::decay_t<decltype(ledger.id())>::bytes);
+    s.set_ledgerhashprevious(ledger.parentID().begin (),
+        std::decay_t<decltype(ledger.parentID())>::bytes);
+    s.set_ledgerhash (ledger.ID().begin (),
+        std::decay_t<decltype(ledger.ID())>::bytes);
 
     std::uint32_t uMin, uMax;
     if (! ledgerMaster_.getFullValidatedRange (uMin, uMax))
@@ -454,7 +454,7 @@ applyTransactions (
 }
 
 
-RCLCxLedger RCLCxCalls::buildLastClosedLedger(
+RCLCxLedger RCLCxCalls::accept(
     RCLCxLedger const & previousLedger,
     RCLTxSet const & set,
     NetClock::time_point closeTime,
@@ -573,7 +573,7 @@ void RCLCxCalls::validate(
     bool proposing)
 {
     // Build validation
-    auto v = std::make_shared<STValidation> (ledger.id(),
+    auto v = std::make_shared<STValidation> (ledger.ID(),
         consensus_.validationTimestamp(now),
         valPublic_, proposing);
     v->setFieldU32 (sfLedgerSequence, ledger.seq());
@@ -650,8 +650,8 @@ void RCLCxCalls::switchLCL(RCLCxLedger const & ledger)
     ledgerMaster_.switchLCL (ledger.hackAccess());
 
     // Do these need to exist?
-    assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.id());
-    assert (app_.openLedger().current()->info().parentHash == ledger.id());
+    assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.ID());
+    assert (app_.openLedger().current()->info().parentHash == ledger.ID());
 }
 
 void RCLCxCalls::adjustCloseTime(std::chrono::duration<std::int32_t> offset)

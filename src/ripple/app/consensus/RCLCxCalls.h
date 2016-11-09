@@ -87,14 +87,14 @@ public:
         bool haveCorrectLCL);
 
     /*
-    * Build the last closed ledger given the provided sset of consensus
-    * transactions. Since consensus just agrees on which transactions to apply,
-    * but not whether they make it into the closed ledger, this function also
-    * populates retriableTxs with those that can be retried in the next round.
-    *
+    * Accept the given the provided set of consensus transactions and build
+    * the last closed ledger. Since consensus just agrees on which transactions
+    * to apply, but not whether they make it into the closed ledger, this
+    * function also populates retriableTxs with those that can be retried in the
+    * next round.
     * @return the newly built ledger
     */
-    RCLCxLedger buildLastClosedLedger(
+    RCLCxLedger accept(
         RCLCxLedger const & previousLedger,
         RCLTxSet const & set,
         NetClock::time_point closeTime,

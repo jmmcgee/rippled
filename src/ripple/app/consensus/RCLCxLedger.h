@@ -53,12 +53,12 @@ public:
         return ripple::getCloseAgree(previousLedger_->info());
     }
 
-    auto id() const
+    auto ID() const
     {
         return previousLedger_->info().hash;
     }
 
-    auto parentId() const
+    auto parentID() const
     {
         return previousLedger_->info().parentHash;
     }
