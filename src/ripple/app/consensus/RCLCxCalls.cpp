@@ -633,7 +633,8 @@ void RCLCxCalls::createOpenLedger(
     else
         rules.emplace();
     app_.openLedger().accept(app_, *rules,
-        closedLedger.hackAccess(), localTxs_.getTxSet(), anyDisputes, retriableTxs.txs(), tapNONE,
+        closedLedger.hackAccess(), localTxs_.getTxSet(), anyDisputes,
+        retriableTxs.txs(), tapNONE,
             "consensus",
                 [&](OpenView& view, beast::Journal j)
                 {
@@ -670,9 +671,32 @@ bool RCLCxCalls::hasOpenTransactions() const
     return ! app_.openLedger().empty();
 }
 
-int RCLCxCalls::getProposersValidated(LedgerHash const & h) const
+int RCLCxCalls::numProposersValidated(LedgerHash const & h) const
 {
     return app_.getValidations().getTrustedValidationCount(h);
+}
+
+int RCLCxCalls::numProposersFinished(LedgerHash const & h) const
+{
+    return app_.getValidations().getNodesAfter(h);
+}
+
+void RCLCxCalls::relayDisputedTx(RCLCxTx const & tx)
+{
+     // If we didn't relay this transaction recently, relay it to all peers
+    if (app_.getHashRouter ().shouldRelay (tx.getID()))
+    {
+        auto const slice = tx.txn().slice();
+
+        protocol::TMTransaction msg;
+        msg.set_rawtransaction (slice.data(), slice.size());
+        msg.set_status (protocol::tsNEW);
+        msg.set_receivetimestamp (
+            app_.timeKeeper().now().time_since_epoch().count());
+        app_.overlay ().foreach (send_always (
+            std::make_shared<Message> (
+                msg, protocol::mtTRANSACTION)));
+    }
 }
 
 } // namespace ripple

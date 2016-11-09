@@ -465,7 +465,7 @@ void LedgerConsensusImp<Traits>::statePreClose ()
     // it is shortly before ledger close time
     bool anyTransactions = callbacks_.hasOpenTransactions();
     int proposersClosed = peerPositions_.size ();
-    int proposersValidated = callbacks_.getProposersValidated(prevLedgerHash_);
+    int proposersValidated = callbacks_.numProposersValidated(prevLedgerHash_);
 
     // This computes how long since last ledger's close time
     using namespace std::chrono;
@@ -562,8 +562,7 @@ bool LedgerConsensusImp<Traits>::haveConsensus ()
             }
         }
     }
-    int currentValidations = app_.getValidations ()
-        .getNodesAfter (prevLedgerHash_);
+    int currentFinished = callbacks_.numProposersFinished(prevLedgerHash_);
 
     JLOG (j_.debug())
         << "Checking for TX consensus: agree=" << agree
@@ -571,7 +570,7 @@ bool LedgerConsensusImp<Traits>::haveConsensus ()
 
     // Determine if we actually have consensus or not
     auto ret = checkConsensus (previousProposers_, agree + disagree, agree,
-        currentValidations, previousRoundTime_, roundTime_, proposing_,
+        currentFinished, previousRoundTime_, roundTime_, proposing_,
         callbacks_.journal ("LedgerTiming"));
 
     if (ret == ConsensusState::No)
@@ -915,20 +914,7 @@ void LedgerConsensusImp<Traits>::addDisputedTransaction (
                 cit->second.hasEntry (txID));
     }
 
-    // If we didn't relay this transaction recently, relay it to all peers
-    if (app_.getHashRouter ().shouldRelay (txID))
-    {
-        auto const slice = tx.txn().slice();
-
-        protocol::TMTransaction msg;
-        msg.set_rawtransaction (slice.data(), slice.size());
-        msg.set_status (protocol::tsNEW);
-        msg.set_receivetimestamp (
-            app_.timeKeeper().now().time_since_epoch().count());
-        app_.overlay ().foreach (send_always (
-            std::make_shared<Message> (
-                msg, protocol::mtTRANSACTION)));
-    }
+    callbacks_.relayDisputedTx(tx);
 
     disputes_.emplace (txID, std::move (txn));
 }

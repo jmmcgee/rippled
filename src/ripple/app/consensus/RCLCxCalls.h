@@ -30,6 +30,7 @@ namespace ripple {
 
 class ConsensusImp;
 class LocalTxs;
+class RCLCxTx;
 class RCLTxSet;
 class RCLCxPos;
 class RCLCxLedger;
@@ -175,7 +176,19 @@ public:
     /*
     * @return the number of proposers that validated the last validated ledger
     */
-    int getProposersValidated(LedgerHash const & h) const;
+    int numProposersValidated(LedgerHash const & h) const;
+
+    /*
+    * @return the number of validating peers that have validated a ledger
+    * succeeding the one provided
+    */
+    int numProposersFinished(LedgerHash const & h) const;
+
+    /**
+    * If the provided transaction hasn't been shared recently, relay it to peers
+    * @param tx the disputed transaction to relay
+    */
+    void relayDisputedTx(RCLCxTx const & tx);
 
 private:
 
