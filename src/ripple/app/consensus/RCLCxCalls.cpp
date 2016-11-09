@@ -373,6 +373,7 @@ applyTransactions (
     auto& set = *(cSet.map());
     CanonicalTXSet retriableTxs (set.getHash().as_uint256());
 
+
     for (auto const& item : set)
     {
         if (! txFilter (item.key()))
@@ -459,7 +460,7 @@ RCLCxLedger RCLCxCalls::buildLastClosedLedger(
     NetClock::duration closeResolution,
     NetClock::time_point now,
     std::chrono::milliseconds roundTime,
-    CanonicalTXSet & retriableTxs
+    RCLCxRetryTxSet & retriableTxs
 )
 {
     auto replay = ledgerMaster_.releaseReplay();
@@ -506,7 +507,7 @@ RCLCxLedger RCLCxCalls::buildLastClosedLedger(
         else
         {
             // Normal case, we are not replaying a ledger close
-            retriableTxs = applyTransactions (app_, set, accum,
+            retriableTxs.txs() = applyTransactions (app_, set, accum,
                 [&buildLCL](uint256 const& txID)
                 {
                     return ! buildLCL->txExists(txID);
@@ -615,7 +616,7 @@ void RCLCxCalls::consensusBuilt(
 
 void RCLCxCalls::createOpenLedger(
     RCLCxLedger const & closedLedger,
-    CanonicalTXSet & retriableTxs,
+    RCLCxRetryTxSet & retriableTxs,
     bool anyDisputes)
 {
     // Build new open ledger
@@ -632,7 +633,7 @@ void RCLCxCalls::createOpenLedger(
     else
         rules.emplace();
     app_.openLedger().accept(app_, *rules,
-        closedLedger.hackAccess(), localTxs_.getTxSet(), anyDisputes, retriableTxs, tapNONE,
+        closedLedger.hackAccess(), localTxs_.getTxSet(), anyDisputes, retriableTxs.txs(), tapNONE,
             "consensus",
                 [&](OpenView& view, beast::Journal j)
                 {

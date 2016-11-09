@@ -44,10 +44,11 @@ public:
 
     using Time_t     = NetClock::time_point;
 
-    using Ledger_t   = RCLCxLedger;
-    using Pos_t      = RCLCxPos;
-    using TxSet_t    = RCLTxSet;
-    using Tx_t       = RCLCxTx;
+    using Ledger_t     = RCLCxLedger;
+    using Pos_t        = RCLCxPos;
+    using TxSet_t      = RCLTxSet;
+    using RetryTxSet_t = RCLCxRetryTxSet;
+    using Tx_t         = RCLCxTx;
 
     using LgrID_t   = LedgerHash;
     using TxID_t    = uint256;

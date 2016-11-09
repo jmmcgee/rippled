@@ -78,6 +78,7 @@ public:
     using typename Traits::TxID_t;
     using typename Traits::TxSetID_t;
     using typename Traits::NodeID_t;
+    using typename Traits::RetryTxSet_t;
     using Dispute_t = DisputedTx <Traits>;
 
     /**

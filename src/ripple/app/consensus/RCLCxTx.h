@@ -23,6 +23,7 @@
 #include <ripple/basics/chrono.h>
 #include <ripple/protocol/UintTypes.h>
 #include <ripple/shamap/SHAMap.h>
+#include <ripple/app/misc/CanonicalTXSet.h>
 
 namespace ripple {
 
@@ -58,7 +59,7 @@ public:
     MutableRCLTxSet (RCLTxSet const&);
 
     bool
-    addEntry (RCLCxTx const& p)
+    insert (RCLCxTx const& p)
     {
         return map_->addItem (
             SHAMapItem {p.getID(), p.txn().peekData()},
@@ -66,7 +67,7 @@ public:
     }
 
     bool
-    removeEntry (uint256 const& entry)
+    remove (uint256 const& entry)
     {
         return map_->delItem (entry);
     }
@@ -151,6 +152,26 @@ protected:
 inline MutableRCLTxSet::MutableRCLTxSet (RCLTxSet const& set)
     : map_ (set.map()->snapShot (true))
 { }
+
+class RCLCxRetryTxSet
+{
+public:
+    RCLCxRetryTxSet(uint256 id) : txs_{ id } {}
+
+    void insert(RCLCxTx cTxn)
+    {
+        SerialIter sit (cTxn.txn().slice());
+        auto txn = std::make_shared<STTx const>(sit);
+        txs_.insert (txn);
+    }
+
+    CanonicalTXSet & txs()
+    {
+        return txs_;
+    }
+private:
+    CanonicalTXSet txs_;
+};
 
 }
 #endif

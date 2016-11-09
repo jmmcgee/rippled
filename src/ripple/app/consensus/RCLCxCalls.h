@@ -33,6 +33,7 @@ class LocalTxs;
 class RCLTxSet;
 class RCLCxPos;
 class RCLCxLedger;
+class RCLCxRetryTxSet;
 
 class RCLCxCalls
 {
@@ -98,7 +99,7 @@ public:
         NetClock::duration closeResolution,
         NetClock::time_point now,
         std::chrono::milliseconds roundTime,
-        CanonicalTXSet & retriableTxs
+        RCLCxRetryTxSet & retriableTxs
     );
 
     /*
@@ -141,7 +142,7 @@ public:
     */
     void createOpenLedger(
         RCLCxLedger const & closedLedger,
-        CanonicalTXSet & retriableTxs,
+        RCLCxRetryTxSet & retriableTxs,
         bool anyDisputes);
 
     /*

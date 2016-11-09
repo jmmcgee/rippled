@@ -27,7 +27,6 @@
 #include <ripple/app/ledger/impl/TransactionAcquire.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/misc/AmendmentTable.h>
-#include <ripple/app/misc/CanonicalTXSet.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/TxQ.h>
 #include <ripple/app/misc/Validations.h>
@@ -749,7 +748,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
         << ":" << previousLedger_.seq();
 
     // Put transactions into a deterministic, but unpredictable, order
-    CanonicalTXSet retriableTxs (set.getID());
+    RetryTxSet_t retriableTxs (set.getID());
 
     auto sharedLCL = callbacks_.buildLastClosedLedger(previousLedger_, set,
         closeTime, closeTimeCorrect, closeResolution_, now_,
@@ -804,12 +803,7 @@ void LedgerConsensusImp<Traits>::accept (TxSet_t const& set)
                         << "Test applying disputed transaction that did"
                         << " not get in";
 
-                    RCLCxTx cTxn {it.second.tx()};
-                    SerialIter sit (cTxn.txn().slice());
-
-                    auto txn = std::make_shared<STTx const>(sit);
-
-                    retriableTxs.insert (txn);
+                    retriableTxs.insert (it.second.tx());
 
                     anyDisputes = true;
                 }
@@ -1095,12 +1089,12 @@ void LedgerConsensusImp<Traits>::updateOurPositions ()
                 if (it.second.getOurVote ())
                 {
                     // now a yes
-                    changedSet->addEntry (it.second.tx());
+                    changedSet->insert (it.second.tx());
                 }
                 else
                 {
                     // now a no
-                    changedSet->removeEntry (it.first);
+                    changedSet->remove (it.first);
                 }
             }
         }
