@@ -190,6 +190,11 @@ public:
     */
     void relayDisputedTx(RCLCxTx const & tx);
 
+    /*
+    * Schedule an offloaded call to accept
+    */
+    void offloadAccept(JobQueue::JobFunction const & f);
+
 private:
 
     Application& app_;

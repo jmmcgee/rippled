@@ -1227,10 +1227,10 @@ void LedgerConsensusImp<Traits>::beginAccept (bool synchronous)
         accept (*ourSet_);
     else
     {
-        app_.getJobQueue().addJob (jtACCEPT, "acceptLedger",
+        callbacks_.offloadAccept(
             [that = this->shared_from_this(),
             consensusSet = *ourSet_]
-            (Job &)
+            (auto &)
             {
                 that->accept (consensusSet);
             });

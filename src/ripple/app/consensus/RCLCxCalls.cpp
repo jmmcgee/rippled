@@ -699,4 +699,9 @@ void RCLCxCalls::relayDisputedTx(RCLCxTx const & tx)
     }
 }
 
+void RCLCxCalls::offloadAccept(JobQueue::JobFunction const & f)
+{
+    app_.getJobQueue().addJob(jtACCEPT, "acceptLedger", f);
+}
+
 } // namespace ripple
