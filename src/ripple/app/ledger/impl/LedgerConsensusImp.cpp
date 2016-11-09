@@ -347,16 +347,6 @@ void LedgerConsensusImp<Traits>::checkLCL ()
         JLOG (j_.warn())
             << getJson (true);
 
-#if 0 // FIXME
-        if (auto stream = j_.debug())
-        {
-            for (auto& it : vals)
-                stream
-                    << "V: " << it.first << ", " << it.second.first;
-            stream << getJson (true);
-        }
-#endif
-
         handleLCL (netLgr);
     }
 }
@@ -473,11 +463,9 @@ template <class Traits>
 void LedgerConsensusImp<Traits>::statePreClose ()
 {
     // it is shortly before ledger close time
-    bool anyTransactions = ! app_.openLedger().empty();
+    bool anyTransactions = callbacks_.hasOpenTransactions();
     int proposersClosed = peerPositions_.size ();
-    int proposersValidated
-        = app_.getValidations ().getTrustedValidationCount
-        (prevLedgerHash_);
+    int proposersValidated = callbacks_.getProposersValidated(prevLedgerHash_);
 
     // This computes how long since last ledger's close time
     using namespace std::chrono;
@@ -505,7 +493,7 @@ void LedgerConsensusImp<Traits>::statePreClose ()
     if (shouldCloseLedger (anyTransactions
         , previousProposers_, proposersClosed, proposersValidated
         , previousRoundTime_, sinceClose, roundTime_
-        , idleInterval, app_.journal ("LedgerTiming")))
+        , idleInterval, callbacks_.journal ("LedgerTiming")))
     {
         closeLedger ();
     }
@@ -584,7 +572,7 @@ bool LedgerConsensusImp<Traits>::haveConsensus ()
     // Determine if we actually have consensus or not
     auto ret = checkConsensus (previousProposers_, agree + disagree, agree,
         currentValidations, previousRoundTime_, roundTime_, proposing_,
-        app_.journal ("LedgerTiming"));
+        callbacks_.journal ("LedgerTiming"));
 
     if (ret == ConsensusState::No)
         return false;

@@ -162,7 +162,20 @@ public:
     */
     void endConsensus(bool correctLCL);
 
+    /*
+    * @return a handle to the given journal
+    */
+    beast::Journal journal(std::string const & s) const;
 
+    /*
+    *@return whether the open ledger has any transactions
+    */
+    bool hasOpenTransactions() const;
+
+    /*
+    * @return the number of proposers that validated the last validated ledger
+    */
+    int getProposersValidated(LedgerHash const & h) const;
 
 private:
 

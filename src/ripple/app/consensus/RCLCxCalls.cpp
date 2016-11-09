@@ -660,4 +660,19 @@ void RCLCxCalls::endConsensus(bool correctLCL)
 {
     app_.getOPs ().endConsensus (correctLCL);
 }
+beast::Journal RCLCxCalls::journal(std::string const & s) const
+{
+    return app_.journal(s);
+}
+
+bool RCLCxCalls::hasOpenTransactions() const
+{
+    return ! app_.openLedger().empty();
+}
+
+int RCLCxCalls::getProposersValidated(LedgerHash const & h) const
+{
+    return app_.getValidations().getTrustedValidationCount(h);
+}
+
 } // namespace ripple
