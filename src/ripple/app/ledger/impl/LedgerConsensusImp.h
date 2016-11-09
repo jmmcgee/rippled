@@ -98,9 +98,9 @@ public:
         @param feeVote Our designed feel levels and voting logic
     */
     LedgerConsensusImp (
-        Application& app,
         ConsensusImp& consensus,
-        Callback_t& callbacks);
+        Callback_t& callbacks,
+        NodeID_t id);
 
     /**
         @param prevLCLHash The hash of the Last Closed Ledger (LCL).
@@ -298,7 +298,6 @@ private:
     Callback_t& callbacks_;
 
     // to be removed in favor of callbacks
-    Application& app_;
     ConsensusImp& consensus_;
 
     std::recursive_mutex lock_;
@@ -315,8 +314,6 @@ private:
     Ledger_t previousLedger_;
     boost::optional<Pos_t> ourPosition_;
     boost::optional<TxSet_t> ourSet_;
-    PublicKey valPublic_;
-    SecretKey valSecret_;
     bool proposing_, validating_, haveCorrectLCL_, consensusFail_;
 
     // How much time has elapsed since the round started
@@ -358,9 +355,9 @@ private:
 
 std::shared_ptr <LedgerConsensusImp <RCLCxTraits>>
 make_LedgerConsensus (
-    Application& app,
     ConsensusImp& consensus,
-    RCLCxCalls& callbacks);
+    RCLCxCalls& callbacks,
+    typename RCLCxTraits::NodeID_t id);
 
 extern template class LedgerConsensusImp <RCLCxTraits>;
 

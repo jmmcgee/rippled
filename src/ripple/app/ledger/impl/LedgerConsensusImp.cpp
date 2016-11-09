@@ -47,16 +47,13 @@ namespace ripple {
 
 template <class Traits>
 LedgerConsensusImp<Traits>::LedgerConsensusImp (
-        Application& app,
         ConsensusImp& consensus,
-        Callback_t& callbacks)
+        Callback_t& callbacks,
+        NodeID_t id)
     : callbacks_ (callbacks)
-    , app_ (app)
     , consensus_ (consensus)
-    , ourID_ (calcNodeID (app.nodeIdentity().first))
+    , ourID_ (id)
     , state_ (State::open)
-    , valPublic_ (app_.config().VALIDATION_PUB)
-    , valSecret_ (app_.config().VALIDATION_PRIV)
     , consensusFail_ (false)
     , roundTime_ (0)
     , closePercent_ (0)
@@ -65,7 +62,7 @@ LedgerConsensusImp<Traits>::LedgerConsensusImp (
     , consensusStartTime_ (std::chrono::steady_clock::now ())
     , previousProposers_ (0)
     , previousRoundTime_ (0)
-    , j_ (app.journal ("LedgerConsensus"))
+    , j_ (callbacks.journal ("LedgerConsensus"))
 {
     JLOG (j_.debug()) << "Creating consensus object";
 }
@@ -1323,12 +1320,12 @@ void LedgerConsensusImp<Traits>::startRound (
 //------------------------------------------------------------------------------
 std::shared_ptr <LedgerConsensusImp<RCLCxTraits>>
 make_LedgerConsensus (
-    Application& app,
     ConsensusImp& consensus,
-    RCLCxCalls& callbacks)
+    RCLCxCalls& callbacks,
+    typename RCLCxTraits::NodeID_t id)
 {
-    return std::make_shared <LedgerConsensusImp <RCLCxTraits>> (app, consensus,
-        callbacks);
+    return std::make_shared <LedgerConsensusImp <RCLCxTraits>> (consensus,
+        callbacks, id);
 }
 
 template class LedgerConsensusImp <RCLCxTraits>;
