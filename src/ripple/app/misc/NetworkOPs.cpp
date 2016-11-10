@@ -1486,9 +1486,8 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
     assert (closingInfo.parentHash ==
             m_ledgerMaster.getClosedLedger()->info().hash);
 
-    mConsensus.startRound (
+    mLedgerConsensus->startRound (
         app_.timeKeeper().closeTime(),
-        *mLedgerConsensus,
         networkClosed,
         prevLedger);
 
@@ -2097,18 +2096,18 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
     info[jss::peers] = Json::UInt (app_.overlay ().size ());
 
     Json::Value lastClose = Json::objectValue;
-    lastClose[jss::proposers] = mConsensus.getLastCloseProposers();
+    lastClose[jss::proposers] = mLedgerConsensus->getLastCloseProposers();
 
     if (human)
     {
         lastClose[jss::converge_time_s] =
             std::chrono::duration<double>{
-                mConsensus.getLastCloseDuration()}.count();
+                mLedgerConsensus->getLastCloseDuration()}.count();
     }
     else
     {
         lastClose[jss::converge_time] =
-                Json::Int (mConsensus.getLastCloseDuration().count());
+                Json::Int (mLedgerConsensus->getLastCloseDuration().count());
     }
 
     info[jss::last_close] = lastClose;

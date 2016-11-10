@@ -42,7 +42,7 @@ LedgerConsensusImp<Traits>::LedgerConsensusImp (
     , haveCloseTimeConsensus_ (false)
     , consensusStartTime_ (std::chrono::steady_clock::now ())
     , previousProposers_ (0)
-    , previousRoundTime_ (0)
+    , previousRoundTime_ (LEDGER_IDLE_INTERVAL)
     , j_ (callbacks.journal ("LedgerConsensus"))
 {
     JLOG (j_.debug()) << "Creating consensus object";
@@ -368,9 +368,7 @@ void LedgerConsensusImp<Traits>::handleLCL (LgrID_t const& lclHash)
     startRound (
         now_,
         lclHash,
-        buildLCL,
-        previousProposers_,
-        previousRoundTime_);
+        buildLCL);
 }
 
 template <class Traits>
@@ -1191,7 +1189,9 @@ void LedgerConsensusImp<Traits>::beginAccept (bool synchronous)
         abort ();
     }
 
-    consensus_.newLCL (peerPositions_.size (), roundTime_);
+
+    previousProposers_ = peerPositions_.size();
+    previousRoundTime_ = roundTime_;
 
     if (synchronous)
         accept (*ourSet_);
@@ -1211,9 +1211,7 @@ template <class Traits>
 void LedgerConsensusImp<Traits>::startRound (
     Time_t const& now,
     LgrID_t const& prevLCLHash,
-    Ledger_t const & prevLedger,
-    int previousProposers,
-    std::chrono::milliseconds previousConvergeTime)
+    Ledger_t const & prevLedger)
 {
     std::lock_guard<std::recursive_mutex> _(lock_);
 
@@ -1235,8 +1233,6 @@ void LedgerConsensusImp<Traits>::startRound (
     closePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     consensusStartTime_ = std::chrono::steady_clock::now();
-    previousProposers_ = previousProposers;
-    previousRoundTime_ = previousConvergeTime;
     callbacks_.startRound(previousLedger_);
 
     peerPositions_.clear();

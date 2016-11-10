@@ -26,7 +26,6 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <ripple/beast/utility/Journal.h>
-#include <ripple/app/ledger/LedgerTiming.h>
 
 namespace ripple {
 
@@ -46,19 +45,6 @@ public:
     bool
     isValidating () const;
 
-    int
-    getLastCloseProposers () const;
-
-    std::chrono::milliseconds
-    getLastCloseDuration () const;
-
-    void
-    startRound (
-        NetClock::time_point now,
-        LedgerConsensusImp<RCLCxTraits>& ledgerConsensus,
-        LedgerHash const& prevLCLHash,
-        std::shared_ptr<Ledger const> const& previousLedger);
-
     void
     setLastCloseTime (NetClock::time_point t);
 
@@ -69,11 +55,6 @@ public:
 
     void
     setProposing (bool p, bool v);
-
-    void
-    newLCL (
-        int proposers,
-        std::chrono::milliseconds convergeTime);
 
     NetClock::time_point
     validationTimestamp (NetClock::time_point vt);
@@ -99,12 +80,6 @@ private:
 
     bool proposing_ = false;
     bool validating_ = false;
-
-    // The number of proposers who participated in the last ledger close
-    int lastCloseProposers_ = 0;
-
-    // How long the last ledger close took, in milliseconds
-    std::chrono::milliseconds lastCloseConvergeTook_{ LEDGER_IDLE_INTERVAL };
 
     // The timestamp of the last validation we used, in network time. This is
     // only used for our own validations.

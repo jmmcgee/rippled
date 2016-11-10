@@ -105,15 +105,11 @@ public:
         @param prevLCLHash The hash of the Last Closed Ledger (LCL).
         @param previousLedger Best guess of what the LCL was.
         @param closeTime Closing time point of the LCL.
-        @param previousProposers the number of participants in the last round
-        @param previousConvergeTime how long the last round took (ms)
     */
     void startRound (
         Time_t const& now,
         LgrID_t const& prevLCLHash,
-        Ledger_t const& prevLedger,
-        int previousProposers,
-        std::chrono::milliseconds previousConvergeTime);
+        Ledger_t const& prevLedger);
 
     /**
       Get the Json state of the consensus process.
@@ -185,6 +181,17 @@ public:
     {
         return previousLedger_;
     }
+
+    int getLastCloseProposers() const
+    {
+        return previousProposers_;
+    }
+
+    std::chrono::milliseconds getLastCloseDuration() const
+    {
+        return previousRoundTime_;
+    }
+
 
 private:
     /**
@@ -327,6 +334,8 @@ private:
     bool haveCloseTimeConsensus_;
 
     std::chrono::steady_clock::time_point consensusStartTime_;
+
+    // The number of proposers who participated in the last consensus round
     int previousProposers_;
 
     // Time it took for the last consensus round to converge
@@ -348,6 +357,8 @@ private:
     // nodes that have bowed out of this consensus process
     hash_set<NodeID_t> deadNodes_;
     beast::Journal j_;
+
+
 };
 
 //------------------------------------------------------------------------------

@@ -36,47 +36,11 @@ ConsensusImp::isValidating () const
     return validating_;
 }
 
-int
-ConsensusImp::getLastCloseProposers () const
-{
-    return lastCloseProposers_;
-}
-
-std::chrono::milliseconds
-ConsensusImp::getLastCloseDuration () const
-{
-    return lastCloseConvergeTook_;
-}
-
-void
-ConsensusImp::startRound (
-    NetClock::time_point now,
-    LedgerConsensusImp<RCLCxTraits>& consensus,
-    LedgerHash const &prevLCLHash,
-    std::shared_ptr<Ledger const> const& prevLedger)
-{
-    consensus.startRound (
-        now,
-        prevLCLHash,
-        prevLedger,
-        lastCloseProposers_,
-        lastCloseConvergeTook_);
-}
-
 void
 ConsensusImp::setProposing (bool p, bool v)
 {
     proposing_ = p;
     validating_ = v;
-}
-
-void
-ConsensusImp::newLCL (
-    int proposers,
-    std::chrono::milliseconds convergeTime)
-{
-    lastCloseProposers_ = proposers;
-    lastCloseConvergeTook_ = convergeTime;
 }
 
 NetClock::time_point
