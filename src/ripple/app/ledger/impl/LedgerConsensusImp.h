@@ -21,7 +21,6 @@
 #define RIPPLE_APP_LEDGER_IMPL_LEDGERCONSENSUSIMP_H_INCLUDED
 
 #include <BeastConfig.h>
-#include <ripple/app/ledger/impl/ConsensusImp.h>
 #include <ripple/app/ledger/impl/DisputedTx.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/app/consensus/RCLCxTraits.h>
@@ -91,13 +90,10 @@ public:
 
 
     /**
-        @param localtx transactions issued by local clients
-        @param inboundTransactions set of inbound transaction sets
-        @param localtx A set of local transactions to apply
-        @param feeVote Our designed feel levels and voting logic
+        @param callbacks implementation specific hooks back into surrouding app
+        @param id identifier for this node to use in consensus process
     */
     LedgerConsensusImp (
-        ConsensusImp& consensus,
         Callback_t& callbacks,
         NodeID_t id);
 
@@ -303,9 +299,6 @@ private:
 private:
     Callback_t& callbacks_;
 
-    // to be removed in favor of callbacks
-    ConsensusImp& consensus_;
-
     std::recursive_mutex lock_;
 
     NodeID_t ourID_;
@@ -365,7 +358,6 @@ private:
 
 std::shared_ptr <LedgerConsensusImp <RCLCxTraits>>
 make_LedgerConsensus (
-    ConsensusImp& consensus,
     RCLCxCalls& callbacks,
     typename RCLCxTraits::NodeID_t id);
 

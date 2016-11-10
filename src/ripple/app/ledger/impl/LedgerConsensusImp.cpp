@@ -28,11 +28,9 @@ namespace ripple {
 
 template <class Traits>
 LedgerConsensusImp<Traits>::LedgerConsensusImp (
-        ConsensusImp& consensus,
         Callback_t& callbacks,
         NodeID_t id)
     : callbacks_ (callbacks)
-    , consensus_ (consensus)
     , ourID_ (id)
     , state_ (State::open)
     , consensusFail_ (false)
@@ -447,7 +445,7 @@ void LedgerConsensusImp<Traits>::statePreClose ()
 
         auto closeTime = previousCloseCorrect
             ? previousLedger_.closeTime() // use consensus timing
-            : consensus_.getLastCloseTime(); // use the time we saw
+            : callbacks_.getLastCloseTime(); // use the time we saw
 
         if (now_ >= closeTime)
             sinceClose = now_ - closeTime;
@@ -1169,7 +1167,7 @@ void LedgerConsensusImp<Traits>::closeLedger ()
     state_ = State::establish;
     consensusStartTime_ = std::chrono::steady_clock::now ();
     closeTime_ = now_;
-    consensus_.setLastCloseTime(closeTime_);
+    callbacks_.setLastCloseTime(closeTime_);
 
     callbacks_.statusChange (
         RCLCxCalls::ChangeType::Closing,
@@ -1297,11 +1295,10 @@ void LedgerConsensusImp<Traits>::startRound (
 //------------------------------------------------------------------------------
 std::shared_ptr <LedgerConsensusImp<RCLCxTraits>>
 make_LedgerConsensus (
-    ConsensusImp& consensus,
     RCLCxCalls& callbacks,
     typename RCLCxTraits::NodeID_t id)
 {
-    return std::make_shared <LedgerConsensusImp <RCLCxTraits>> (consensus,
+    return std::make_shared <LedgerConsensusImp <RCLCxTraits>> (
         callbacks, id);
 }
 

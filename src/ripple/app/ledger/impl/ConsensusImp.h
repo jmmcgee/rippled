@@ -46,7 +46,17 @@ public:
     isValidating () const;
 
     void
-    setLastCloseTime (NetClock::time_point t);
+    setLastCloseTime(NetClock::time_point t)
+    {
+        callbacks_->setLastCloseTime(t);
+    }
+
+    NetClock::time_point
+    getLastCloseTime() const
+    {
+        return callbacks_->getLastCloseTime();
+    }
+
 
     void
     storeProposal (
@@ -59,8 +69,6 @@ public:
     NetClock::time_point
     validationTimestamp (NetClock::time_point vt);
 
-    NetClock::time_point
-    getLastCloseTime () const;
 
     std::vector <RCLCxPos>
     getStoredProposals (uint256 const& previousLedger);
@@ -84,9 +92,6 @@ private:
     // The timestamp of the last validation we used, in network time. This is
     // only used for our own validations.
     NetClock::time_point lastValidationTimestamp_;
-
-    // The last close time
-    NetClock::time_point lastCloseTime_;
 
     Proposals storedProposals_;
 

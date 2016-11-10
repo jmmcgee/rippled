@@ -53,18 +53,6 @@ ConsensusImp::validationTimestamp (NetClock::time_point vt)
     return vt;
 }
 
-NetClock::time_point
-ConsensusImp::getLastCloseTime () const
-{
-    return lastCloseTime_;
-}
-
-void
-ConsensusImp::setLastCloseTime (NetClock::time_point t)
-{
-    lastCloseTime_ = t;
-}
-
 void
 ConsensusImp::storeProposal (
     LedgerProposal::ref proposal,
@@ -114,7 +102,7 @@ makeLedgerConsensus (
         consensus.callbacks_ = std::make_unique <RCLCxCalls>(
             app, consensus, std::move(feeVote), ledgerMaster, localTxs, inboundTransactions, journal_);
 
-    return make_LedgerConsensus (consensus, *consensus.callbacks_, calcNodeID (app.nodeIdentity().first));
+    return make_LedgerConsensus (*consensus.callbacks_, calcNodeID (app.nodeIdentity().first));
 
 }
 
