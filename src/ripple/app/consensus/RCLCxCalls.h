@@ -40,15 +40,14 @@ class RCLCxRetryTxSet;
 class RCLCxCalls
 {
 public:
-
     RCLCxCalls (
         Application&,
         ConsensusImp&,
-        FeeVote&,
+        std::unique_ptr<FeeVote>&&,
         LedgerMaster&,
         LocalTxs &,
         InboundTransactions &,
-        beast::Journal&);
+        beast::Journal);
 
     uint256 getLCL (
         uint256 const& currentLedger,
@@ -211,7 +210,7 @@ private:
 
     Application& app_;
     ConsensusImp& consensus_;
-    FeeVote& feeVote_;
+    std::unique_ptr <FeeVote> feeVote_;
     LedgerMaster & ledgerMaster_;
     LocalTxs & localTxs_;
     InboundTransactions& inboundTransactions_;

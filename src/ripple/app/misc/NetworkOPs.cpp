@@ -198,8 +198,10 @@ public:
         , m_amendmentBlocked (false)
         , m_heartbeatTimer (this)
         , m_clusterTimer (this)
-        , mConsensus (make_Consensus (app_.config(), app_.logs()))
-        , mLedgerConsensus (makeLedgerConsensus (*mConsensus,
+        , mLedgerConsensus (makeLedgerConsensus (mConsensus,
+            app_.logs().journal("Consensus"),
+               make_FeeVote (setup_FeeVote (app_.config().section ("voting")),
+                   app_.logs().journal("FeeVote")),
             app, app.getInboundTransactions(), ledgerMaster, *m_localTX))
         , m_ledgerMaster (ledgerMaster)
         , mLastLoadBase (256)
@@ -352,7 +354,7 @@ public:
     void consensusViewChange () override;
     void setLastCloseTime (NetClock::time_point t) override
     {
-        mConsensus->setLastCloseTime(t);
+        mConsensus.setLastCloseTime(t);
     }
     Json::Value getConsensusInfo () override;
     Json::Value getServerInfo (bool human, bool admin) override;
@@ -529,7 +531,7 @@ private:
     DeadlineTimer m_heartbeatTimer;
     DeadlineTimer m_clusterTimer;
 
-    std::unique_ptr<ConsensusImp> mConsensus;
+    ConsensusImp mConsensus;
     std::shared_ptr<LedgerConsensusImp<RCLCxTraits>> mLedgerConsensus;
 
     LedgerMaster& m_ledgerMaster;
@@ -744,10 +746,10 @@ std::string NetworkOPsImp::strOperatingMode () const
 {
     if (mMode == omFULL)
     {
-        if (mConsensus->isProposing ())
+        if (mConsensus.isProposing ())
             return "proposing";
 
-        if (mConsensus->isValidating ())
+        if (mConsensus.isValidating ())
             return "validating";
     }
 
@@ -1484,7 +1486,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
     assert (closingInfo.parentHash ==
             m_ledgerMaster.getClosedLedger()->info().hash);
 
-    mConsensus->startRound (
+    mConsensus.startRound (
         app_.timeKeeper().closeTime(),
         *mLedgerConsensus,
         networkClosed,
@@ -1504,7 +1506,7 @@ void NetworkOPsImp::processTrustedProposal (
     std::shared_ptr<protocol::TMProposeSet> set,
     NodeID const& node)
 {
-    mConsensus->storeProposal (proposal, node);
+    mConsensus.storeProposal (proposal, node);
 
     if (mLedgerConsensus->peerPosition (
         app_.timeKeeper().closeTime(), *proposal))
@@ -2095,18 +2097,18 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
     info[jss::peers] = Json::UInt (app_.overlay ().size ());
 
     Json::Value lastClose = Json::objectValue;
-    lastClose[jss::proposers] = mConsensus->getLastCloseProposers();
+    lastClose[jss::proposers] = mConsensus.getLastCloseProposers();
 
     if (human)
     {
         lastClose[jss::converge_time_s] =
             std::chrono::duration<double>{
-                mConsensus->getLastCloseDuration()}.count();
+                mConsensus.getLastCloseDuration()}.count();
     }
     else
     {
         lastClose[jss::converge_time] =
-                Json::Int (mConsensus->getLastCloseDuration().count());
+                Json::Int (mConsensus.getLastCloseDuration().count());
     }
 
     info[jss::last_close] = lastClose;

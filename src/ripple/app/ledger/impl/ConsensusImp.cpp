@@ -24,21 +24,6 @@
 
 namespace ripple {
 
-ConsensusImp::ConsensusImp (
-        FeeVote::Setup const& voteSetup,
-        Logs& logs)
-    : journal_ (logs.journal("Consensus"))
-    , feeVote_ (make_FeeVote (voteSetup,
-        logs.journal("FeeVote")))
-    , proposing_ (false)
-    , validating_ (false)
-    , lastCloseProposers_ (0)
-    , lastCloseConvergeTook_ (LEDGER_IDLE_INTERVAL)
-    , lastValidationTimestamp_ (0s)
-    , lastCloseTime_ (0s)
-{
-}
-
 bool
 ConsensusImp::isProposing () const
 {
@@ -83,18 +68,6 @@ ConsensusImp::setProposing (bool p, bool v)
 {
     proposing_ = p;
     validating_ = v;
-}
-
-STValidation::ref
-ConsensusImp::getLastValidation () const
-{
-    return lastValidation_;
-}
-
-void
-ConsensusImp::setLastValidation (STValidation::ref v)
-{
-    lastValidation_ = v;
 }
 
 void
@@ -165,25 +138,20 @@ ConsensusImp::getStoredProposals (uint256 const& prevLedger)
 std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
 makeLedgerConsensus (
     ConsensusImp& consensus,
+    beast::Journal journal_,
+    std::unique_ptr<FeeVote> && feeVote,
     Application& app,
     InboundTransactions& inboundTransactions,
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs)
 {
+
     if (!consensus.callbacks_)
         consensus.callbacks_ = std::make_unique <RCLCxCalls>(
-            app, consensus, *consensus.feeVote_, ledgerMaster, localTxs, inboundTransactions, consensus.journal_);
+            app, consensus, std::move(feeVote), ledgerMaster, localTxs, inboundTransactions, journal_);
 
     return make_LedgerConsensus (consensus, *consensus.callbacks_, calcNodeID (app.nodeIdentity().first));
 
-}
-
-std::unique_ptr <ConsensusImp>
-make_Consensus (Config const& config, Logs& logs)
-{
-    return std::make_unique<ConsensusImp> (
-        setup_FeeVote (config.section ("voting")),
-        logs);
 }
 
 }

@@ -21,12 +21,12 @@
 #define RIPPLE_APP_LEDGER_IMPL_CONSENSUSIMP_H_INCLUDED
 
 #include <BeastConfig.h>
-#include <ripple/app/misc/FeeVote.h>
 #include <ripple/basics/Log.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <ripple/beast/utility/Journal.h>
+#include <ripple/app/ledger/LedgerTiming.h>
 
 namespace ripple {
 
@@ -39,10 +39,6 @@ class ConsensusImp
 public:
 
     using Proposals = hash_map <NodeID, std::deque<LedgerProposal::pointer>>;
-
-    ConsensusImp (FeeVote::Setup const& voteSetup, Logs& logs);
-
-    ~ConsensusImp () = default;
 
     bool
     isProposing () const;
@@ -74,12 +70,6 @@ public:
     void
     setProposing (bool p, bool v);
 
-    STValidation::ref
-    getLastValidation () const;
-
-    void
-    setLastValidation (STValidation::ref v);
-
     void
     newLCL (
         int proposers,
@@ -97,27 +87,24 @@ public:
    friend std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
     makeLedgerConsensus (
         ConsensusImp& ,
+        beast::Journal journal_,
+        std::unique_ptr<FeeVote> &&,
         Application& ,
         InboundTransactions& ,
         LedgerMaster& ,
         LocalTxs& );
 
 private:
-    beast::Journal journal_;
-    std::unique_ptr <FeeVote> feeVote_;
     std::unique_ptr <RCLCxCalls> callbacks_;
 
-    bool proposing_;
-    bool validating_;
-
-    // A pointer to the last validation that we issued
-    STValidation::pointer lastValidation_;
+    bool proposing_ = false;
+    bool validating_ = false;
 
     // The number of proposers who participated in the last ledger close
-    int lastCloseProposers_;
+    int lastCloseProposers_ = 0;
 
     // How long the last ledger close took, in milliseconds
-    std::chrono::milliseconds lastCloseConvergeTook_;
+    std::chrono::milliseconds lastCloseConvergeTook_{ LEDGER_IDLE_INTERVAL };
 
     // The timestamp of the last validation we used, in network time. This is
     // only used for our own validations.
@@ -135,13 +122,12 @@ private:
 std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
 makeLedgerConsensus (
     ConsensusImp& consensus,
+    beast::Journal journal_,
+    std::unique_ptr<FeeVote> && feeVote,
     Application& app,
     InboundTransactions& inboundTransactions,
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs);
-
-std::unique_ptr<ConsensusImp>
-make_Consensus (Config const& config, Logs& logs);
 
 }
 

@@ -42,14 +42,14 @@ namespace ripple {
 RCLCxCalls::RCLCxCalls (
     Application& app,
     ConsensusImp & consensus,
-    FeeVote& feeVote,
+    std::unique_ptr<FeeVote> && feeVote,
     LedgerMaster& ledgerMaster,
     LocalTxs & localTxs,
     InboundTransactions & inboundTxs,
-    beast::Journal& j)
+    beast::Journal j)
         : app_ (app)
         , consensus_ (consensus)
-        , feeVote_ (feeVote)
+        , feeVote_ (std::move(feeVote))
         , ledgerMaster_ (ledgerMaster)
         , localTxs_(localTxs)
         , inboundTransactions_{ inboundTxs }
@@ -242,7 +242,7 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
 
         if (count >= ledgerMaster.getMinValidations())
         {
-            feeVote_.doVoting (
+            feeVote_->doVoting (
                 prevLedger,
                 validations,
                 initialSet);
@@ -591,7 +591,7 @@ void RCLCxCalls::validate(
     // next ledger is flag ledger
     {
         // Suggest fee changes and new features
-        feeVote_.doValidation (ledger.hackAccess(), *v);
+        feeVote_->doValidation (ledger.hackAccess(), *v);
         app_.getAmendmentTable ().doValidation (ledger.hackAccess(), *v);
     }
 
@@ -600,7 +600,6 @@ void RCLCxCalls::validate(
     // suppress it if we receive it - FIXME: wrong suppression
     app_.getHashRouter ().addSuppression (signingHash);
     app_.getValidations ().addValidation (v, "local");
-    consensus_.setLastValidation (v);
     Blob validation = v->getSigned ();
     protocol::TMValidation val;
     val.set_validation (&validation[0], validation.size ());
