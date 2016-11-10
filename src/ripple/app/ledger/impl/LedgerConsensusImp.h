@@ -290,7 +290,7 @@ private:
     void beginAccept (bool synchronous);
 
     /** Convert an advertised close time to an effective close time */
-    Time_t effectiveCloseTime(Time_t closeTime);
+    typename Traits::Time_t effectiveCloseTime(Time_t closeTime);
 
 private:
     Callback_t& callbacks_;
