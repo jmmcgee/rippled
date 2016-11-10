@@ -1356,9 +1356,6 @@
     <ClInclude Include="..\..\src\ripple\app\ledger\BookListeners.h">
       <Filter>ripple\app\ledger</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\app\ledger\Consensus.h">
-      <Filter>ripple\app\ledger</Filter>
-    </ClInclude>
     <ClCompile Include="..\..\src\ripple\app\ledger\ConsensusTransSetSF.cpp">
       <Filter>ripple\app\ledger</Filter>
     </ClCompile>

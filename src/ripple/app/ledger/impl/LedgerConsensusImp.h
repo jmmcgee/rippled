@@ -24,6 +24,7 @@
 #include <ripple/app/ledger/impl/ConsensusImp.h>
 #include <ripple/app/ledger/impl/DisputedTx.h>
 #include <ripple/basics/CountedObject.h>
+#include <ripple/app/consensus/RCLCxTraits.h>
 
 namespace ripple {
 

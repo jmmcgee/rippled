@@ -24,7 +24,7 @@
 #include <ripple/app/main/Application.h>
 #include <ripple/app/consensus/RCLCxTraits.h>
 #include <ripple/app/ledger/impl/LedgerConsensusImp.h> // FIXME
-#include <ripple/app/ledger/Consensus.h>
+#include <ripple/app/ledger/impl/ConsensusImp.h> //FIXME
 #include <ripple/app/ledger/AcceptedLedger.h>
 #include <ripple/app/ledger/InboundLedger.h>
 #include <ripple/app/ledger/InboundLedgers.h>
@@ -199,7 +199,7 @@ public:
         , m_heartbeatTimer (this)
         , m_clusterTimer (this)
         , mConsensus (make_Consensus (app_.config(), app_.logs()))
-        , mLedgerConsensus (mConsensus->makeLedgerConsensus (
+        , mLedgerConsensus (makeLedgerConsensus (*mConsensus,
             app, app.getInboundTransactions(), ledgerMaster, *m_localTX))
         , m_ledgerMaster (ledgerMaster)
         , mLastLoadBase (256)
@@ -529,7 +529,7 @@ private:
     DeadlineTimer m_heartbeatTimer;
     DeadlineTimer m_clusterTimer;
 
-    std::unique_ptr<Consensus> mConsensus;
+    std::unique_ptr<ConsensusImp> mConsensus;
     std::shared_ptr<LedgerConsensusImp<RCLCxTraits>> mLedgerConsensus;
 
     LedgerMaster& m_ledgerMaster;

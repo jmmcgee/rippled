@@ -21,7 +21,6 @@
 #define RIPPLE_APP_LEDGER_IMPL_CONSENSUSIMP_H_INCLUDED
 
 #include <BeastConfig.h>
-#include <ripple/app/ledger/Consensus.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/basics/Log.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
@@ -31,48 +30,46 @@
 
 namespace ripple {
 
+class RCLCxTraits;
+template <class T> class LedgerConsensusImp;
+
 /** Implements the consensus process and provides inter-round state. */
 class ConsensusImp
-    : public Consensus
 {
 public:
+
+    using Proposals = hash_map <NodeID, std::deque<LedgerProposal::pointer>>;
+
     ConsensusImp (FeeVote::Setup const& voteSetup, Logs& logs);
 
     ~ConsensusImp () = default;
 
     bool
-    isProposing () const override;
+    isProposing () const;
 
     bool
-    isValidating () const override;
+    isValidating () const;
 
     int
-    getLastCloseProposers () const override;
+    getLastCloseProposers () const;
 
     std::chrono::milliseconds
-    getLastCloseDuration () const override;
-
-    std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
-    makeLedgerConsensus (
-        Application& app,
-        InboundTransactions& inboundTransactions,
-        LedgerMaster& ledgerMaster,
-        LocalTxs& localTxs) override;
+    getLastCloseDuration () const;
 
     void
     startRound (
         NetClock::time_point now,
         LedgerConsensusImp<RCLCxTraits>& ledgerConsensus,
         LedgerHash const& prevLCLHash,
-        std::shared_ptr<Ledger const> const& previousLedger) override;
+        std::shared_ptr<Ledger const> const& previousLedger);
 
     void
-    setLastCloseTime (NetClock::time_point t) override;
+    setLastCloseTime (NetClock::time_point t);
 
     void
     storeProposal (
         LedgerProposal::ref proposal,
-        NodeID const& nodeID) override;
+        NodeID const& nodeID);
 
     void
     setProposing (bool p, bool v);
@@ -96,6 +93,14 @@ public:
 
     std::vector <RCLCxPos>
     getStoredProposals (uint256 const& previousLedger);
+
+   friend std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
+    makeLedgerConsensus (
+        ConsensusImp& ,
+        Application& ,
+        InboundTransactions& ,
+        LedgerMaster& ,
+        LocalTxs& );
 
 private:
     beast::Journal journal_;
@@ -121,11 +126,22 @@ private:
     // The last close time
     NetClock::time_point lastCloseTime_;
 
-    Consensus::Proposals storedProposals_;
+    Proposals storedProposals_;
 
     // lock to protect storedProposals_
     std::mutex lock_;
 };
+
+std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
+makeLedgerConsensus (
+    ConsensusImp& consensus,
+    Application& app,
+    InboundTransactions& inboundTransactions,
+    LedgerMaster& ledgerMaster,
+    LocalTxs& localTxs);
+
+std::unique_ptr<ConsensusImp>
+make_Consensus (Config const& config, Logs& logs);
 
 }
 

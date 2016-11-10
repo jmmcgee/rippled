@@ -63,22 +63,6 @@ ConsensusImp::getLastCloseDuration () const
     return lastCloseConvergeTook_;
 }
 
-std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
-ConsensusImp::makeLedgerConsensus (
-    Application& app,
-    InboundTransactions& inboundTransactions,
-    LedgerMaster& ledgerMaster,
-    LocalTxs& localTxs)
-{
-    if (!callbacks_)
-        callbacks_ = std::make_unique <RCLCxCalls>(
-            app, *this, *feeVote_, ledgerMaster, localTxs, inboundTransactions, journal_);
-
-    auto ret = make_LedgerConsensus (*this, *callbacks_, calcNodeID (app.nodeIdentity().first));
-
-    return ret;
-}
-
 void
 ConsensusImp::startRound (
     NetClock::time_point now,
@@ -177,7 +161,24 @@ ConsensusImp::getStoredProposals (uint256 const& prevLedger)
     return ret;
 }
 
-std::unique_ptr <Consensus>
+
+std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
+makeLedgerConsensus (
+    ConsensusImp& consensus,
+    Application& app,
+    InboundTransactions& inboundTransactions,
+    LedgerMaster& ledgerMaster,
+    LocalTxs& localTxs)
+{
+    if (!consensus.callbacks_)
+        consensus.callbacks_ = std::make_unique <RCLCxCalls>(
+            app, consensus, *consensus.feeVote_, ledgerMaster, localTxs, inboundTransactions, consensus.journal_);
+
+    return make_LedgerConsensus (consensus, *consensus.callbacks_, calcNodeID (app.nodeIdentity().first));
+
+}
+
+std::unique_ptr <ConsensusImp>
 make_Consensus (Config const& config, Logs& logs)
 {
     return std::make_unique<ConsensusImp> (
