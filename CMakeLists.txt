@@ -178,6 +178,7 @@ beast_utility_unity.cpp)
 
 prepend(ripple_unity_srcs
 src/ripple/unity/
+app_consensus.cpp
 app_ledger.cpp
 app_main.cpp
 app_misc.cpp

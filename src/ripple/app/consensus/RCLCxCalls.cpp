@@ -18,15 +18,17 @@
 //==============================================================================
 #include <BeastConfig.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
+#include <ripple/app/consensus/RCLCxLedger.h>
+#include <ripple/app/consensus/RCLCxPos.h>
+#include <ripple/app/consensus/RCLCxTx.h>
+#include <ripple/app/consensus/RCLConsensus.h>
+
 #include <ripple/app/ledger/InboundTransactions.h>
 #include <ripple/app/misc/AmendmentTable.h>
 #include <ripple/app/ledger/OpenLedger.h>
 #include <ripple/app/ledger/InboundLedgers.h>
 #include <ripple/app/tx/apply.h>
 #include <ripple/app/misc/TxQ.h>
-#include <ripple/app/consensus/RCLCxLedger.h>
-#include <ripple/app/consensus/RCLCxPos.h>
-#include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/protocol/Feature.h>
 #include <ripple/protocol/digest.h>
 #include <ripple/overlay/Overlay.h>
@@ -34,14 +36,14 @@
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/LoadFeeTrack.h>
 #include <ripple/basics/make_lock.h>
-#include <ripple/app/ledger/impl/ConsensusImp.h>
+
 #include <ripple/app/ledger/LocalTxs.h>
 
 namespace ripple {
 
 RCLCxCalls::RCLCxCalls (
     Application& app,
-    ConsensusImp & consensus,
+    RCLConsensus & consensus,
     std::unique_ptr<FeeVote> && feeVote,
     LedgerMaster& ledgerMaster,
     LocalTxs & localTxs,

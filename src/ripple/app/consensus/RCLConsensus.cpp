@@ -20,32 +20,32 @@
 #include <BeastConfig.h>
 #include <ripple/consensus/LedgerConsensus.h>
 #include <ripple/app/ledger/LedgerTiming.h>
-#include <ripple/app/ledger/impl/ConsensusImp.h>
+#include <ripple/app/consensus/RCLConsensus.h>
 #include <ripple/app/consensus/RCLCxTraits.h>
 
 namespace ripple {
 
 bool
-ConsensusImp::isProposing () const
+RCLConsensus::isProposing () const
 {
     return proposing_;
 }
 
 bool
-ConsensusImp::isValidating () const
+RCLConsensus::isValidating () const
 {
     return validating_;
 }
 
 void
-ConsensusImp::setProposing (bool p, bool v)
+RCLConsensus::setProposing (bool p, bool v)
 {
     proposing_ = p;
     validating_ = v;
 }
 
 NetClock::time_point
-ConsensusImp::validationTimestamp (NetClock::time_point vt)
+RCLConsensus::validationTimestamp (NetClock::time_point vt)
 {
     if (vt <= lastValidationTimestamp_)
         vt = lastValidationTimestamp_ + 1s;
@@ -55,7 +55,7 @@ ConsensusImp::validationTimestamp (NetClock::time_point vt)
 }
 
 void
-ConsensusImp::storeProposal (
+RCLConsensus::storeProposal (
     LedgerProposal::ref proposal,
     NodeID const& nodeID)
 {
@@ -70,7 +70,7 @@ ConsensusImp::storeProposal (
 }
 
 std::vector <RCLCxPos>
-ConsensusImp::getStoredProposals (uint256 const& prevLedger)
+RCLConsensus::getStoredProposals (uint256 const& prevLedger)
 {
 
     std::vector <RCLCxPos> ret;
@@ -90,7 +90,7 @@ ConsensusImp::getStoredProposals (uint256 const& prevLedger)
 
 std::shared_ptr<LedgerConsensus<RCLCxTraits>>
 makeLedgerConsensus (
-    ConsensusImp& consensus,
+    RCLConsensus& consensus,
     beast::Journal journal_,
     std::unique_ptr<FeeVote> && feeVote,
     Application& app,

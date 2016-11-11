@@ -28,7 +28,7 @@
 
 namespace ripple {
 
-class ConsensusImp;
+class RCLConsensus;
 class InboundTransactions;
 class LocalTxs;
 class RCLCxTx;
@@ -42,7 +42,7 @@ class RCLCxCalls
 public:
     RCLCxCalls (
         Application&,
-        ConsensusImp&,
+        RCLConsensus&,
         std::unique_ptr<FeeVote>&&,
         LedgerMaster&,
         LocalTxs &,
@@ -221,7 +221,7 @@ public:
 private:
 
     Application& app_;
-    ConsensusImp& consensus_;
+    RCLConsensus& consensus_;
     std::unique_ptr <FeeVote> feeVote_;
     LedgerMaster & ledgerMaster_;
     LocalTxs & localTxs_;

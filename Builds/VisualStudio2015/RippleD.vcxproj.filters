@@ -1311,6 +1311,12 @@
     <ClInclude Include="..\..\src\protobuf\vsprojects\config.h">
       <Filter>protobuf\vsprojects</Filter>
     </ClInclude>
+    <ClCompile Include="..\..\src\ripple\app\consensus\RCLConsensus.cpp">
+      <Filter>ripple\app\consensus</Filter>
+    </ClCompile>
+    <ClInclude Include="..\..\src\ripple\app\consensus\RCLConsensus.h">
+      <Filter>ripple\app\consensus</Filter>
+    </ClInclude>
     <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxCalls.cpp">
       <Filter>ripple\app\consensus</Filter>
     </ClCompile>
@@ -1361,12 +1367,6 @@
     </ClCompile>
     <ClInclude Include="..\..\src\ripple\app\ledger\ConsensusTransSetSF.h">
       <Filter>ripple\app\ledger</Filter>
-    </ClInclude>
-    <ClCompile Include="..\..\src\ripple\app\ledger\impl\ConsensusImp.cpp">
-      <Filter>ripple\app\ledger\impl</Filter>
-    </ClCompile>
-    <ClInclude Include="..\..\src\ripple\app\ledger\impl\ConsensusImp.h">
-      <Filter>ripple\app\ledger\impl</Filter>
     </ClInclude>
     <ClCompile Include="..\..\src\ripple\app\ledger\impl\InboundLedger.cpp">
       <Filter>ripple\app\ledger\impl</Filter>
@@ -3953,6 +3953,9 @@
     <ClInclude Include="..\..\src\ripple\test\WSClient.h">
       <Filter>ripple\test</Filter>
     </ClInclude>
+    <ClCompile Include="..\..\src\ripple\unity\app_consensus.cpp">
+      <Filter>ripple\unity</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\ripple\unity\app_ledger.cpp">
       <Filter>ripple\unity</Filter>
     </ClCompile>

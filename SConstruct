@@ -996,6 +996,7 @@ def get_unity_sources(toolchain):
         'src/ripple/beast/unity/beast_insight_unity.cpp',
         'src/ripple/beast/unity/beast_net_unity.cpp',
         'src/ripple/beast/unity/beast_utility_unity.cpp',
+        'src/ripple/unity/app_consensus.cpp',
         'src/ripple/unity/app_ledger.cpp',
         'src/ripple/unity/app_main.cpp',
         'src/ripple/unity/app_misc.cpp',

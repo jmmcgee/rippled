@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_LEDGER_IMPL_CONSENSUSIMP_H_INCLUDED
-#define RIPPLE_APP_LEDGER_IMPL_CONSENSUSIMP_H_INCLUDED
+#ifndef RIPPLE_APP_CONSENSUS_RCLCONSENSUS_H_INCLUDED
+#define RIPPLE_APP_CONSENSUS_RCLCONSENSUS_H_INCLUDED
 
 #include <BeastConfig.h>
 #include <ripple/basics/Log.h>
@@ -33,7 +33,7 @@ class RCLCxTraits;
 template <class T> class LedgerConsensus;
 
 /** Implements the consensus process and provides inter-round state. */
-class ConsensusImp
+class RCLConsensus
 {
 public:
 
@@ -75,7 +75,7 @@ public:
 
    friend std::shared_ptr<LedgerConsensus<RCLCxTraits>>
     makeLedgerConsensus (
-        ConsensusImp& ,
+        RCLConsensus& ,
         beast::Journal journal_,
         std::unique_ptr<FeeVote> &&,
         Application& ,
@@ -101,7 +101,7 @@ private:
 
 std::shared_ptr<LedgerConsensus<RCLCxTraits>>
 makeLedgerConsensus (
-    ConsensusImp& consensus,
+    RCLConsensus& consensus,
     beast::Journal journal_,
     std::unique_ptr<FeeVote> && feeVote,
     Application& app,
