@@ -968,7 +968,7 @@ participantsNeeded (int participants, int percent)
 }
 
 template <class Traits>
-typename Traits::Time_t
+typename LedgerConsensusImp<Traits>::Time_t
 LedgerConsensusImp<Traits>::effectiveCloseTime(Time_t closeTime)
 {
     if (closeTime == Time_t{})

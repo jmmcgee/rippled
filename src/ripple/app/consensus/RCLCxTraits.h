@@ -42,7 +42,7 @@ public:
 
     using Callback_t = RCLCxCalls;
 
-    using Time_t     = NetClock::time_point;
+    using Clock_t     = NetClock;
 
     using Ledger_t     = RCLCxLedger;
     using Pos_t        = RCLCxPos;

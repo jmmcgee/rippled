@@ -38,8 +38,7 @@ namespace ripple {
 */
 template <class Traits>
 class LedgerConsensusImp
-    : public Traits
-    , public std::enable_shared_from_this <LedgerConsensusImp<Traits>>
+    : public std::enable_shared_from_this <LedgerConsensusImp<Traits>>
     , public CountedObject <LedgerConsensusImp<Traits>>
 {
 private:
@@ -62,18 +61,20 @@ private:
 
 public:
 
-    using typename Traits::Callback_t;
-    using typename Traits::Time_t;
-    using typename Traits::Ledger_t;
-    using typename Traits::Pos_t;
-    using typename Traits::TxSet_t;
-    using typename Traits::Tx_t;
-    using typename Traits::LgrID_t;
-    using typename Traits::TxID_t;
-    using typename Traits::TxSetID_t;
-    using typename Traits::NodeID_t;
-    using typename Traits::RetryTxSet_t;
-    using typename Traits::MissingTx;
+    using Callback_t = typename Traits::Callback_t;
+    using Clock_t = typename Traits::Clock_t;
+    using Time_t = typename Clock_t::time_point;
+    using Duration_t = typename Clock_t::duration;
+    using Ledger_t = typename Traits::Ledger_t;
+    using Pos_t = typename Traits::Pos_t;
+    using TxSet_t = typename Traits::TxSet_t;
+    using Tx_t = typename Traits::Tx_t;
+    using LgrID_t = typename Traits::LgrID_t;
+    using TxID_t = typename Traits::TxID_t;
+    using TxSetID_t = typename Traits::TxSetID_t;
+    using NodeID_t = typename Traits::NodeID_t;
+    using RetryTxSet_t = typename Traits::RetryTxSet_t;
+    using MissingTx = typename Traits::MissingTx;
     using Dispute_t = DisputedTx <Traits>;
 
     /**
@@ -294,7 +295,7 @@ private:
     void beginAccept (bool synchronous);
 
     /** Convert an advertised close time to an effective close time */
-    typename Traits::Time_t effectiveCloseTime(Time_t closeTime);
+    Time_t effectiveCloseTime(Time_t closeTime);
 
 private:
     Callback_t& callbacks_;
@@ -322,7 +323,7 @@ private:
     // we expected it to take.
     int closePercent_;
 
-    NetClock::duration closeResolution_;
+    Duration_t closeResolution_;
 
     bool haveCloseTimeConsensus_;
 
