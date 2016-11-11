@@ -30,7 +30,7 @@
 namespace ripple {
 
 class RCLCxTraits;
-template <class T> class LedgerConsensusImp;
+template <class T> class LedgerConsensus;
 
 /** Implements the consensus process and provides inter-round state. */
 class ConsensusImp
@@ -73,7 +73,7 @@ public:
     std::vector <RCLCxPos>
     getStoredProposals (uint256 const& previousLedger);
 
-   friend std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
+   friend std::shared_ptr<LedgerConsensus<RCLCxTraits>>
     makeLedgerConsensus (
         ConsensusImp& ,
         beast::Journal journal_,
@@ -99,7 +99,7 @@ private:
     std::mutex lock_;
 };
 
-std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
+std::shared_ptr<LedgerConsensus<RCLCxTraits>>
 makeLedgerConsensus (
     ConsensusImp& consensus,
     beast::Journal journal_,

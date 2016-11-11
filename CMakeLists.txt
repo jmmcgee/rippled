@@ -257,6 +257,7 @@ foreach(curdir
         basics
         conditions
         crypto
+        consensus
         json
         ledger
         legacy

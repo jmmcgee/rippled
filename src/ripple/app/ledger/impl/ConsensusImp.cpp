@@ -18,9 +18,10 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/consensus/LedgerConsensus.h>
 #include <ripple/app/ledger/LedgerTiming.h>
 #include <ripple/app/ledger/impl/ConsensusImp.h>
-#include <ripple/app/ledger/impl/LedgerConsensusImp.h>
+#include <ripple/app/consensus/RCLCxTraits.h>
 
 namespace ripple {
 
@@ -87,7 +88,7 @@ ConsensusImp::getStoredProposals (uint256 const& prevLedger)
 }
 
 
-std::shared_ptr<LedgerConsensusImp<RCLCxTraits>>
+std::shared_ptr<LedgerConsensus<RCLCxTraits>>
 makeLedgerConsensus (
     ConsensusImp& consensus,
     beast::Journal journal_,
@@ -102,7 +103,7 @@ makeLedgerConsensus (
         consensus.callbacks_ = std::make_unique <RCLCxCalls>(
             app, consensus, std::move(feeVote), ledgerMaster, localTxs, inboundTransactions, journal_);
 
-    return make_LedgerConsensus (*consensus.callbacks_, calcNodeID (app.nodeIdentity().first));
+    return std::make_unique<LedgerConsensus<RCLCxTraits>>(*consensus.callbacks_, calcNodeID(app.nodeIdentity().first));
 
 }
 

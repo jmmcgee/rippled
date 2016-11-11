@@ -939,6 +939,7 @@ def get_classic_sources(toolchain):
     append_sources(result, *list_sources('src/ripple/basics', '.cpp'))
     append_sources(result, *list_sources('src/ripple/conditions', '.cpp'))
     append_sources(result, *list_sources('src/ripple/crypto', '.cpp'))
+    append_sources(result, *list_sources('src/ripple/consensus', '.cpp'))
     append_sources(result, *list_sources('src/ripple/json', '.cpp'))
     append_sources(result, *list_sources('src/ripple/ledger', '.cpp'))
     append_sources(result, *list_sources('src/ripple/legacy', '.cpp'))
