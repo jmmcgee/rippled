@@ -20,6 +20,7 @@
 #ifndef RIPPLE_APP_CONSENSUS_DISPUTEDTX_H_INCLUDED
 #define RIPPLE_APP_CONSENSUS_DISPUTEDTX_H_INCLUDED
 
+#include <ripple/basics/Log.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/consensus/LedgerTiming.h>
