@@ -19,7 +19,7 @@
 
 #include <BeastConfig.h>
 #include <ripple/consensus/LedgerConsensus.h>
-#include <ripple/app/ledger/LedgerTiming.h>
+#include <ripple/consensus/LedgerTiming.h>
 #include <ripple/app/consensus/RCLConsensus.h>
 #include <ripple/app/consensus/RCLCxTraits.h>
 

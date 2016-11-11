@@ -855,10 +855,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\ripple\app\ledger\impl\LedgerTiming.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
-    </ClCompile>
     <ClCompile Include="..\..\src\ripple\app\ledger\impl\LedgerToJson.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
@@ -910,8 +906,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
     <ClInclude Include="..\..\src\ripple\app\ledger\LedgerProposal.h">
-    </ClInclude>
-    <ClInclude Include="..\..\src\ripple\app\ledger\LedgerTiming.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\ledger\LedgerToJson.h">
     </ClInclude>
@@ -1777,6 +1771,14 @@
     <ClInclude Include="..\..\src\ripple\beast\xor_shift_engine.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\LedgerConsensus.h">
+    </ClInclude>
+    <ClCompile Include="..\..\src\ripple\consensus\LedgerTiming.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
+    </ClCompile>
+    <ClInclude Include="..\..\src\ripple\consensus\LedgerTiming.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\conditions\Condition.h">
     </ClInclude>
@@ -3360,7 +3362,6 @@
     </ClCompile>
     <ClCompile Include="..\..\src\ripple\unity\beast.cpp">
     </ClCompile>
-    <ClCompile Include="..\..\src\ripple\unity\conditions.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug.classic|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release.classic|x64'">True</ExcludedFromBuild>
     </ClCompile>

@@ -22,7 +22,7 @@
 
 #include <ripple/consensus/DisputedTx.h>
 #include <ripple/basics/CountedObject.h>
-#include <ripple/app/ledger/LedgerTiming.h>
+#include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/to_string.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/basics/Log.h>

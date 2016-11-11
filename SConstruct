@@ -1003,6 +1003,7 @@ def get_unity_sources(toolchain):
         'src/ripple/unity/app_paths.cpp',
         'src/ripple/unity/app_tx.cpp',
         'src/ripple/unity/conditions.cpp',
+        'src/ripple/unity/consensus.cpp',
         'src/ripple/unity/core.cpp',
         'src/ripple/unity/basics.cpp',
         'src/ripple/unity/crypto.cpp',

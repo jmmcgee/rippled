@@ -22,7 +22,7 @@
 
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/basics/UnorderedContainers.h>
-#include <ripple/app/ledger/LedgerTiming.h>
+#include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/json_value.h>
 namespace ripple {
 

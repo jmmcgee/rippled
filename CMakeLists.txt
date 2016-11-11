@@ -185,6 +185,7 @@ app_misc.cpp
 app_paths.cpp
 app_tx.cpp
 conditions.cpp
+consensus.cpp
 core.cpp
 basics.cpp
 crypto.cpp
