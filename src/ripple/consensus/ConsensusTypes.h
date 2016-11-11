@@ -17,7 +17,7 @@
 */
 //==============================================================================
 #ifndef RIPPLE_CONSENSUS_LEDGERTYPES_H_INCLUDED
-#define  RIPPLE_CONSENSUS_LEDGERTYPES_H_INCLUDED
+#define RIPPLE_CONSENSUS_LEDGERTYPES_H_INCLUDED
 namespace ripple
 {
    enum class ConsensusChange {Closing, Accepted};

@@ -27,6 +27,7 @@
 #include <ripple/json/to_string.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/basics/Log.h>
+#include <ripple/basics/contract.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/protocol/JsonFields.h>
 #include <boost/optional.hpp>
@@ -561,7 +562,7 @@ LedgerConsensus<Traits>::mapCompleteInternal (
     }
 
     // Adjust tracking for each peer that takes this position
-    std::vector<NodeID> peers;
+    std::vector<NodeID_t> peers;
     for (auto& it : peerPositions_)
     {
         if (it.second.getCurrentHash () == hash)
@@ -610,7 +611,7 @@ void LedgerConsensus<Traits>::checkLCL ()
 {
     LgrID_t netLgr = callbacks_.getLCL (
         prevLedgerHash_,
-        haveCorrectLCL_ ? previousLedger_.parentID() : uint256(),
+        haveCorrectLCL_ ? previousLedger_.parentID() : LgrID_t{},
         haveCorrectLCL_);
 
     if (netLgr != prevLedgerHash_)
