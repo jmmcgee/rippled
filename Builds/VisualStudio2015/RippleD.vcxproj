@@ -1770,6 +1770,8 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\beast\xor_shift_engine.h">
     </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
+    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\LedgerConsensus.h">

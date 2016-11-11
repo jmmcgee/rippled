@@ -303,7 +303,7 @@ RCLCxLedger RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
 }
 
 void RCLCxCalls::statusChange(
-    ChangeType c,
+    ConsensusChange c,
     RCLCxLedger const & ledger,
     bool haveCorrectLCL)
 {
@@ -315,10 +315,10 @@ void RCLCxCalls::statusChange(
     {
         switch (c)
         {
-        case ChangeType::Closing:
+        case ConsensusChange::Closing:
             s.set_newevent (protocol::neCLOSING_LEDGER);
             break;
-        case ChangeType::Accepted:
+        case ConsensusChange::Accepted:
             s.set_newevent (protocol::neACCEPTED_LEDGER);
             break;
         }

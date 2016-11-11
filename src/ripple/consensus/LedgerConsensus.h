@@ -20,6 +20,7 @@
 #ifndef RIPPLE_CONSENSUS_LEDGERCONSENSUS_H_INCLUDED
 #define RIPPLE_CONSENSUS_LEDGERCONSENSUS_H_INCLUDED
 
+#include <ripple/consensus/ConsensusTypes.h>
 #include <ripple/consensus/DisputedTx.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/consensus/LedgerTiming.h>
@@ -27,6 +28,7 @@
 #include <ripple/beast/core/LexicalCast.h>
 #include <ripple/basics/Log.h>
 #include <ripple/beast/utility/Journal.h>
+#include <ripple/protocol/JsonFields.h>
 #include <boost/optional.hpp>
 
 namespace ripple {
@@ -1046,7 +1048,7 @@ void LedgerConsensus<Traits>::accept (TxSet_t const& set)
         << ":" << sharedLCL.seq();
 
     // Tell directly connected peers that we have a new LCL
-    callbacks_.statusChange (RCLCxCalls::ChangeType::Accepted,
+    callbacks_.statusChange (ConsensusChange::Accepted,
         sharedLCL, haveCorrectLCL_);
 
     if (validating_)
@@ -1503,7 +1505,7 @@ void LedgerConsensus<Traits>::closeLedger ()
     callbacks_.setLastCloseTime(closeTime_);
 
     callbacks_.statusChange (
-        RCLCxCalls::ChangeType::Closing,
+        ConsensusChange::Closing,
         previousLedger_,
         haveCorrectLCL_);
 

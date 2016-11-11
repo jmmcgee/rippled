@@ -2406,6 +2406,9 @@
     <ClInclude Include="..\..\src\ripple\beast\xor_shift_engine.h">
       <Filter>ripple\beast</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
+      <Filter>ripple\consensus</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\ripple\conditions\Condition.h">
       <Filter>ripple\conditions</Filter>
     </ClInclude>

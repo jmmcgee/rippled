@@ -25,6 +25,7 @@
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/ledger/LedgerMaster.h>
+#include <ripple/consensus/ConsensusTypes.h>
 
 namespace ripple {
 
@@ -85,15 +86,14 @@ public:
 
     RCLCxLedger acquireLedger(LedgerHash const & ledgerHash);
 
-    enum class ChangeType {Closing, Accepted};
-    /*
+   /*
     * Senda status change message to peers due to a change in ledger
     * @param c the reason for the change
     * @param ledger the ledger we are changing to
     * @param haveCorrectLCL whether we believe this is the correct LCL
     */
     void statusChange(
-        ChangeType c,
+        ConsensusChange c,
         RCLCxLedger const & ledger,
         bool haveCorrectLCL);
 
