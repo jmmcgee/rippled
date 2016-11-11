@@ -20,13 +20,10 @@
 #ifndef RIPPLE_APP_CONSENSUS_DISPUTEDTX_H_INCLUDED
 #define RIPPLE_APP_CONSENSUS_DISPUTEDTX_H_INCLUDED
 
-#include <ripple/protocol/UintTypes.h>
-#include <ripple/protocol/Serializer.h>
-#include <ripple/basics/base_uint.h>
 #include <ripple/beast/utility/Journal.h>
+#include <ripple/basics/UnorderedContainers.h>
 #include <ripple/app/ledger/LedgerTiming.h>
-#include <memory>
-
+#include <ripple/json/json_value.h>
 namespace ripple {
 
 /** A transaction discovered to be in dispute during conensus.
