@@ -108,21 +108,6 @@ public:
         return getSequence() == seqLeave;
     }
 
-    // These three functions will be removed. New code
-    // should use getPosition, getSequence and getNodeID
-    LedgerHash const& getCurrentHash() const
-    {
-        return getPosition();
-    }
-    NodeID const& getPeerID() const
-    {
-        return getNodeID();
-    }
-    std::uint32_t getProposeSeq() const
-    {
-        return getSequence();
-    }
-
     LedgerProposal const& peek() const
     {
         return proposal_;

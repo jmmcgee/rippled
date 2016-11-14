@@ -112,15 +112,15 @@ void RCLCxCalls::propose (RCLCxPos const& position)
 {
     JLOG (j_.trace()) << "We propose: " <<
         (position.isBowOut () ?  std::string ("bowOut") :
-            to_string (position.getCurrentHash ()));
+            to_string (position.getPosition ()));
 
     protocol::TMProposeSet prop;
 
-    prop.set_currenttxhash (position.getCurrentHash().begin(),
+    prop.set_currenttxhash (position.getPosition().begin(),
         256 / 8);
     prop.set_previousledger (position.getPrevLedger().begin(),
         256 / 8);
-    prop.set_proposeseq (position.getProposeSeq ());
+    prop.set_proposeseq (position.getSequence ());
     prop.set_closetime (
         position.getCloseTime().time_since_epoch().count());
 
@@ -130,7 +130,7 @@ void RCLCxCalls::propose (RCLCxPos const& position)
         HashPrefix::proposal,
         std::uint32_t(position.getSequence()),
         position.getCloseTime().time_since_epoch().count(),
-        position.getPrevLedger(), position.getCurrentHash());
+        position.getPrevLedger(), position.getPosition());
 
     auto sig = signDigest (
         valPublic_, valSecret_, signingHash);
@@ -715,7 +715,7 @@ void RCLCxCalls::startRound(RCLCxLedger const & ledger)
 RCLTxSet RCLCxCalls::getTxSet(RCLCxPos const & position)
 {
     return inboundTransactions_.getSet(
-        position.getCurrentHash(), true);
+        position.getPosition(), true);
 }
 
 } // namespace ripple

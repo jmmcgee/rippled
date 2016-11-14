@@ -547,7 +547,7 @@ LedgerConsensus<Traits>::mapCompleteInternal (
         JLOG (j_.warn())
             << "Not creating disputes: not participating.";
     }
-    else if (hash == ourPosition_->getCurrentHash ())
+    else if (hash == ourPosition_->getPosition ())
     {
         JLOG (j_.debug())
             << "Not creating disputes: identical position.";
@@ -564,7 +564,7 @@ LedgerConsensus<Traits>::mapCompleteInternal (
     std::vector<NodeID_t> peers;
     for (auto& it : peerPositions_)
     {
-        if (it.second.getCurrentHash () == hash)
+        if (it.second.getPosition () == hash)
             peers.push_back (it.second.getNodeID ());
     }
 
@@ -832,7 +832,7 @@ bool LedgerConsensus<Traits>::haveConsensus ()
 {
     // CHECKME: should possibly count unacquired TX sets as disagreeing
     int agree = 0, disagree = 0;
-    auto  ourPosition = ourPosition_->getCurrentHash ();
+    auto  ourPosition = ourPosition_->getPosition ();
 
     // Count number of agreements/disagreements with our position
     for (auto& it : peerPositions_)
@@ -840,22 +840,22 @@ bool LedgerConsensus<Traits>::haveConsensus ()
         if (it.second.isBowOut ())
             continue;
 
-        if (it.second.getCurrentHash () == ourPosition)
+        if (it.second.getPosition () == ourPosition)
         {
             ++agree;
         }
         else
         {
             JLOG (j_.debug()) << to_string (it.first)
-                << " has " << to_string (it.second.getCurrentHash ());
+                << " has " << to_string (it.second.getPosition ());
             ++disagree;
-            if (compares_.count(it.second.getCurrentHash()) == 0)
+            if (compares_.count(it.second.getPosition()) == 0)
             { // Make sure we have generated disputes
-                auto hash = it.second.getCurrentHash();
+                auto hash = it.second.getPosition();
                 JLOG (j_.debug())
                     << "We have not compared to " << hash;
                 auto it1 = acquired_.find (hash);
-                auto it2 = acquired_.find(ourPosition_->getCurrentHash ());
+                auto it2 = acquired_.find(ourPosition_->getPosition ());
                 if ((it1 != acquired_.end()) && (it2 != acquired_.end()))
                 {
                     compares_.insert(hash);
@@ -923,8 +923,8 @@ bool LedgerConsensus<Traits>::peerPosition (
 
         if (currentPosition != peerPositions_.end())
         {
-            if (newPosition.getProposeSeq ()
-                <= currentPosition->second.getProposeSeq ())
+            if (newPosition.getSequence ()
+                <= currentPosition->second.getSequence ())
             {
                 return false;
             }
@@ -960,16 +960,16 @@ bool LedgerConsensus<Traits>::peerPosition (
     }
 
     JLOG (j_.trace()) << "Processing peer proposal "
-        << newPosition.getProposeSeq () << "/"
-        << newPosition.getCurrentHash ();
+        << newPosition.getSequence () << "/"
+        << newPosition.getPosition ();
 
     {
-        auto ait = acquired_.find (newPosition.getCurrentHash());
+        auto ait = acquired_.find (newPosition.getPosition());
         if (ait == acquired_.end())
         {
             if (auto set = callbacks_.getTxSet(newPosition))
             {
-                ait = acquired_.emplace (newPosition.getCurrentHash(),
+                ait = acquired_.emplace (newPosition.getPosition(),
                     std::move(set)).first;
             }
         }
@@ -1208,7 +1208,7 @@ void LedgerConsensus<Traits>::addDisputedTransaction (
     // Update all of the peer's votes on the disputed transaction
     for (auto& pit : peerPositions_)
     {
-        auto cit (acquired_.find (pit.second.getCurrentHash ()));
+        auto cit (acquired_.find (pit.second.getPosition ()));
 
         if (cit != acquired_.end ())
             txn.setVote (pit.first,
@@ -1250,7 +1250,7 @@ void LedgerConsensus<Traits>::takeInitialPosition()
        haveCorrectLCL_,  closeTime_, now_ );
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
-    assert (initialSet.getID() == initialPos.getCurrentHash());
+    assert (initialSet.getID() == initialPos.getPosition());
 
     ourPosition_ = initialPos;
     ourSet_ = initialSet;
@@ -1266,7 +1266,7 @@ void LedgerConsensus<Traits>::takeInitialPosition()
     compares_.emplace (initialSet.getID());
     for (auto& it : peerPositions_)
     {
-        auto hash = it.second.getCurrentHash();
+        auto hash = it.second.getPosition();
         auto iit (acquired_.find (hash));
         if (iit != acquired_.end ())
         {
