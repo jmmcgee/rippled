@@ -17,3 +17,20 @@
 */
 //==============================================================================
 #include <BeastConfig.h>
+#include <ripple/beast/unit_test.h>
+
+namespace ripple {
+namespace test {
+
+class LedgerConsensus_test : public beast::unit_test::suite
+{
+
+    void
+    run() override
+    {
+
+    }
+};
+BEAST_DEFINE_TESTSUITE(LedgerConsensus, consensus, ripple);
+} // test
+} // ripple

@@ -34,6 +34,14 @@ namespace ripple {
     without the need for perfectly synchronized clocks.
     The time resolution (i.e. the size of the intervals) is adjusted dynamically
     based on what happened in the last ledger, to try to avoid disagreements.
+
+    @param previousResolution the resolution used for the prior ledger
+    @param previousAgree whether consensus agreed on the close time of the prior
+    ledger
+    @param ledgerSeq the sequence number of the new ledger
+
+    @pre previousResolution must be a valid bin from
+    @b ledgerPossibleTimeResolutions
 */
 NetClock::duration
 getNextLedgerTimeResolution (
@@ -45,6 +53,8 @@ getNextLedgerTimeResolution (
 
     @param closeTime The time to be rouned.
     @param closeResolution The resolution
+    @return @b closeTime rounded to the nearest multiple of @b closeResolution.
+    Rounds up if @b closeTime is midway between multiples of @b closeResolution.
 */
 NetClock::time_point
 roundCloseTime (
