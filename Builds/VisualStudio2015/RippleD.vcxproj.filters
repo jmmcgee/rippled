@@ -456,6 +456,8 @@
     </Filter>
     <Filter Include="test\conditions">
       <UniqueIdentifier>{F421E9A0-BB69-E638-F7AC-A3BD9B7D4827}</UniqueIdentifier>
+    <Filter Include="test\consensus">
+      <UniqueIdentifier>{330C919A-D367-9106-B0FF-BCE5B46A76B2}</UniqueIdentifier>
     </Filter>
     <Filter Include="test\core">
       <UniqueIdentifier>{26D7F11B-5BF1-54BC-8BF5-D45F68A6A408}</UniqueIdentifier>
@@ -5347,14 +5349,10 @@
     <ClCompile Include="..\..\src\test\beast\SemanticVersion_test.cpp">
       <Filter>test\beast</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\test\conditions\Ed25519_test.cpp">
-      <Filter>test\conditions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\conditions\PrefixSha256_test.cpp">
       <Filter>test\conditions</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\test\conditions\PreimageSha256_test.cpp">
-      <Filter>test\conditions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\conditions\RsaSha256_test.cpp">
       <Filter>test\conditions</Filter>
@@ -5572,7 +5570,6 @@
     <ClCompile Include="..\..\src\unity\beast_test_unity.cpp">
       <Filter>unity</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\src\unity\conditions_test_unity.cpp">
       <Filter>unity</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\unity\core_test_unity.cpp">
