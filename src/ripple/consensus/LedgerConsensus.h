@@ -69,9 +69,8 @@ private:
 public:
 
     using Callback_t = typename Traits::Callback_t;
-    using Clock_t = typename Traits::Clock_t;
-    using Time_t = typename Clock_t::time_point;
-    using Duration_t = typename Clock_t::duration;
+    using Time_t = typename Traits::Time_t;
+    using Duration_t = typename Time_t::duration;
     using Ledger_t = typename Traits::Ledger_t;
     using Pos_t = typename Traits::Pos_t;
     using TxSet_t = typename Traits::TxSet_t;

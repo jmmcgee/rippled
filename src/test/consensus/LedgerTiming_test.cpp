@@ -142,6 +142,10 @@ class LedgerTiming_test : public beast::unit_test::suite
         BEAST_EXPECT( ConsensusState::MovedOn
             == checkConsensus(10, 2, 1, 8, 3s, 10s, true, j));
 
+        // No peers makes it easy to agree
+        BEAST_EXPECT( ConsensusState::Yes
+            == checkConsensus(0, 0, 0, 0, 3s, 10s, true, j));
+
     }
 
     void
