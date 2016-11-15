@@ -116,7 +116,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
             {
 
             }
-
+            // no set?
             operator bool() const
             {
                 return true;
@@ -133,7 +133,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
             {
                 return boost::none;
             }
-
+            // hash of set?
             TxSetID_t getID() const
             {
                 return TxSetID_t{};
@@ -321,12 +321,18 @@ class LedgerConsensus_test : public beast::unit_test::suite
                 return Ledger_t{};
             }
 
+            // Should be get and share?
+            // If f returns true, that means it was
+            // a useful proposal and should be shared
             template <class F>
             void getProposals(LgrID_t ledgerHash, F && f)
             {
 
             }
 
+            // Aquire the details of the transaction corresponding
+            // to this position; if not available locally, spawns
+            // a networko request that will call gotMap
             TxSet_t getTxSet(Pos_t const & position)
             {
                 return TxSet_t{};
@@ -466,28 +472,66 @@ class LedgerConsensus_test : public beast::unit_test::suite
     }
 
     void
-    testNormalSequence()
+    testStandalone()
     {
         Traits::Callback_t callbacks;
         clock_type clock;
         Consensus c{ callbacks, 0 };
-
+        
         Traits::Ledger_t currLedger;
 
+        // No peers
+        // Local transactions only
+        // Always have ledger
+        // Proposing and validating
+
+        
+
+        // 1. Genesis ledger
+
         c.startRound(clock.now(), 0, currLedger);
-        c.getJson(true);
+       
+        // state -= open
+        
+        //send in some transactinons
+         
+        // transition to state closing
         c.getLCL();
-        c.gotMap(clock.now(), Traits::TxSet_t{});
+        //c.gotMap(clock.now(), Traits::TxSet_t{});
         c.timerEntry(clock.now());
-        c.peerPosition(clock.now(), Traits::Pos_t{});
-        c.simulate(clock.now(), boost::none);
+        // observe transition to accept
+        // observe new closed ledger and it contains transactions?
+        
     }
 
+    void
+    testPeersAgree()
+    {
+
+    }
+
+    void
+    testPeersDisagree()
+    {
+
+    }
+
+
+    void 
+    testGetJson()
+    {
+        BEAST_EXPECT(1 == 2);
+    }
     void
     run() override
     {
         testDefaultState();
-        testNormalSequence();
+        testStandalone();
+        testPeersAgree();
+        
+        testPeersDisagree();
+
+        testGetJson(); 
     }
 };
 
