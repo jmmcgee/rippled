@@ -70,7 +70,7 @@ public:
     validationTimestamp (NetClock::time_point vt);
 
 
-    std::vector <RCLCxPos>
+    std::vector <LedgerProposal>
     getStoredProposals (uint256 const& previousLedger);
 
    friend std::shared_ptr<LedgerConsensus<RCLCxTraits>>

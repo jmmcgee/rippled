@@ -69,11 +69,11 @@ RCLConsensus::storeProposal (
     props.push_back (proposal);
 }
 
-std::vector <RCLCxPos>
+std::vector <LedgerProposal>
 RCLConsensus::getStoredProposals (uint256 const& prevLedger)
 {
 
-    std::vector <RCLCxPos> ret;
+    std::vector <LedgerProposal> ret;
 
     {
         std::lock_guard <std::mutex> _(lock_);

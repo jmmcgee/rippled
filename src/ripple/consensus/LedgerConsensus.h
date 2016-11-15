@@ -75,9 +75,10 @@ public:
     using Pos_t = typename Traits::Pos_t;
     using TxSet_t = typename Traits::TxSet_t;
     using Tx_t = typename Traits::Tx_t;
-    using LgrID_t = typename Traits::LgrID_t;
-    using TxID_t = typename Traits::TxID_t;
-    using TxSetID_t = typename Traits::TxSetID_t;
+    using LgrID_t   = typename Ledger_t::id_type;
+    using TxID_t    = typename Tx_t::id_type;
+    using TxSetID_t = typename TxSet_t::id_type;
+
     using NodeID_t = typename Traits::NodeID_t;
     using RetryTxSet_t = typename Traits::RetryTxSet_t;
     using MissingTx = typename Traits::MissingTx;
@@ -565,7 +566,7 @@ LedgerConsensus<Traits>::mapCompleteInternal (
     for (auto& it : peerPositions_)
     {
         if (it.second.getPosition () == hash)
-            peers.push_back (it.second.getNodeID ());
+            peers.push_back (it.second.getPeerID ());
     }
 
     if (!peers.empty ())
@@ -896,7 +897,7 @@ bool LedgerConsensus<Traits>::peerPosition (
     Time_t const& now,
     Pos_t const& newPosition)
 {
-    auto const peerID = newPosition.getNodeID ();
+    auto const peerID = newPosition.getPeerID ();
 
     std::lock_guard<std::recursive_mutex> _(lock_);
 
@@ -923,8 +924,8 @@ bool LedgerConsensus<Traits>::peerPosition (
 
         if (currentPosition != peerPositions_.end())
         {
-            if (newPosition.getSequence ()
-                <= currentPosition->second.getSequence ())
+            if (newPosition.getProposeSeq ()
+                <= currentPosition->second.getProposeSeq ())
             {
                 return false;
             }
@@ -960,7 +961,7 @@ bool LedgerConsensus<Traits>::peerPosition (
     }
 
     JLOG (j_.trace()) << "Processing peer proposal "
-        << newPosition.getSequence () << "/"
+        << newPosition.getProposeSeq () << "/"
         << newPosition.getPosition ();
 
     {
@@ -1330,7 +1331,7 @@ void LedgerConsensus<Traits>::updateOurPositions ()
             if (it->second.isStale (peerCutoff))
             {
                 // peer's proposal is stale, so remove it
-                auto const& peerID = it->second.getNodeID ();
+                auto const& peerID = it->second.getPeerID ();
                 JLOG (j_.warn())
                     << "Removing stale proposal from " << peerID;
                 for (auto& dt : disputes_)

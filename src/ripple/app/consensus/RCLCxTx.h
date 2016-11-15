@@ -31,11 +31,12 @@ namespace ripple {
 class RCLCxTx
 {
 public:
+    using id_type = uint256;
 
     RCLCxTx (SHAMapItem const& txn) : txn_ (txn)
     { }
 
-    uint256 const& getID() const
+    id_type const& getID() const
     {
         return txn_.key ();
     }
@@ -87,7 +88,7 @@ protected:
 class RCLTxSet
 {
 public:
-
+    using id_type = uint256;
     using mutable_t = MutableRCLTxSet;
 
     RCLTxSet (std::shared_ptr<SHAMap> map) :
@@ -119,7 +120,7 @@ public:
         return boost::none;
     }
 
-    uint256 getID() const
+    id_type getID() const
     {
         return map_->getHash().as_uint256();
     }

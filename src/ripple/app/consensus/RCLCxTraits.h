@@ -27,7 +27,7 @@
 #include <ripple/protocol/RippleLedgerHash.h>
 
 #include <ripple/app/consensus/RCLCxLedger.h>
-#include <ripple/app/consensus/RCLCxPos.h>
+#include <ripple/app/ledger/LedgerProposal.h>
 #include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
 
@@ -45,14 +45,11 @@ public:
     using Time_t     = NetClock::time_point;
 
     using Ledger_t     = RCLCxLedger;
-    using Pos_t        = RCLCxPos;
+    using Pos_t        = LedgerProposal;
     using TxSet_t      = RCLTxSet;
     using RetryTxSet_t = RCLCxRetryTxSet;
     using Tx_t         = RCLCxTx;
 
-    using LgrID_t   = LedgerHash;
-    using TxID_t    = uint256;
-    using TxSetID_t = uint256;
     using NodeID_t  = NodeID;
 
     using MissingTx = SHAMapMissingNode;

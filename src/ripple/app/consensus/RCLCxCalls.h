@@ -26,6 +26,8 @@
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/consensus/ConsensusTypes.h>
+#include <ripple/app/ledger/LedgerProposal.h>
+
 
 namespace ripple {
 
@@ -34,7 +36,6 @@ class InboundTransactions;
 class LocalTxs;
 class RCLCxTx;
 class RCLTxSet;
-class RCLCxPos;
 class RCLCxLedger;
 class RCLCxRetryTxSet;
 
@@ -71,12 +72,12 @@ public:
 
     void shareSet (RCLTxSet const& set);
 
-    void propose (RCLCxPos const& position);
+    void propose (LedgerProposal const& position);
 
     void getProposals (LedgerHash const& prevLedger,
-        std::function <bool (RCLCxPos const&)>);
+        std::function <bool (LedgerProposal const&)>);
 
-    std::pair <RCLTxSet, RCLCxPos>
+    std::pair <RCLTxSet, LedgerProposal>
     makeInitialPosition (
         RCLCxLedger const & prevLedger,
         bool isProposing,
@@ -216,7 +217,7 @@ public:
     /**
     * @return the transaction set associated with this position
     */
-    RCLTxSet getTxSet(RCLCxPos const & position);
+    RCLTxSet getTxSet(LedgerProposal const & position);
 
 private:
 

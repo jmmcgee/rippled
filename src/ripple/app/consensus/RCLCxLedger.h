@@ -23,7 +23,7 @@
 #include <ripple/app/ledger/Ledger.h>
 #include <ripple/ledger/ReadView.h>
 #include <ripple/app/ledger/LedgerToJson.h>
-
+#include <ripple/protocol/RippleLedgerHash.h>
 #include <memory>
 
 namespace ripple {
@@ -32,6 +32,8 @@ namespace ripple {
 class RCLCxLedger
 {
 public:
+
+    using id_type = LedgerHash;
 
     // Do we need this or can we force LedgerConsensImpl to start with some ledger?
     RCLCxLedger() = default;

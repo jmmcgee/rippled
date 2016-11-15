@@ -75,7 +75,7 @@ public:
     {
         return mPeerID;
     }
-    uint256 const& getCurrentHash () const
+    uint256 const& getPosition () const
     {
         return mCurrentHash;
     }

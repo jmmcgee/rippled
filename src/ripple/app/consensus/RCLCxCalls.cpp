@@ -19,7 +19,7 @@
 #include <BeastConfig.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
 #include <ripple/app/consensus/RCLCxLedger.h>
-#include <ripple/app/consensus/RCLCxPos.h>
+#include <ripple/app/ledger/LedgerProposal.h>
 #include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/app/consensus/RCLConsensus.h>
 
@@ -108,7 +108,7 @@ void RCLCxCalls::shareSet (RCLTxSet const& set)
         set.map(), false);
 }
 
-void RCLCxCalls::propose (RCLCxPos const& position)
+void RCLCxCalls::propose (LedgerProposal const& position)
 {
     JLOG (j_.trace()) << "We propose: " <<
         (position.isBowOut () ?  std::string ("bowOut") :
@@ -120,7 +120,7 @@ void RCLCxCalls::propose (RCLCxPos const& position)
         256 / 8);
     prop.set_previousledger (position.getPrevLedger().begin(),
         256 / 8);
-    prop.set_proposeseq (position.getSequence ());
+    prop.set_proposeseq (position.getProposeSeq ());
     prop.set_closetime (
         position.getCloseTime().time_since_epoch().count());
 
@@ -128,7 +128,7 @@ void RCLCxCalls::propose (RCLCxPos const& position)
 
     auto signingHash = sha512Half(
         HashPrefix::proposal,
-        std::uint32_t(position.getSequence()),
+        std::uint32_t(position.getProposeSeq()),
         position.getCloseTime().time_since_epoch().count(),
         position.getPrevLedger(), position.getPosition());
 
@@ -141,15 +141,13 @@ void RCLCxCalls::propose (RCLCxPos const& position)
 }
 
 void RCLCxCalls::getProposals (LedgerHash const& prevLedger,
-    std::function <bool (RCLCxPos const&)> func)
+    std::function <bool (LedgerProposal const&)> func)
 {
     auto proposals = consensus_.getStoredProposals (prevLedger);
-    for (auto& prop : proposals)
+    for (auto& proposal : proposals)
     {
-        if (func (prop))
+        if (func (proposal))
         {
-            auto& proposal = prop.peek();
-
             protocol::TMProposeSet prop;
 
             prop.set_proposeseq (
@@ -158,7 +156,7 @@ void RCLCxCalls::getProposals (LedgerHash const& prevLedger,
                 proposal.getCloseTime ().time_since_epoch().count());
 
             prop.set_currenttxhash (
-                proposal.getCurrentHash().begin(), 256 / 8);
+                proposal.getPosition().begin(), 256 / 8);
             prop.set_previousledger (
                 proposal.getPrevLedger().begin(), 256 / 8);
 
@@ -198,7 +196,7 @@ std::pair <bool, bool> RCLCxCalls::getMode (bool correctLCL)
     return { propose, validate };
 }
 
-std::pair <RCLTxSet, RCLCxPos>
+std::pair <RCLTxSet, LedgerProposal>
 RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
         bool proposing,
         bool correctLCL,
@@ -259,7 +257,7 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
     initialSet = initialSet->snapShot(false);
     auto setHash = initialSet->getHash().as_uint256();
 
-    return std::make_pair<RCLTxSet, RCLCxPos> (
+    return std::make_pair<RCLTxSet, LedgerProposal> (
         std::move (initialSet),
         LedgerProposal {
             initialLedger->info().parentHash,
@@ -712,7 +710,7 @@ void RCLCxCalls::startRound(RCLCxLedger const & ledger)
     inboundTransactions_.newRound (ledger.seq());
 }
 
-RCLTxSet RCLCxCalls::getTxSet(RCLCxPos const & position)
+RCLTxSet RCLCxCalls::getTxSet(LedgerProposal const & position)
 {
     return inboundTransactions_.getSet(
         position.getPosition(), true);

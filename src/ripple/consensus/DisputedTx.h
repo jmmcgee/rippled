@@ -42,7 +42,7 @@ class DisputedTx
 public:
 
     using Tx_t     = typename Traits::Tx_t;
-    using TxID_t   = typename Traits::TxID_t;
+    using TxID_t   = typename Tx_t::id_type;
     using NodeID_t = typename Traits::NodeID_t;
 
     DisputedTx (Tx_t const& tx,
