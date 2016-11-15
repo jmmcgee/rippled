@@ -208,6 +208,8 @@ bool DisputedTx<Tx_t, NodeID_t>::updateVote (int percentTime, bool proposing)
 template <class Tx_t, class NodeID_t>
 Json::Value DisputedTx<Tx_t, NodeID_t>::getJson ()
 {
+    using std::to_string;
+
     Json::Value ret (Json::objectValue);
 
     ret["yays"] = mYays;

@@ -105,13 +105,18 @@ public:
         NodeID_t id);
 
     /**
-        @param prevLCLHash The hash of the Last Closed Ledger (LCL).
-        @param previousLedger Best guess of what the LCL was.
-        @param closeTime Closing time point of the LCL.
+        Kick-off the next round of consensus.
+
+        @param now the current time
+        @param prevLgrId the hash of the last ledger
+        @param previousLedger Best guess of what the last closed ledger was.
+
+        Note that @b prevLgrId may not match the hash of @b prevLedger since
+        the hashes are shared before/independent of the updated ledger itself.
     */
     void startRound (
         Time_t const& now,
-        LgrID_t const& prevLCLHash,
+        LgrID_t const& prevLgrId,
         Ledger_t const& prevLedger);
 
     /**
@@ -368,10 +373,13 @@ LedgerConsensus<Traits>::LedgerConsensus (
     : callbacks_ (callbacks)
     , ourID_ (id)
     , state_ (State::open)
+    , proposing_(false)
+    , validating_(false)
+    , haveCorrectLCL_(false)
     , consensusFail_ (false)
     , roundTime_ (0)
     , closePercent_ (0)
-    , closeResolution_ (30)
+    , closeResolution_ (ledgerDefaultTimeResolution)
     , haveCloseTimeConsensus_ (false)
     , consensusStartTime_ (std::chrono::steady_clock::now ())
     , previousProposers_ (0)
@@ -384,6 +392,8 @@ LedgerConsensus<Traits>::LedgerConsensus (
 template <class Traits>
 Json::Value LedgerConsensus<Traits>::getJson (bool full)
 {
+    using std::to_string;
+
     Json::Value ret (Json::objectValue);
     std::lock_guard<std::recursive_mutex> _(lock_);
 
@@ -848,6 +858,9 @@ bool LedgerConsensus<Traits>::haveConsensus ()
         }
         else
         {
+
+            using std::to_string;
+
             JLOG (j_.debug()) << to_string (it.first)
                 << " has " << to_string (it.second.getPosition ());
             ++disagree;
@@ -914,6 +927,7 @@ bool LedgerConsensus<Traits>::peerPosition (
 
     if (deadNodes_.find (peerID) != deadNodes_.end ())
     {
+        using std::to_string;
         JLOG (j_.info())
             << "Position from dead node: " << to_string (peerID);
         return false;
@@ -934,6 +948,8 @@ bool LedgerConsensus<Traits>::peerPosition (
 
         if (newPosition.isBowOut ())
         {
+            using std::to_string;
+
             JLOG (j_.info())
                 << "Peer bows out: " << to_string (peerID);
 
