@@ -27,6 +27,7 @@
 #include <ripple/protocol/PublicKey.h>
 #include <ripple/protocol/SecretKey.h>
 #include <ripple/beast/hash/hash_append.h>
+#include <ripple/consensus/ConsensusPosition.h>
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -35,13 +36,11 @@ namespace ripple {
 
 class LedgerProposal
     : public CountedObject <LedgerProposal>
+    , public ConsensusPosition<NodeID, uint256, uint256, NetClock::time_point>
 {
-private:
-    // A peer initial joins the consensus process
-    static std::uint32_t const seqJoin = 0;
+    using Position =
+        ConsensusPosition<NodeID, uint256, uint256, NetClock::time_point>;
 
-    // A peer wants to bow out and leave the consensus process
-    static std::uint32_t const seqLeave = 0xffffffff;
 
 public:
     static char const* getCountedObjectName () { return "LedgerProposal"; }
@@ -71,18 +70,11 @@ public:
     uint256 getSigningHash () const;
     bool checkSign () const;
 
-    NodeID const& getPeerID () const
+    Blob const& getSignature () const
     {
-        return mPeerID;
+        return signature_;
     }
-    uint256 const& getPosition () const
-    {
-        return mCurrentHash;
-    }
-    uint256 const& getPrevLedger () const
-    {
-        return mPreviousLedger;
-    }
+
     PublicKey const& getPublicKey () const
     {
         return publicKey_;
@@ -91,41 +83,7 @@ public:
     {
         return mSuppression;
     }
-    std::uint32_t getProposeSeq () const
-    {
-        return mProposeSeq;
-    }
-    NetClock::time_point getCloseTime () const
-    {
-        return mCloseTime;
-    }
-    NetClock::time_point getSeenTime () const
-    {
-        return mTime;
-    }
-    Blob const& getSignature () const
-    {
-        return signature_;
-    }
-    bool isInitial () const
-    {
-        return mProposeSeq == seqJoin;
-    }
-    bool isBowOut () const
-    {
-        return mProposeSeq == seqLeave;
-    }
 
-    bool isStale (NetClock::time_point cutoff) const
-    {
-        return mTime <= cutoff;
-    }
-
-    bool changePosition (
-        uint256 const& newPosition,
-        NetClock::time_point newCloseTime,
-        NetClock::time_point now);
-    void bowOut (NetClock::time_point now);
     Json::Value getJson () const;
 
 private:
@@ -135,21 +93,15 @@ private:
     {
         using beast::hash_append;
         hash_append(h, HashPrefix::proposal);
-        hash_append(h, std::uint32_t(mProposeSeq));
-        hash_append(h, mCloseTime);
-        hash_append(h, mPreviousLedger);
-        hash_append(h, mCurrentHash);
+        hash_append(h, std::uint32_t(getProposeSeq()));
+        hash_append(h, getCloseTime());
+        hash_append(h, getPrevLedger());
+        hash_append(h, getPosition());
     }
 
-    uint256 mPreviousLedger, mCurrentHash, mSuppression;
-    NetClock::time_point mCloseTime;
-    std::uint32_t mProposeSeq;
-
+    uint256 mSuppression;
     PublicKey publicKey_;
-    NodeID mPeerID;
     Blob signature_;
-
-    NetClock::time_point mTime;
 };
 
 /** Calculate a unique identifier for a signed proposal.

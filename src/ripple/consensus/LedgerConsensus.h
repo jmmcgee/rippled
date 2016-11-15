@@ -82,7 +82,7 @@ public:
     using NodeID_t = typename Traits::NodeID_t;
     using RetryTxSet_t = typename Traits::RetryTxSet_t;
     using MissingTx = typename Traits::MissingTx;
-    using Dispute_t = DisputedTx <Traits>;
+    using Dispute_t = DisputedTx <Tx_t, NodeID_t>;
 
     /**
      * The result of applying a transaction to a ledger.
@@ -1037,11 +1037,13 @@ void LedgerConsensus<Traits>::accept (TxSet_t const& set)
         << ":" << previousLedger_.seq();
 
     // Put transactions into a deterministic, but unpredictable, order
-    RetryTxSet_t retriableTxs (set.getID());
 
-    auto sharedLCL = callbacks_.accept(previousLedger_, set,
+    auto acceptRes = callbacks_.accept(previousLedger_, set,
         closeTime, closeTimeCorrect, closeResolution_, now_,
-        roundTime_, retriableTxs);
+        roundTime_);
+
+    auto & sharedLCL =  acceptRes.first;
+    auto & retriableTxs = acceptRes.second;
 
     auto const newLCLHash = sharedLCL.ID();
     JLOG (j_.debug())

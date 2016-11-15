@@ -454,17 +454,18 @@ applyTransactions (
 }
 
 
-RCLCxLedger RCLCxCalls::accept(
+std::pair<RCLCxLedger, RCLCxRetryTxSet>
+RCLCxCalls::accept(
     RCLCxLedger const & previousLedger,
     RCLTxSet const & set,
     NetClock::time_point closeTime,
     bool closeTimeCorrect,
     NetClock::duration closeResolution,
     NetClock::time_point now,
-    std::chrono::milliseconds roundTime,
-    RCLCxRetryTxSet & retriableTxs
-)
+    std::chrono::milliseconds roundTime)
 {
+    RCLCxRetryTxSet retriableTxs{ set.getID() };
+
     auto replay = ledgerMaster_.releaseReplay();
     if (replay)
     {
@@ -555,7 +556,7 @@ RCLCxLedger RCLCxCalls::accept(
     else
         JLOG (j_.debug())
             << "Consensus built new ledger";
-    return RCLCxLedger{std::move(buildLCL)};
+    return { RCLCxLedger{std::move(buildLCL)}, retriableTxs };
 
 
 }

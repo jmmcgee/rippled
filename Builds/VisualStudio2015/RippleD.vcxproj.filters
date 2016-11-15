@@ -1328,9 +1328,6 @@
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxLedger.h">
       <Filter>ripple\app\consensus</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxPos.h">
-      <Filter>ripple\app\consensus</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxTraits.h">
       <Filter>ripple\app\consensus</Filter>
     </ClInclude>
@@ -2407,6 +2404,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\beast\xor_shift_engine.h">
       <Filter>ripple\beast</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusPosition.h">
+      <Filter>ripple\consensus</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
       <Filter>ripple\consensus</Filter>

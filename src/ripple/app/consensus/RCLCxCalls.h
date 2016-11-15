@@ -106,15 +106,15 @@ public:
     * next round.
     * @return the newly built ledger
     */
-    RCLCxLedger accept(
+    std::pair<RCLCxLedger, RCLCxRetryTxSet>
+    accept(
         RCLCxLedger const & previousLedger,
         RCLTxSet const & set,
         NetClock::time_point closeTime,
         bool closeTimeCorrect,
         NetClock::duration closeResolution,
         NetClock::time_point now,
-        std::chrono::milliseconds roundTime,
-        RCLCxRetryTxSet & retriableTxs
+        std::chrono::milliseconds roundTime
     );
 
     /*
