@@ -29,7 +29,7 @@
 
 namespace ripple {
 
-class RCLCxTraits;
+struct RCLCxTraits;
 template <class T> class LedgerConsensus;
 
 /** Implements the consensus process and provides inter-round state. */

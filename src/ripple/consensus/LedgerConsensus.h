@@ -80,8 +80,7 @@ public:
     using TxSetID_t = typename TxSet_t::id_type;
 
     using NodeID_t = typename Traits::NodeID_t;
-    using RetryTxSet_t = typename Traits::RetryTxSet_t;
-    using MissingTx = typename Traits::MissingTx;
+    using MissingTx_t = typename Traits::MissingTx_t;
     using Dispute_t = DisputedTx <Tx_t, NodeID_t>;
 
     /**
@@ -596,7 +595,7 @@ void LedgerConsensus<Traits>::gotMap (
     {
         mapCompleteInternal (map, true);
     }
-    catch (MissingTx const& mn)
+    catch (MissingTx_t const& mn)
     {
         // This should never happen
         leaveConsensus();
@@ -754,7 +753,7 @@ void LedgerConsensus<Traits>::timerEntry (Time_t const& now)
 
         assert (false);
     }
-    catch (MissingTx const& mn)
+    catch (MissingTx_t const& mn)
     {
         // This should never happen
         leaveConsensus ();

@@ -36,9 +36,8 @@ namespace ripple {
 
 // Consensus traits class
 // For adapting consensus to RCL
-class RCLCxTraits
+struct RCLCxTraits
 {
-public:
 
     using Callback_t = RCLCxCalls;
 
@@ -47,12 +46,11 @@ public:
     using Ledger_t     = RCLCxLedger;
     using Pos_t        = LedgerProposal;
     using TxSet_t      = RCLTxSet;
-    using RetryTxSet_t = RCLCxRetryTxSet;
     using Tx_t         = RCLCxTx;
 
     using NodeID_t  = NodeID;
 
-    using MissingTx = SHAMapMissingNode;
+    using MissingTx_t = SHAMapMissingNode;
 };
 
 }
