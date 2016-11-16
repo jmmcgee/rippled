@@ -716,7 +716,7 @@ boost::optional<RCLTxSet> RCLCxCalls::getTxSet(LedgerProposal const & position)
     if (auto set = inboundTransactions_.getSet(
         position.getPosition(), true))
     {
-        return set;
+        return RCLTxSet{std::move(set)};
     }
     else
         return boost::none;

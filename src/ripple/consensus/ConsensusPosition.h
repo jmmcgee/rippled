@@ -21,6 +21,7 @@
 
 #include <cstdint>
 #include <ripple/json/json_value.h>
+#include <ripple/protocol/JsonFields.h>
 
 namespace ripple
 {
@@ -54,9 +55,9 @@ public:
     : mPreviousLedger(prevLedger)
     , mCurrentHash(position)
     , mCloseTime(closeTime)
-    , mProposeSeq(seq)
-    , mPeerID_t(nodeID_t)
     , mTime(now)
+    , mProposeSeq(seq)
+    , mPeerID(nodeID_t)
     {
 
     }
@@ -79,7 +80,7 @@ public:
     // @return identifying index of which peer took this position
     NodeID_t const& getPeerID () const
     {
-        return mPeerID_t;
+        return mPeerID;
     }
 
     // @return identify
@@ -200,7 +201,7 @@ private:
     std::uint32_t mProposeSeq;
 
     // The identifier of the node taking this position
-    NodeID_t mPeerID_t;
+    NodeID_t mPeerID;
 
 };
 }
