@@ -35,7 +35,7 @@ public:
 
     using id_type = LedgerHash;
 
-    // Do we need this or can we force LedgerConsensImpl to start with some ledger?
+    // Do we need this or can we force LedgerConsens to start with some ledger?
     RCLCxLedger() = default;
 
     RCLCxLedger(std::shared_ptr<Ledger const> const & l) : previousLedger_{ l } {}
@@ -80,12 +80,7 @@ public:
         return ripple::getJson(*previousLedger_);
     }
 
-    operator bool() const
-    {
-        return previousLedger_.operator bool();
-    }
-
-    auto const & hackAccess() const
+    auto const & peek() const
     {
         return previousLedger_;
     }

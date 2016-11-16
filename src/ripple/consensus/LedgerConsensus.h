@@ -689,20 +689,22 @@ void LedgerConsensus<Traits>::handleLCL (LgrID_t const& lclHash)
         return;
 
     // we need to switch the ledger we're working from
-    auto buildLCL =  callbacks_.acquireLedger(prevLedgerHash_);
-    if (! buildLCL)
+    if (auto buildLCL = callbacks_.acquireLedger(prevLedgerHash_))
     {
-        haveCorrectLCL_ = false;
-        return;
-    }
-
-    JLOG (j_.info()) <<
+        JLOG (j_.info()) <<
         "Have the consensus ledger " << prevLedgerHash_;
 
-    startRound (
-        now_,
-        lclHash,
-        buildLCL);
+        startRound (
+            now_,
+            lclHash,
+            *buildLCL);
+    }
+    else
+    {
+            haveCorrectLCL_ = false;
+    }
+
+
 }
 
 template <class Traits>
@@ -971,7 +973,7 @@ bool LedgerConsensus<Traits>::peerPosition (
             if (auto set = callbacks_.getTxSet(newPosition))
             {
                 ait = acquired_.emplace (newPosition.getPosition(),
-                    std::move(set)).first;
+                    std::move(*set)).first;
             }
         }
 

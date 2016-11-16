@@ -73,7 +73,7 @@ public:
         return map_->delItem (entry);
     }
 
-    std::shared_ptr <SHAMap> const& map() const
+    std::shared_ptr <SHAMap> const& peek() const
     {
         return map_;
     }
@@ -97,13 +97,8 @@ public:
         assert (map_);
     }
 
-    operator bool() const
-    {
-        return map_.operator bool();
-    }
-
     RCLTxSet (MutableRCLTxSet const& set) :
-        map_ (set.map()->snapShot (false))
+        map_ (set.peek()->snapShot (false))
     { }
 
     bool hasEntry (uint256 const& entry) const
@@ -145,7 +140,7 @@ public:
         return ret;
     }
 
-    std::shared_ptr<SHAMap> const& map() const
+    std::shared_ptr<SHAMap> const& peek() const
     {
         return map_;
     }
@@ -156,7 +151,7 @@ protected:
 };
 
 inline MutableRCLTxSet::MutableRCLTxSet (RCLTxSet const& set)
-    : map_ (set.map()->snapShot (true))
+    : map_ (set.peek()->snapShot (true))
 { }
 
 class RCLCxRetryTxSet

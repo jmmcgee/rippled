@@ -85,7 +85,7 @@ public:
         NetClock::time_point closeTime,
         NetClock::time_point now);
 
-    RCLCxLedger acquireLedger(LedgerHash const & ledgerHash);
+    boost::optional<RCLCxLedger> acquireLedger(LedgerHash const & ledgerHash);
 
    /*
     * Senda status change message to peers due to a change in ledger
@@ -217,7 +217,7 @@ public:
     /**
     * @return the transaction set associated with this position
     */
-    RCLTxSet getTxSet(LedgerProposal const & position);
+    boost::optional<RCLTxSet> getTxSet(LedgerProposal const & position);
 
 private:
 

@@ -105,7 +105,7 @@ uint256 RCLCxCalls::getLCL (
 void RCLCxCalls::shareSet (RCLTxSet const& set)
 {
     app_.getInboundTransactions().giveSet (set.getID(),
-        set.map(), false);
+        set.peek(), false);
 }
 
 void RCLCxCalls::propose (LedgerProposal const& position)
@@ -204,7 +204,7 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
         NetClock::time_point now)
 {
     auto& ledgerMaster = app_.getLedgerMaster();
-    auto const &prevLedger = prevLedgerT.hackAccess();
+    auto const &prevLedger = prevLedgerT.peek();
     // Tell the ledger master not to acquire the ledger we're probably building
     ledgerMaster.setBuildingLedger (prevLedger->info().seq + 1);
 
@@ -266,7 +266,7 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
             now});
 }
 
-RCLCxLedger RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
+boost::optional<RCLCxLedger> RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
 {
 
     // we need to switch the ledger we're working from
@@ -291,7 +291,7 @@ RCLCxLedger RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
                         hash, 0, InboundLedger::fcCONSENSUS);
                 });
         }
-        return RCLCxLedger{};
+        return boost::none;
     }
 
     assert (!buildLCL->open() && buildLCL->isImmutable ());
@@ -372,7 +372,7 @@ applyTransactions (
 {
     auto j = app.journal ("LedgerConsensus");
 
-    auto& set = *(cSet.map());
+    auto& set = *(cSet.peek());
     CanonicalTXSet retriableTxs (set.getHash().as_uint256());
 
 
@@ -482,7 +482,7 @@ RCLCxCalls::accept(
 
     // Build the new last closed ledger
     auto buildLCL = std::make_shared<Ledger>(
-        *previousLedger.hackAccess(), now);
+        *previousLedger.peek(), now);
     auto const v2_enabled = buildLCL->rules().enabled(featureSHAMapV2,
                                                     app_.config().features);
     auto v2_transition = false;
@@ -563,7 +563,7 @@ RCLCxCalls::accept(
 
 bool RCLCxCalls::shouldValidate(RCLCxLedger const & ledger)
 {
-    return  ledgerMaster_.isCompatible(*ledger.hackAccess(),
+    return  ledgerMaster_.isCompatible(*ledger.peek(),
         app_.journal("LedgerConsensus").warn(),
         "Not validating");
 }
@@ -592,8 +592,8 @@ void RCLCxCalls::validate(
     // next ledger is flag ledger
     {
         // Suggest fee changes and new features
-        feeVote_->doValidation (ledger.hackAccess(), *v);
-        app_.getAmendmentTable ().doValidation (ledger.hackAccess(), *v);
+        feeVote_->doValidation (ledger.peek(), *v);
+        app_.getAmendmentTable ().doValidation (ledger.peek(), *v);
     }
 
     auto const signingHash = v->sign (valSecret_);
@@ -612,7 +612,7 @@ void RCLCxCalls::consensusBuilt(
     RCLCxLedger const & ledger,
     Json::Value && json)
 {
-    ledgerMaster_.consensusBuilt (ledger.hackAccess(), std::move(json));
+    ledgerMaster_.consensusBuilt (ledger.peek(), std::move(json));
 }
 
 
@@ -635,7 +635,7 @@ void RCLCxCalls::createOpenLedger(
     else
         rules.emplace();
     app_.openLedger().accept(app_, *rules,
-        closedLedger.hackAccess(), localTxs_.getTxSet(), anyDisputes,
+        closedLedger.peek(), localTxs_.getTxSet(), anyDisputes,
         retriableTxs.txs(), tapNONE,
             "consensus",
                 [&](OpenView& view, beast::Journal j)
@@ -647,7 +647,7 @@ void RCLCxCalls::createOpenLedger(
 
 void RCLCxCalls::switchLCL(RCLCxLedger const & ledger)
 {
-    ledgerMaster_.switchLCL (ledger.hackAccess());
+    ledgerMaster_.switchLCL (ledger.peek());
 
     // Do these need to exist?
     assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.ID());
@@ -711,10 +711,15 @@ void RCLCxCalls::startRound(RCLCxLedger const & ledger)
     inboundTransactions_.newRound (ledger.seq());
 }
 
-RCLTxSet RCLCxCalls::getTxSet(LedgerProposal const & position)
+boost::optional<RCLTxSet> RCLCxCalls::getTxSet(LedgerProposal const & position)
 {
-    return inboundTransactions_.getSet(
-        position.getPosition(), true);
+    if (auto set = inboundTransactions_.getSet(
+        position.getPosition(), true))
+    {
+        return set;
+    }
+    else
+        return boost::none;
 }
 
 } // namespace ripple

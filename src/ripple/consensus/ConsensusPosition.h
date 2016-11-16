@@ -19,6 +19,9 @@
 #ifndef RIPPLE_CONSENSUS_CONSENSUSPOSITION_H_INCLUDED
 #define RIPPLE_CONSENSUS_CONSENSUSPOSITION_H_INCLUDED
 
+#include <cstdint>
+#include <ripple/json/json_value.h>
+
 namespace ripple
 {
 /**
@@ -161,6 +164,22 @@ public:
         mProposeSeq     = seqLeave;
     }
 
+
+    Json::Value getJson () const
+    {
+        Json::Value ret = Json::objectValue;
+        ret[jss::previous_ledger] = to_string (getPrevLedger());
+
+        if (!isBowOut())
+        {
+            ret[jss::transaction_hash] = to_string (getPosition());
+            ret[jss::propose_seq] = getProposeSeq();
+        }
+
+        ret[jss::close_time] = getCloseTime().time_since_epoch().count();
+
+        return ret;
+    }
 
 private:
 
