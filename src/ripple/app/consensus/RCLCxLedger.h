@@ -38,58 +38,58 @@ public:
     // Do we need this or can we force LedgerConsens to start with some ledger?
     RCLCxLedger() = default;
 
-    RCLCxLedger(std::shared_ptr<Ledger const> const & l) : previousLedger_{ l } {}
+    RCLCxLedger(std::shared_ptr<Ledger const> const & l) : ledger_{ l } {}
 
     auto seq() const
     {
-        return previousLedger_->info().seq;
+        return ledger_->info().seq;
     }
 
     auto closeTimeResolution() const
     {
-        return previousLedger_->info().closeTimeResolution;
+        return ledger_->info().closeTimeResolution;
     }
 
     bool getCloseAgree() const
     {
-        return ripple::getCloseAgree(previousLedger_->info());
+        return ripple::getCloseAgree(ledger_->info());
     }
 
     auto ID() const
     {
-        return previousLedger_->info().hash;
+        return ledger_->info().hash;
     }
 
     auto parentID() const
     {
-        return previousLedger_->info().parentHash;
+        return ledger_->info().parentHash;
     }
 
     auto closeTime() const
     {
-        return previousLedger_->info().closeTime;
+        return ledger_->info().closeTime;
     }
 
     auto parentCloseTime() const
     {
-        return previousLedger_->info().parentCloseTime;
+        return ledger_->info().parentCloseTime;
     }
 
     Json::Value getJson() const
     {
-        return ripple::getJson(*previousLedger_);
+        return ripple::getJson(*ledger_);
     }
 
     auto const & peek() const
     {
-        return previousLedger_;
+        return ledger_;
     }
 
 protected:
 
     // TODO: Make this shared_ptr<ReadView const> .. requires ability to create
     // a new ledger from a readview?
-    std::shared_ptr<Ledger const> previousLedger_;
+    std::shared_ptr<Ledger const> ledger_;
 
 };
 
