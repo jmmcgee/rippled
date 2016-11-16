@@ -23,6 +23,7 @@
 #include <ripple/beast/clock/manual_clock.h>
 #include <boost/container/flat_set.hpp>
 #include <boost/function_output_iterator.hpp>
+#include <ripple/beast/hash/hash_append.h>
 
 namespace ripple {
 namespace test {
@@ -59,11 +60,27 @@ public:
         return id < o.id;
     }
 
+    bool operator==(Tx const & o) const
+    {
+        return id == o.id;
+    }
+
 private:
     id_type id;
+
 };
 
+template <class Hasher>
+void
+inline hash_append(Hasher& h, Tx const & tx)
+{
+    using beast::hash_append;
+    hash_append(h, tx.getID());
+}
+
+
 using tx_set_type = boost::container::flat_set<Tx>;
+
 
 inline std::ostream& operator<<(std::ostream & o, tx_set_type const & txs)
 {
@@ -82,6 +99,13 @@ inline std::ostream& operator<<(std::ostream & o, tx_set_type const & txs)
     o << " }";
     return o;
 
+}
+
+inline std::string to_string(tx_set_type const & txs)
+{
+    std::stringstream ss;
+    ss << txs;
+    return ss.str();
 }
 
 class TxSet;
@@ -160,14 +184,15 @@ public:
 
         auto populate_diffs = [&res](auto const & a, auto const & b, bool s)
         {
+            auto populator = [&](auto const & tx)
+            {
+                        res[tx.getID()] = s;
+            };
             std::set_difference(
                 a.begin(), a.end(),
                 b.begin(), b.end(),
                 boost::make_function_output_iterator(
-                    [&](auto const & tx)
-                    {
-                        res[tx.ID()] = s;
-                    }
+                    std::ref(populator)
                 )
             );
         };
@@ -368,7 +393,7 @@ struct Callbacks
 
     }
 
-    std::pair<Ledger, MutableTxSet> accept(Ledger::id_type const & prevLedger,
+    std::pair<Ledger, MutableTxSet> accept(Ledger const & prevLedger,
         TxSet const & txs,
         time_point closeTime, bool closeTimeCorrect,
         typename time_point::duration closeResolution,
@@ -512,7 +537,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     testGetJson()
     {
-        BEAST_EXPECT(1 == 2);
+
     }
     void
     run() override
