@@ -19,12 +19,235 @@
 #include <BeastConfig.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/consensus/LedgerConsensus.h>
+#include <ripple/consensus/ConsensusPosition.h>
 #include <ripple/beast/clock/manual_clock.h>
-
-#include <set>
+#include <boost/container/flat_set.hpp>
+#include <boost/function_output_iterator.hpp>
 
 namespace ripple {
 namespace test {
+namespace consensus {
+
+using clock = NetClock;
+using time_point = typename clock::time_point;
+using node_id_type = std::int32_t;
+
+/** Consensus test framework
+
+    For unit tests @b LedgerConsensus, we define
+
+    Tx : integer
+    TxSet : set of integers
+    Ledger : set of integers
+    Pos :
+*/
+
+class Tx
+{
+public:
+    using id_type = int;
+
+    Tx(id_type i) : id{ i } {}
+
+    id_type getID() const
+    {
+        return id;
+    }
+
+    bool operator<(Tx const & o) const
+    {
+        return id < o.id;
+    }
+
+private:
+    id_type id;
+};
+
+using tx_set_type = boost::container::flat_set<Tx>;
+
+inline std::ostream& operator<<(std::ostream & o, tx_set_type const & txs)
+{
+    o << "{ ";
+    bool do_comma = false;
+    for (auto const & tx : txs)
+    {
+        if (do_comma)
+            o << ", ";
+        else
+            do_comma = true;
+        o << tx.getID();
+
+
+    }
+    o << " }";
+    return o;
+
+}
+
+class TxSet;
+
+class MutableTxSet
+{
+public:
+    friend class TxSet;
+
+    MutableTxSet() = default;
+
+    MutableTxSet(TxSet const &);
+
+    bool insert(Tx const & t)
+    {
+        return txs.insert(t).second;
+    }
+
+    bool remove(Tx::id_type const & tx_id)
+    {
+        return txs.erase(Tx{ tx_id }) > 0;
+    }
+
+private:
+    // The set contains the actual transactions
+    tx_set_type txs;
+
+};
+
+class TxSet
+{
+public:
+    friend class MutableTxSet;
+
+    using id_type = tx_set_type;
+
+    // For the test, use the same object for mutable/immutable
+    using mutable_t = MutableTxSet;
+
+    TxSet() = default;
+
+    TxSet(MutableTxSet const & s)
+        : txs{ s.txs }
+    {
+
+    }
+
+    bool
+    hasEntry(Tx::id_type const tx_id) const
+    {
+        auto it = txs.find(Tx{ tx_id });
+        return it != txs.end();
+    }
+
+    boost::optional <Tx const>
+    getEntry(Tx::id_type const& tx_id) const
+    {
+        auto it = txs.find(Tx{ tx_id });
+        if (it != txs.end())
+            return *it;
+        return boost::none;
+    }
+
+    auto getID() const
+    {
+        return txs;
+    }
+
+    // @return map of Tx::id_type that are missing
+    // true means it was in this set and not other
+    // false means it was in the other set and not this
+    std::map<Tx::id_type, bool>
+    getDifferences(TxSet const& other) const
+    {
+        std::map<Tx::id_type, bool> res;
+
+        auto populate_diffs = [&res](auto const & a, auto const & b, bool s)
+        {
+            std::set_difference(
+                a.begin(), a.end(),
+                b.begin(), b.end(),
+                boost::make_function_output_iterator(
+                    [&](auto const & tx)
+                    {
+                        res[tx.ID()] = s;
+                    }
+                )
+            );
+        };
+
+        populate_diffs(txs, other.txs, true);
+        populate_diffs(other.txs, txs, false);
+        return res;
+    }
+
+private:
+    // The set contains the actual transactions
+    tx_set_type txs;
+
+};
+
+MutableTxSet::MutableTxSet(TxSet const & s)
+    : txs(s.txs) {}
+
+class Ledger
+{
+public:
+
+    using id_type = tx_set_type;
+
+    auto ID() const
+    {
+        return txs_;
+    }
+
+    auto seq() const
+    {
+        return seq_;
+    }
+
+    auto closeTimeResolution() const
+    {
+        return closeTimeResolution_;
+    }
+
+    auto getCloseAgree() const
+    {
+        return closeTimeAgree_;
+    }
+
+    auto closeTime() const
+    {
+        return closeTime_;
+    }
+
+    auto parentCloseTime() const
+    {
+        return parentCloseTime_;
+    }
+
+    auto parentID() const
+    {
+        return parentID_;
+    }
+
+    Json::Value getJson() const
+    {
+        Json::Value res(Json::objectValue);
+        res["seq"] = seq();
+        return res;
+    }
+
+private:
+
+    tx_set_type txs_;
+    std::uint32_t seq_ = 0;
+    typename time_point::duration closeTimeResolution_ = ledgerDefaultTimeResolution;
+    time_point closeTime_;
+    bool closeTimeAgree_ = true;
+
+    time_point parentCloseTime_;
+    id_type parentID_;
+};
+
+using Position = ConsensusPosition<node_id_type, Ledger::id_type,
+    tx_set_type, time_point>;
 
 
 class MissingTx : public std::runtime_error
@@ -37,429 +260,197 @@ public:
     friend std::ostream& operator<< (std::ostream&, MissingTx const&);
 };
 
-
-std::ostream& operator<< (std::ostream& o, MissingTx const& mt)
+std::ostream& operator<< (std::ostream & o, MissingTx const &m)
 {
-    return o << mt.what();
+    return o << m.what();
 }
-class LedgerConsensus_test : public beast::unit_test::suite
+
+
+struct Callbacks
 {
-    using clock_type =
-        beast::manual_clock<
-            NetClock>;
+    std::map<std::string, beast::Journal> j;
+
+    beast::Journal journal(std::string const & s)
+    {
+        return j[s];
+    }
+
+    void startRound(Ledger const &)
+    {
+        // CHeck that this was called?
+    }
+
+    std::pair<bool, bool> getMode(const bool correctLCL)
+    {
+        if (!correctLCL)
+            return{ false, false };
+        return{ true, true };
+    }
 
 
-    struct Traits
+    boost::optional<Ledger> acquireLedger(Ledger::id_type const & ledgerHash)
+    {
+        return {};
+    }
+
+    // Should be get and share?
+    // If f returns true, that means it was
+    // a useful proposal and should be shared
+    template <class F>
+    void getProposals(Ledger::id_type const & ledgerHash, F && f)
     {
 
-        using id_t = std::int32_t;
+    }
+
+    // Aquire the details of the transaction corresponding
+    // to this position; if not available locally, spawns
+    // a networko request that will call gotMap
+    boost::optional<TxSet> getTxSet(Position const & position)
+    {
+        return {};
+    }
 
-        using LgrID_t = id_t;
 
-        using NodeID_t = id_t;
+    bool hasOpenTransactions() const
+    {
+        return false;
+    }
 
-        using Time_t = clock_type::time_point;
+    int numProposersValidated(Ledger::id_type const & prevLedger) const
+    {
+        return 0;
+    }
 
-        using MissingTx = MissingTx;
+    int numProposersFinished(Ledger::id_type const & prevLedger) const
+    {
+        return 0;
+    }
+
+    time_point getLastCloseTime() const
+    {
+        return time_point{};
+    }
+
+    void setLastCloseTime(time_point)
+    {
+
+    }
 
+    void statusChange(ConsensusChange c, Ledger const & prevLedger,
+        bool haveCorrectLCL)
+    {
 
+    }
 
-        struct Tx_t
-        {
-            id_t id;
 
-            auto getID() const
-            {
-                return id;
-            }
+    // don't really offload
+    template <class F>
+    void offloadAccept(F && f)
+    {
+        int dummy = 1;
+        f(dummy);
+    }
 
-            bool operator<(Tx_t const & o) const
-            {
-                return id < o.id;
-            }
-        };
+    void shareSet(TxSet const &)
+    {
 
+    }
 
-        using TxID_t = id_t;
+    Ledger::id_type getLCL(Ledger::id_type const & prevLedger,
+        Ledger::id_type  const & prevParent,
+        bool haveCorrectLCL)
+    {
+        return Ledger::id_type{};
+    }
 
-        struct TxSet_t;
+    void propose(Position pos)
+    {
 
-        struct MutableTxSet_t
-        {
-            MutableTxSet_t(TxSet_t const &);
+    }
 
-            std::set<TxID_t> txs;
+    std::pair<Ledger, MutableTxSet> accept(Ledger::id_type const & prevLedger,
+        TxSet const & txs,
+        time_point closeTime, bool closeTimeCorrect,
+        typename time_point::duration closeResolution,
+        time_point now, std::chrono::milliseconds roundTime)
+    {
+        return{ Ledger{}, MutableTxSet{} };
+    }
 
-            bool insert(Tx_t t)
-            {
-                return txs.insert(t.id).second;
-            }
+    bool shouldValidate(Ledger const & ledger)
+    {
+        return false;
+    }
 
-            bool remove(TxID_t t)
-            {
-                return txs.erase(t);
-            }
+    void validate(Ledger const& ledger, time_point now,
+        bool proposing) {}
 
-        };
+    void consensusBuilt(
+        Ledger const & ledger,
+        Json::Value && json
+    ) {}
 
-        using TxSetID_t = id_t;
-        struct TxSet_t
-        {
-            using mutable_t = MutableTxSet_t;
+    void createOpenLedger(Ledger const &ledger,
+        MutableTxSet const & retries,
+        bool anyDisputes) {}
 
-            TxSet_t() = default;
+    void switchLCL(Ledger const &)
+    {
 
-            std::set<TxID_t> txs;
+    }
 
-            TxSet_t(mutable_t const & s) :
-                txs{ s.txs }
-            {
+    void relayDisputedTx(Tx const &)
+    {
 
-            }
-            // no set?
-            operator bool() const
-            {
-                return true;
-            }
+    }
 
-            bool hasEntry(TxID_t const id) const
-            {
-                return true;
-            }
+    void adjustCloseTime(typename time_point::duration t) {}
 
+    void endConsensus(bool correct) {}
 
-            boost::optional <Tx_t const>
-            getEntry(TxID_t const& ) const
-            {
-                return boost::none;
-            }
-            // hash of set?
-            TxSetID_t getID() const
-            {
-                return TxSetID_t{};
-            }
+    std::pair <TxSet, Position>
+        makeInitialPosition(
+            Ledger const & prevLedger,
+            bool isProposing,
+            bool isCorrectLCL,
+            time_point closeTime,
+            time_point now)
+    {
+        return{ TxSet{}, Position{prevLedger.ID(), prevLedger.ID(), closeTime, now} };
+    }
 
-            std::map<TxID_t, bool>
-                getDifferences(TxSet_t const& other) const
-            {
-                return std::map<TxID_t, bool>{};
-            }
-        };
+};
 
+struct Traits
+{
+    using Callback_t = Callbacks;
+    using Time_t = time_point;
+    using Ledger_t = Ledger;
+    using Pos_t = Position;
+    using TxSet_t = TxSet;
+    using Tx_t = Tx;
+    using NodeID_t = node_id_type;
+    using MissingTx_t = MissingTx;
 
 
-        class Ledger_t
-        {
-            std::set<Tx_t> txs_;
+};
 
-            std::uint32_t seq_ = 0;
+} // consensus
 
-            LgrID_t id_ = 0;
+class LedgerConsensus_test : public beast::unit_test::suite
+{
 
+    using clock_type = beast::manual_clock<consensus::clock>;
 
-            NetClock::duration closeTimeResolution_
-                = ledgerDefaultTimeResolution;
-
-            bool closeTimeAgree = true;
-
-        public:
-
-            operator bool() const
-            {
-                return id_ != -1;
-            }
-
-            auto ID() const
-            {
-                return id_;
-            }
-
-            auto seq() const
-            {
-                return seq_;
-            }
-
-            auto closeTimeResolution() const
-            {
-                return closeTimeResolution_;
-            }
-
-            auto getCloseAgree() const
-            {
-                return closeTimeAgree;
-            }
-
-            Time_t closeTime() const
-            {
-                return Time_t{};
-            }
-
-            Time_t parentCloseTime() const
-            {
-                return Time_t{};
-            }
-
-            LgrID_t parentID() const
-            {
-                return LgrID_t{};
-            }
-
-
-            Json::Value getJson()
-            {
-                return Json::Value{};
-            }
-
-        };
-
-
-
-        struct RetryTxSet_t
-        {
-            RetryTxSet_t(TxSetID_t i) : id{ i } {}
-            TxSetID_t id;
-
-            void insert(Tx_t const & tx)
-            {
-                ts.txs.insert(tx.id);
-            }
-
-            TxSet_t ts;
-        };
-
-        class Pos_t
-        {
-            id_t nodeID_;
-
-        public:
-            auto getNodeID() const
-            {
-                return nodeID_;
-            }
-
-            LgrID_t getPrevLedger() const
-            {
-                return LgrID_t{};
-            }
-
-            LgrID_t getPosition() const
-            {
-                return LgrID_t{};
-            }
-
-            std::uint32_t getSequence() const
-            {
-                return 0;
-            }
-
-            bool isInitial() const
-            {
-                return false;
-
-            }
-            bool isBowOut() const
-            {
-                return false;
-            }
-
-            Time_t getCloseTime() const
-            {
-                return Time_t{};
-            }
-
-            void bowOut(Time_t t)
-            {
-
-            }
-
-            bool isStale (Time_t lastValid) const
-            {
-                return false;
-            }
-
-            bool changePosition(
-                LgrID_t const& position,
-                Time_t closeTime,
-                Time_t now)
-            {
-                return true;
-            }
-
-            Json::Value getJson()
-            {
-                Json::Value foo;
-                foo["Position"] = 0;
-                return foo;
-            }
-        };
-
-
-        struct Callback_t
-        {
-            std::map<std::string, beast::Journal> j;
-
-            beast::Journal journal(std::string const & s)
-            {
-                return j[s];
-            }
-
-            void startRound(Ledger_t const &)
-            {
-                // CHeck that this was called?
-            }
-
-            std::pair<bool, bool> getMode(const bool correctLCL) const
-            {
-                if (!correctLCL)
-                    return{ false, false };
-                return{ true, true };
-            }
-
-
-            Ledger_t acquireLedger(LgrID_t ledgerHash)
-            {
-                return Ledger_t{};
-            }
-
-            // Should be get and share?
-            // If f returns true, that means it was
-            // a useful proposal and should be shared
-            template <class F>
-            void getProposals(LgrID_t ledgerHash, F && f)
-            {
-
-            }
-
-            // Aquire the details of the transaction corresponding
-            // to this position; if not available locally, spawns
-            // a networko request that will call gotMap
-            TxSet_t getTxSet(Pos_t const & position)
-            {
-                return TxSet_t{};
-            }
-
-
-            bool hasOpenTransactions() const
-            {
-                return false;
-            }
-
-            int numProposersValidated(LgrID_t const prevLedger) const
-            {
-                return 0;
-            }
-
-            int numProposersFinished(LgrID_t const prevLedger) const
-            {
-                return 0;
-            }
-
-            Time_t getLastCloseTime() const
-            {
-                return Time_t{};
-            }
-
-            void setLastCloseTime(Time_t)
-            {
-
-            }
-
-            void statusChange(ConsensusChange c, LgrID_t prevLedger,
-                bool haveCorrectLCL)
-            {
-
-            }
-
-
-            // don't really offload
-            template <class F>
-            void offloadAccept(F && f)
-            {
-                int dummy = 1;
-                f(dummy);
-            }
-
-            void shareSet(TxSet_t const &)
-            {
-
-            }
-
-            LgrID_t getLCL(LgrID_t prevLedger,
-                LgrID_t prevParent,
-                bool haveCorrectLCL)
-            {
-                return LgrID_t{};
-            }
-
-            void propose(Pos_t pos)
-            {
-
-            }
-
-            Ledger_t accept(Ledger_t const &prevLedger,
-                TxSet_t const & txs,
-                Time_t closeTime, bool closeTimeCorrect,
-                typename Time_t::duration closeResolution,
-                Time_t now, std::chrono::milliseconds roundTime, RetryTxSet_t & retries)
-            {
-                return Ledger_t{};
-            }
-
-            bool shouldValidate(Ledger_t ledger)
-            {
-                return false;
-            }
-
-            void validate(Ledger_t const& ledger, Time_t now,
-                bool proposing) {}
-
-            void consensusBuilt(
-                Ledger_t const & ledger,
-                Json::Value && json
-            ) {}
-
-            void createOpenLedger(Ledger_t const &ledger,
-                RetryTxSet_t const & retries,
-                bool anyDisputes) {}
-
-            void switchLCL(Ledger_t const &)
-            {
-
-            }
-
-            void relayDisputedTx(Tx_t const &)
-            {
-
-            }
-
-            void adjustCloseTime(Time_t::duration t) {}
-
-            void endConsensus(bool correct) {}
-
-            std::pair <TxSet_t, Pos_t>
-                makeInitialPosition(
-                    Ledger_t const & prevLedger,
-                    bool isProposing,
-                    bool isCorrectLCL,
-                    Time_t closeTime,
-                    Time_t now)
-            {
-                return std::pair <TxSet_t, Pos_t>{};
-            }
-
-        };
-
-    };
-
-    using Consensus = LedgerConsensus<Traits>;
+    using Consensus = LedgerConsensus<consensus::Traits>;
 
 
     void
     testDefaultState()
     {
-        using Time_t = Traits::Time_t;
-        Traits::Callback_t callbacks;
-        Consensus c{ callbacks, 0 };
+        using Time_t = typename Consensus::Time_t;
+        consensus::Callbacks cb;
+        Consensus c{ cb, 0 };
 
         BEAST_EXPECT(!c.isProposing());
         BEAST_EXPECT(!c.isValidating());
@@ -474,34 +465,35 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     testStandalone()
     {
-        Traits::Callback_t callbacks;
+        consensus::Callbacks cb;
+
         clock_type clock;
-        Consensus c{ callbacks, 0 };
-        
-        Traits::Ledger_t currLedger;
+        Consensus c{ cb, 0 };
+
+        consensus::Ledger currLedger;
 
         // No peers
         // Local transactions only
         // Always have ledger
         // Proposing and validating
 
-        
+
 
         // 1. Genesis ledger
 
-        c.startRound(clock.now(), 0, currLedger);
-       
+        c.startRound(clock.now(), consensus::tx_set_type{}, currLedger);
+
         // state -= open
-        
+
         //send in some transactinons
-         
+
         // transition to state closing
         c.getLCL();
         //c.gotMap(clock.now(), Traits::TxSet_t{});
         c.timerEntry(clock.now());
         // observe transition to accept
         // observe new closed ledger and it contains transactions?
-        
+
     }
 
     void
@@ -517,7 +509,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
     }
 
 
-    void 
+    void
     testGetJson()
     {
         BEAST_EXPECT(1 == 2);
@@ -528,18 +520,13 @@ class LedgerConsensus_test : public beast::unit_test::suite
         testDefaultState();
         testStandalone();
         testPeersAgree();
-        
+
         testPeersDisagree();
 
-        testGetJson(); 
+        testGetJson();
     }
 };
 
-LedgerConsensus_test::Traits::MutableTxSet_t::MutableTxSet_t(TxSet_t const & t)
-            : txs{ t.txs }
-        {
-
-        }
 BEAST_DEFINE_TESTSUITE(LedgerConsensus, consensus, ripple);
 } // test
 } // ripple
