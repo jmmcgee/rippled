@@ -24,6 +24,7 @@
 #include <boost/container/flat_set.hpp>
 #include <boost/function_output_iterator.hpp>
 #include <ripple/beast/hash/hash_append.h>
+#include <utility>
 
 namespace ripple {
 namespace test {
@@ -215,11 +216,11 @@ class Ledger
 {
 public:
 
-    using id_type = tx_set_type;
+    using id_type = std::pair<std::uint32_t, tx_set_type>;
 
-    auto ID() const
+    id_type ID() const
     {
-        return txs_;
+        return { seq_, txs_ };
     }
 
     auto seq() const
@@ -270,6 +271,20 @@ private:
     time_point parentCloseTime_;
     id_type parentID_;
 };
+
+
+inline std::ostream & operator<<(std::ostream & o, Ledger::id_type const & id)
+{
+    return o << id.first << "," << id.second;
+}
+
+inline std::string to_string(Ledger::id_type const & id)
+{
+    std::stringstream ss;
+    ss << id;
+    return ss.str();
+}
+
 
 using Position = ConsensusPosition<node_id_type, Ledger::id_type,
     tx_set_type, time_point>;
@@ -441,7 +456,7 @@ struct Callbacks
             time_point closeTime,
             time_point now)
     {
-        return{ TxSet{}, Position{prevLedger.ID(), prevLedger.ID(), closeTime, now} };
+        return{ TxSet{}, Position{prevLedger.ID(), prevLedger.ID().second, closeTime, now} };
     }
 
 };
@@ -506,7 +521,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
 
         // 1. Genesis ledger
 
-        c.startRound(clock.now(), consensus::tx_set_type{}, currLedger);
+        c.startRound(clock.now(), currLedger.ID(), currLedger);
 
         // state -= open
 
