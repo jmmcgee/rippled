@@ -71,8 +71,8 @@ public:
     : mPreviousLedger(prevLgr)
     , mCurrentHash(position)
     , mCloseTime(closeTime)
-    , mProposeSeq(seqJoin)
     , mTime(now)
+    , mProposeSeq(seqJoin)
     {
 
     }
