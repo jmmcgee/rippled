@@ -20,6 +20,6 @@
 #define RIPPLE_CONSENSUS_LEDGERTYPES_H_INCLUDED
 namespace ripple
 {
-   enum class ConsensusChange {Closing, Accepted};
+   enum class ConsensusChange {StartRound, Closing, Accepted};
 }
 #endif

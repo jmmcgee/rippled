@@ -305,6 +305,12 @@ void RCLCxCalls::statusChange(
     RCLCxLedger const & ledger,
     bool haveCorrectLCL)
 {
+    if (c == ConsensusChange::StartRound)
+    {
+        inboundTransactions_.newRound (ledger.seq());
+        return;
+    }
+
     protocol::TMStatusChange s;
 
     if (!haveCorrectLCL)
@@ -704,11 +710,6 @@ void RCLCxCalls::relayDisputedTx(RCLCxTx const & tx)
 void RCLCxCalls::offloadAccept(JobQueue::JobFunction const & f)
 {
     app_.getJobQueue().addJob(jtACCEPT, "acceptLedger", f);
-}
-
-void RCLCxCalls::startRound(RCLCxLedger const & ledger)
-{
-    inboundTransactions_.newRound (ledger.seq());
 }
 
 boost::optional<RCLTxSet> RCLCxCalls::getTxSet(LedgerProposal const & position)

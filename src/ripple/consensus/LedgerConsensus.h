@@ -1586,7 +1586,9 @@ void LedgerConsensus<Traits>::startRound (
     closePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     consensusStartTime_ = std::chrono::steady_clock::now();
-    callbacks_.startRound(previousLedger_);
+    haveCorrectLCL_ = (previousLedger_.ID() == prevLedgerHash_);
+
+    callbacks_.statusChange(ConsensusChange::StartRound, previousLedger_, haveCorrectLCL_);
 
     peerPositions_.clear();
     acquired_.clear();
@@ -1601,7 +1603,7 @@ void LedgerConsensus<Traits>::startRound (
         previousLedger_.seq() + 1);
 
 
-    haveCorrectLCL_ = (previousLedger_.ID() == prevLedgerHash_);
+
 
     // We should not be proposing but not validating
     // Okay to validate but not propose

@@ -209,11 +209,6 @@ public:
     */
     void offloadAccept(JobQueue::JobFunction const & f);
 
-    /*
-    * Notify callback that we have started a new round
-    */
-    void startRound(RCLCxLedger const & ledger);
-
     /**
     * @return the transaction set associated with this position
     */
