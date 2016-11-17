@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012-2016 Ripple Labs Inc.
+    Copyright (c) 2012-2016 Ripple Labs Inc->
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -147,7 +147,7 @@ public:
     using mutable_t = MutableTxSet;
 
     TxSet() = default;
-
+    TxSet(tx_set_type const & s) : txs{ s } {}
     TxSet(MutableTxSet const & s)
         : txs{ s.txs }
     {
@@ -263,7 +263,7 @@ public:
 private:
 
     tx_set_type txs_;
-    std::uint32_t seq_ = 0;
+    std::int32_t seq_ = 0;
     typename time_point::duration closeTimeResolution_ = ledgerDefaultTimeResolution;
     time_point closeTime_;
     bool closeTimeAgree_ = true;
@@ -271,6 +271,8 @@ private:
     time_point parentCloseTime_;
     id_type parentID_;
 };
+
+
 
 
 inline std::ostream & operator<<(std::ostream & o, Ledger::id_type const & id)
@@ -309,15 +311,14 @@ std::ostream& operator<< (std::ostream & o, MissingTx const &m)
 struct Callbacks
 {
     std::map<std::string, beast::Journal> j;
+    time_point lastCloseTime;
+
+    boost::optional<ConsensusChange> lastStatusChange;
+    tx_set_type openTransactions;
 
     beast::Journal journal(std::string const & s)
     {
         return j[s];
-    }
-
-    void startRound(Ledger const &)
-    {
-        // CHeck that this was called?
     }
 
     std::pair<bool, bool> getMode(const bool correctLCL)
@@ -344,7 +345,7 @@ struct Callbacks
 
     // Aquire the details of the transaction corresponding
     // to this position; if not available locally, spawns
-    // a networko request that will call gotMap
+    // a network request that will call gotMap
     boost::optional<TxSet> getTxSet(Position const & position)
     {
         return {};
@@ -353,7 +354,7 @@ struct Callbacks
 
     bool hasOpenTransactions() const
     {
-        return false;
+        return !openTransactions.empty();
     }
 
     int numProposersValidated(Ledger::id_type const & prevLedger) const
@@ -368,18 +369,18 @@ struct Callbacks
 
     time_point getLastCloseTime() const
     {
-        return time_point{};
+        return lastCloseTime;
     }
 
-    void setLastCloseTime(time_point)
+    void setLastCloseTime(time_point tp)
     {
-
+        lastCloseTime = tp;
     }
 
     void statusChange(ConsensusChange c, Ledger const & prevLedger,
         bool haveCorrectLCL)
     {
-
+        lastStatusChange = c;
     }
 
 
@@ -456,7 +457,9 @@ struct Callbacks
             time_point closeTime,
             time_point now)
     {
-        return{ TxSet{}, Position{prevLedger.ID(), prevLedger.ID().second, closeTime, now} };
+        TxSet res{ openTransactions };
+
+        return { res, Position{prevLedger.ID(), res.getID(), closeTime, now} };
     }
 
 };
@@ -490,16 +493,16 @@ class LedgerConsensus_test : public beast::unit_test::suite
     {
         using Time_t = typename Consensus::Time_t;
         consensus::Callbacks cb;
-        Consensus c{ cb, 0 };
+        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0 );
 
-        BEAST_EXPECT(!c.isProposing());
-        BEAST_EXPECT(!c.isValidating());
-        BEAST_EXPECT(!c.isCorrectLCL());
-        BEAST_EXPECT(c.now() == Time_t{});
-        BEAST_EXPECT(c.closeTime() == Time_t{});
-        BEAST_EXPECT(c.getLastCloseProposers() == 0);
-        BEAST_EXPECT(c.getLastCloseDuration() == LEDGER_IDLE_INTERVAL);
-        BEAST_EXPECT(c.prevLedger().seq() == 0);
+        BEAST_EXPECT(!c->isProposing());
+        BEAST_EXPECT(!c->isValidating());
+        BEAST_EXPECT(!c->isCorrectLCL());
+        BEAST_EXPECT(c->now() == Time_t{});
+        BEAST_EXPECT(c->closeTime() == Time_t{});
+        BEAST_EXPECT(c->getLastCloseProposers() == 0);
+        BEAST_EXPECT(c->getLastCloseDuration() == LEDGER_IDLE_INTERVAL);
+        BEAST_EXPECT(c->prevLedger().seq() == 0);
     }
 
     void
@@ -508,9 +511,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
         consensus::Callbacks cb;
 
         clock_type clock;
-        Consensus c{ cb, 0 };
-
-        consensus::Ledger currLedger;
+        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0 );
 
         // No peers
         // Local transactions only
@@ -520,17 +521,34 @@ class LedgerConsensus_test : public beast::unit_test::suite
 
 
         // 1. Genesis ledger
+        consensus::Ledger currLedger;
+        clock.advance(10s);
 
-        c.startRound(clock.now(), currLedger.ID(), currLedger);
+        c->startRound(clock.now(), currLedger.ID(), currLedger);
 
-        // state -= open
+        BEAST_EXPECT(c->isProposing());
+        BEAST_EXPECT(c->isValidating());
+        BEAST_EXPECT(c->isCorrectLCL());
+        BEAST_EXPECT(c->now() == clock.now());
+        BEAST_EXPECT(c->prevLedger().ID() == currLedger.ID());
+        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
+
+
+        clock.advance(1s);
+        cb.openTransactions.insert(consensus::Tx{ 1 });
+        c->timerEntry(clock.now());
+
+        // start trying to close ledger
+        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::Closing);
+
+
 
         //send in some transactinons
 
         // transition to state closing
-        c.getLCL();
-        //c.gotMap(clock.now(), Traits::TxSet_t{});
-        c.timerEntry(clock.now());
+        c->getLCL();
+        //c->gotMap(clock.now(), Traits::TxSet_t{});
+        c->timerEntry(clock.now());
         // observe transition to accept
         // observe new closed ledger and it contains transactions?
 
