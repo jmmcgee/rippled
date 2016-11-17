@@ -127,7 +127,7 @@ public:
     }
 
     // @return whether this position is stale relative to the provided cutoff
-    bool isStale (NetClock::time_point cutoff) const
+    bool isStale (Time_t cutoff) const
     {
         return mTime <= cutoff;
     }
@@ -168,6 +168,8 @@ public:
 
     Json::Value getJson () const
     {
+        using std::to_string;
+
         Json::Value ret = Json::objectValue;
         ret[jss::previous_ledger] = to_string (getPrevLedger());
 
@@ -177,7 +179,7 @@ public:
             ret[jss::propose_seq] = getProposeSeq();
         }
 
-        ret[jss::close_time] = getCloseTime().time_since_epoch().count();
+        ret[jss::close_time] = to_string(getCloseTime().time_since_epoch().count());
 
         return ret;
     }

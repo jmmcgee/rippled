@@ -30,7 +30,7 @@ namespace ripple {
 namespace test {
 namespace consensus {
 
-using clock = NetClock;
+using clock = std::chrono::steady_clock;
 using time_point = typename clock::time_point;
 using node_id_type = std::int32_t;
 
@@ -467,7 +467,7 @@ struct Callbacks
 struct Traits
 {
     using Callback_t = Callbacks;
-    using Time_t = time_point;
+    using NetTime_t = time_point;
     using Ledger_t = Ledger;
     using Pos_t = Position;
     using TxSet_t = TxSet;
@@ -491,15 +491,15 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     testDefaultState()
     {
-        using Time_t = typename Consensus::Time_t;
+        clock_type clock;
         consensus::Callbacks cb;
-        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0 );
+        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0, clock);
 
         BEAST_EXPECT(!c->isProposing());
         BEAST_EXPECT(!c->isValidating());
         BEAST_EXPECT(!c->isCorrectLCL());
-        BEAST_EXPECT(c->now() == Time_t{});
-        BEAST_EXPECT(c->closeTime() == Time_t{});
+        BEAST_EXPECT(c->now() == clock.now());
+        BEAST_EXPECT(c->closeTime() == clock.now());
         BEAST_EXPECT(c->getLastCloseProposers() == 0);
         BEAST_EXPECT(c->getLastCloseDuration() == LEDGER_IDLE_INTERVAL);
         BEAST_EXPECT(c->prevLedger().seq() == 0);
@@ -511,7 +511,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
         consensus::Callbacks cb;
 
         clock_type clock;
-        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0 );
+        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0, clock );
 
         // No peers
         // Local transactions only
@@ -537,10 +537,15 @@ class LedgerConsensus_test : public beast::unit_test::suite
         clock.advance(1s);
         cb.openTransactions.insert(consensus::Tx{ 1 });
         c->timerEntry(clock.now());
+        // not enough time has elapsed to close the ledger
+        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
 
-        // start trying to close ledger
-        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::Closing);
-
+        // advance enough to close
+        // we also accept since no peers have sent positions and its been long
+        // enough to have seen them
+        clock.advance(7s);
+        c->timerEntry(clock.now());
+        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::Accepted);
 
 
         //send in some transactinons

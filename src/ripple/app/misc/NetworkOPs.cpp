@@ -202,7 +202,7 @@ public:
             app_.logs().journal("Consensus"),
                make_FeeVote (setup_FeeVote (app_.config().section ("voting")),
                    app_.logs().journal("FeeVote")),
-            app, app.getInboundTransactions(), ledgerMaster, *m_localTX))
+            app, app.getInboundTransactions(), ledgerMaster, *m_localTX, stopwatch()))
         , m_ledgerMaster (ledgerMaster)
         , mLastLoadBase (256)
         , mLastLoadFactor (256)

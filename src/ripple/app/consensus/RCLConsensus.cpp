@@ -18,10 +18,8 @@
 //==============================================================================
 
 #include <BeastConfig.h>
-#include <ripple/consensus/LedgerConsensus.h>
-#include <ripple/consensus/LedgerTiming.h>
 #include <ripple/app/consensus/RCLConsensus.h>
-#include <ripple/app/consensus/RCLCxTraits.h>
+#include <ripple/consensus/LedgerTiming.h>
 
 namespace ripple {
 
@@ -96,14 +94,15 @@ makeLedgerConsensus (
     Application& app,
     InboundTransactions& inboundTransactions,
     LedgerMaster& ledgerMaster,
-    LocalTxs& localTxs)
+    LocalTxs& localTxs,
+    LedgerConsensus<RCLCxTraits>::clock_type const & clock)
 {
 
     if (!consensus.callbacks_)
         consensus.callbacks_ = std::make_unique <RCLCxCalls>(
             app, consensus, std::move(feeVote), ledgerMaster, localTxs, inboundTransactions, journal_);
 
-    return std::make_unique<LedgerConsensus<RCLCxTraits>>(*consensus.callbacks_, calcNodeID(app.nodeIdentity().first));
+    return std::make_unique<LedgerConsensus<RCLCxTraits>>(*consensus.callbacks_, calcNodeID(app.nodeIdentity().first), clock);
 
 }
 

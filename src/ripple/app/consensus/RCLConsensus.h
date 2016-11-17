@@ -23,14 +23,14 @@
 #include <BeastConfig.h>
 #include <ripple/basics/Log.h>
 #include <ripple/app/consensus/RCLCxCalls.h>
+#include <ripple/app/consensus/RCLCxTraits.h>
+#include <ripple/consensus/LedgerConsensus.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <ripple/beast/utility/Journal.h>
 
 namespace ripple {
 
-struct RCLCxTraits;
-template <class T> class LedgerConsensus;
 
 /** Implements the consensus process and provides inter-round state. */
 class RCLConsensus
@@ -81,7 +81,8 @@ public:
         Application& ,
         InboundTransactions& ,
         LedgerMaster& ,
-        LocalTxs& );
+        LocalTxs&,
+        LedgerConsensus<RCLCxTraits>::clock_type const & clock);
 
 private:
     std::unique_ptr <RCLCxCalls> callbacks_;
@@ -107,7 +108,8 @@ makeLedgerConsensus (
     Application& app,
     InboundTransactions& inboundTransactions,
     LedgerMaster& ledgerMaster,
-    LocalTxs& localTxs);
+    LocalTxs& localTxs,
+    LedgerConsensus<RCLCxTraits>::clock_type const & clock);
 
 }
 
