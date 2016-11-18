@@ -162,36 +162,6 @@ public:
         NetTime_t const& now,
         boost::optional<std::chrono::milliseconds> consensusDelay);
 
-    bool isProposing() const
-    {
-        return proposing_;
-    }
-
-    bool isValidating() const
-    {
-        return validating_;
-    }
-
-    bool isCorrectLCL() const
-    {
-        return haveCorrectLCL_;
-    }
-
-    NetTime_t const& now() const
-    {
-        return now_;
-    }
-
-    NetTime_t const& closeTime() const
-    {
-        return closeTime_;
-    }
-
-    Ledger_t const& prevLedger() const
-    {
-        return previousLedger_;
-    }
-
     int getLastCloseProposers() const
     {
         return previousProposers_;

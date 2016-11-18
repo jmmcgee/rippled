@@ -115,6 +115,53 @@ public:
         Json::Value && json
     );
 
+
+
+    /*
+    * Signal the end of consensus to the application, which will start the
+    * next round.
+    */
+    void endConsensus(bool correctLCL);
+
+    /*
+    * @return a handle to the given journal
+    */
+    beast::Journal journal(std::string const & s) const;
+
+    /*
+    *@return whether the open ledger has any transactions
+    */
+    bool hasOpenTransactions() const;
+
+    /*
+    * @return the number of proposers that validated the last validated ledger
+    */
+    int numProposersValidated(LedgerHash const & h) const;
+
+    /*
+    * @return the number of validating peers that have validated a ledger
+    * succeeding the one provided
+    */
+    int numProposersFinished(LedgerHash const & h) const;
+
+    /**
+    * If the provided transaction hasn't been shared recently, relay it to peers
+    * @param tx the disputed transaction to relay
+    */
+    void relayDisputedTx(RCLCxTx const & tx);
+
+    /*
+    * Schedule an offloaded call to accept
+    */
+    void offloadAccept(JobQueue::JobFunction const & f);
+
+    /**
+    * @return the transaction set associated with this position
+    */
+    boost::optional<RCLTxSet> getTxSet(LedgerProposal const & position);
+
+private:
+
     /*
     * Accept the given the provided set of consensus transactions and build
     * the last closed ledger. Since consensus just agrees on which transactions
@@ -186,52 +233,6 @@ public:
     * Adjust closed time based on observed offset to peers during last round
     */
     void adjustCloseTime(std::chrono::duration<std::int32_t> offset);
-
-
-    /*
-    * Signal the end of consensus to the application, which will start the
-    * next round.
-    */
-    void endConsensus(bool correctLCL);
-
-    /*
-    * @return a handle to the given journal
-    */
-    beast::Journal journal(std::string const & s) const;
-
-    /*
-    *@return whether the open ledger has any transactions
-    */
-    bool hasOpenTransactions() const;
-
-    /*
-    * @return the number of proposers that validated the last validated ledger
-    */
-    int numProposersValidated(LedgerHash const & h) const;
-
-    /*
-    * @return the number of validating peers that have validated a ledger
-    * succeeding the one provided
-    */
-    int numProposersFinished(LedgerHash const & h) const;
-
-    /**
-    * If the provided transaction hasn't been shared recently, relay it to peers
-    * @param tx the disputed transaction to relay
-    */
-    void relayDisputedTx(RCLCxTx const & tx);
-
-    /*
-    * Schedule an offloaded call to accept
-    */
-    void offloadAccept(JobQueue::JobFunction const & f);
-
-    /**
-    * @return the transaction set associated with this position
-    */
-    boost::optional<RCLTxSet> getTxSet(LedgerProposal const & position);
-
-private:
 
     Application& app_;
     RCLConsensus& consensus_;
