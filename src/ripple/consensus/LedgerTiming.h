@@ -191,6 +191,19 @@ roundCloseTime(
 }
 
 
+template <class time_point>
+time_point effectiveCloseTime(time_point closeTime,
+   typename time_point::duration const resolution,
+    time_point priorCloseTime)
+{
+    if (closeTime == time_point{})
+        return closeTime;
+
+    return std::max<time_point>(
+        roundCloseTime (closeTime, resolution),
+        (priorCloseTime + 1s));
+}
+
 /** Determines whether the current ledger should close at this time.
 
     This function should be called when a ledger is open and there is no close

@@ -20,7 +20,6 @@
 #include <ripple/app/consensus/RCLCxCalls.h>
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/ledger/LedgerProposal.h>
-#include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/app/consensus/RCLConsensus.h>
 
 #include <ripple/app/ledger/InboundTransactions.h>
@@ -721,6 +720,162 @@ boost::optional<RCLTxSet> RCLCxCalls::getTxSet(LedgerProposal const & position)
     }
     else
         return boost::none;
+}
+
+void RCLCxCalls::accept(
+    RCLTxSet const& set,
+    NetClock::time_point consensusCloseTime,
+    bool proposing_,
+    bool & validating_,
+    bool haveCorrectLCL_,
+    bool consensusFail_,
+    LedgerHash const &prevLedgerHash_,
+    RCLCxLedger const & previousLedger_,
+    NetClock::duration closeResolution_,
+    NetClock::time_point const & now_,
+    std::chrono::milliseconds const & roundTime_,
+    hash_map<RCLCxTx::id_type, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
+    std::map <NetClock::time_point, int> closeTimes_,
+    NetClock::time_point const & closeTime_,
+    Json::Value && json
+    )
+{
+    bool closeTimeCorrect;
+
+    if (consensusCloseTime == NetClock::time_point{})
+    {
+        // We agreed to disagree on the close time
+        consensusCloseTime = previousLedger_.closeTime() + 1s;
+        closeTimeCorrect = false;
+    }
+    else
+    {
+        // We agreed on a close time
+
+        consensusCloseTime = effectiveCloseTime(consensusCloseTime,
+            closeResolution_, previousLedger_.closeTime());
+
+        closeTimeCorrect = true;
+    }
+
+    JLOG (j_.debug())
+        << "Report: Prop=" << (proposing_ ? "yes" : "no")
+        << " val=" << (validating_ ? "yes" : "no")
+        << " corLCL=" << (haveCorrectLCL_ ? "yes" : "no")
+        << " fail=" << (consensusFail_ ? "yes" : "no");
+    JLOG (j_.debug())
+        << "Report: Prev = " << prevLedgerHash_
+        << ":" << previousLedger_.seq();
+
+    // Put transactions into a deterministic, but unpredictable, order
+
+    auto acceptRes = accept(previousLedger_, set,
+        consensusCloseTime, closeTimeCorrect, closeResolution_, now_,
+        roundTime_);
+
+    auto & sharedLCL =  acceptRes.first;
+    auto & retriableTxs = acceptRes.second;
+
+    auto const newLCLHash = sharedLCL.ID();
+    JLOG (j_.debug())
+        << "Report: NewL  = " << newLCLHash
+        << ":" << sharedLCL.seq();
+
+    // Tell directly connected peers that we have a new LCL
+    statusChange (ConsensusChange::Accepted,
+        sharedLCL, haveCorrectLCL_);
+
+    if (validating_)
+        validating_ = shouldValidate(sharedLCL);
+
+    if (validating_ && ! consensusFail_)
+    {
+        validate(sharedLCL, now_, proposing_);
+        JLOG (j_.info())
+            << "CNF Val " << newLCLHash;
+    }
+    else
+        JLOG (j_.info())
+            << "CNF buildLCL " << newLCLHash;
+
+    // See if we can accept a ledger as fully-validated
+    consensusBuilt(sharedLCL, std::move(json));
+
+    {
+        // Apply disputed transactions that didn't get in
+        //
+        // The first crack of transactions to get into the new
+        // open ledger goes to transactions proposed by a validator
+        // we trust but not included in the consensus set.
+        //
+        // These are done first because they are the most likely
+        // to receive agreement during consensus. They are also
+        // ordered logically "sooner" than transactions not mentioned
+        // in the previous consensus round.
+        //
+        bool anyDisputes = false;
+        for (auto& it : disputes_)
+        {
+            if (!it.second.getOurVote ())
+            {
+                // we voted NO
+                try
+                {
+                    JLOG (j_.debug())
+                        << "Test applying disputed transaction that did"
+                        << " not get in";
+
+                    retriableTxs.insert (it.second.tx());
+
+                    anyDisputes = true;
+                }
+                catch (std::exception const&)
+                {
+                    JLOG (j_.debug())
+                        << "Failed to apply transaction we voted NO on";
+                }
+            }
+        }
+        createOpenLedger(sharedLCL, retriableTxs, anyDisputes);
+
+    }
+
+    switchLCL(sharedLCL);
+
+    if (haveCorrectLCL_ && ! consensusFail_)
+    {
+        // we entered the round with the network,
+        // see how close our close time is to other node's
+        //  close time reports, and update our clock.
+        JLOG (j_.info())
+            << "We closed at " << closeTime_.time_since_epoch().count();
+        using usec64_t = std::chrono::duration<std::uint64_t>;
+        usec64_t closeTotal = std::chrono::duration_cast<usec64_t>(closeTime_.time_since_epoch());
+        int closeCount = 1;
+
+        for (auto const& p : closeTimes_)
+        {
+            // FIXME: Use median, not average
+            JLOG (j_.info())
+                << beast::lexicalCastThrow <std::string> (p.second)
+                << " time votes for "
+                << beast::lexicalCastThrow <std::string>
+                       (p.first.time_since_epoch().count());
+            closeCount += p.second;
+            closeTotal += std::chrono::duration_cast<usec64_t>(p.first.time_since_epoch()) * p.second;
+        }
+
+        closeTotal += usec64_t(closeCount / 2);  // for round to nearest
+        closeTotal /= closeCount;
+        using duration = typename NetClock::duration;
+
+        auto offset = NetClock::time_point{closeTotal} -
+                      std::chrono::time_point_cast<duration>(closeTime_);
+        JLOG (j_.info())
+            << "Our close offset is estimated at "
+            << offset.count() << " (" << closeCount << ")";
+        adjustCloseTime(offset);
+    }
 }
 
 } // namespace ripple

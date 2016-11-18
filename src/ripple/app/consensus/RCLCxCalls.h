@@ -27,17 +27,16 @@
 #include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/consensus/ConsensusTypes.h>
 #include <ripple/app/ledger/LedgerProposal.h>
-
+#include <ripple/app/consensus/RCLCxTx.h>
+#include <ripple/consensus/DisputedTx.h>
 
 namespace ripple {
 
 class RCLConsensus;
 class InboundTransactions;
 class LocalTxs;
-class RCLCxTx;
-class RCLTxSet;
 class RCLCxLedger;
-class RCLCxRetryTxSet;
+
 
 class RCLCxCalls
 {
@@ -97,6 +96,24 @@ public:
         ConsensusChange c,
         RCLCxLedger const & ledger,
         bool haveCorrectLCL);
+
+    void accept(
+        RCLTxSet const& set,
+        NetClock::time_point consensusCloseTime,
+        bool proposing_,
+        bool & validating_,
+        bool haveCorrectLCL_,
+        bool consensusFail_,
+        LedgerHash const &prevLedgerHash_,
+        RCLCxLedger const & previousLedger_,
+        NetClock::duration closeResolution_,
+        NetClock::time_point const & now,
+        std::chrono::milliseconds const & roundTime_,
+        hash_map<RCLCxTx::id_type, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
+        std::map <NetClock::time_point, int> closeTimes_,
+        NetClock::time_point const & closeTime,
+        Json::Value && json
+    );
 
     /*
     * Accept the given the provided set of consensus transactions and build

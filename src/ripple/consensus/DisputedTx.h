@@ -77,7 +77,7 @@ public:
     void unVote (NodeID_t const& peer);
 
     bool updateVote (int percentTime, bool proposing);
-    Json::Value getJson ();
+    Json::Value getJson () const;
 
 private:
     TxID_t mTransactionID;
@@ -206,7 +206,7 @@ bool DisputedTx<Tx_t, NodeID_t>::updateVote (int percentTime, bool proposing)
 }
 
 template <class Tx_t, class NodeID_t>
-Json::Value DisputedTx<Tx_t, NodeID_t>::getJson ()
+Json::Value DisputedTx<Tx_t, NodeID_t>::getJson () const
 {
     using std::to_string;
 

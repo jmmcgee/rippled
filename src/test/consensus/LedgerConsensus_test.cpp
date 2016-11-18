@@ -409,13 +409,24 @@ struct Callbacks
 
     }
 
-    std::pair<Ledger, MutableTxSet> accept(Ledger const & prevLedger,
-        TxSet const & txs,
-        time_point closeTime, bool closeTimeCorrect,
-        typename time_point::duration closeResolution,
-        time_point now, std::chrono::milliseconds roundTime)
+    void accept(TxSet const& set,
+        time_point consensusCloseTime,
+        bool proposing_,
+        bool & validating_,
+        bool haveCorrectLCL_,
+        bool consensusFail_,
+        Ledger::id_type  &prevLedgerHash_,
+        Ledger const & previousLedger_,
+        time_point::duration closeResolution_,
+        time_point const & now,
+        std::chrono::milliseconds const & roundTime_,
+        hash_map<Tx::id_type, DisputedTx <Tx, node_id_type>> const & disputes_,
+        std::map <time_point, int> closeTimes_,
+        time_point const & closeTime,
+        Json::Value && json)
     {
-        return{ Ledger{}, MutableTxSet{} };
+        // Will change
+        lastStatusChange = ConsensusChange::Accepted;
     }
 
     bool shouldValidate(Ledger const & ledger)
