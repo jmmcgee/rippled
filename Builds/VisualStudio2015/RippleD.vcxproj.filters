@@ -199,6 +199,9 @@
     <Filter Include="ripple\conditions\impl">
       <UniqueIdentifier>{155DC1A3-8A60-BC74-A7E4-1AC1A679FFF9}</UniqueIdentifier>
     </Filter>
+    <Filter Include="ripple\consensus">
+      <UniqueIdentifier>{75481992-909B-CAA9-859B-91F15AFD2AD0}</UniqueIdentifier>
+    </Filter>
     <Filter Include="ripple\core">
       <UniqueIdentifier>{235DCF23-2CF8-4F03-1A54-C159823A7E8D}</UniqueIdentifier>
     </Filter>
@@ -456,6 +459,7 @@
     </Filter>
     <Filter Include="test\conditions">
       <UniqueIdentifier>{F421E9A0-BB69-E638-F7AC-A3BD9B7D4827}</UniqueIdentifier>
+    </Filter>
     <Filter Include="test\consensus">
       <UniqueIdentifier>{330C919A-D367-9106-B0FF-BCE5B46A76B2}</UniqueIdentifier>
     </Filter>
@@ -2405,12 +2409,6 @@
     <ClInclude Include="..\..\src\ripple\beast\xor_shift_engine.h">
       <Filter>ripple\beast</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusPosition.h">
-      <Filter>ripple\consensus</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
-      <Filter>ripple\consensus</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\conditions\Condition.h">
       <Filter>ripple\conditions</Filter>
     </ClInclude>
@@ -2420,6 +2418,7 @@
     <ClInclude Include="..\..\src\ripple\conditions\Fulfillment.h">
       <Filter>ripple\conditions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ripple\conditions\impl\base64.h">
       <Filter>ripple\conditions\impl</Filter>
     </ClInclude>
     <ClCompile Include="..\..\src\ripple\conditions\impl\Condition.cpp">
@@ -2438,10 +2437,19 @@
       <Filter>ripple\conditions\impl</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\conditions\PrefixSha256.h">
+      <Filter>ripple\conditions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ripple\conditions\PreimageSha256.h">
+      <Filter>ripple\conditions</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\conditions\RsaSha256.h">
       <Filter>ripple\conditions</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusPosition.h">
+      <Filter>ripple\consensus</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
+      <Filter>ripple\consensus</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
       <Filter>ripple\consensus</Filter>
@@ -3988,6 +3996,10 @@
     <ClCompile Include="..\..\src\ripple\unity\beast.cpp">
       <Filter>ripple\unity</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\ripple\unity\conditions.cpp">
+      <Filter>ripple\unity</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\ripple\unity\consensus.cpp">
       <Filter>ripple\unity</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\ripple\unity\core.cpp">
@@ -5349,13 +5361,23 @@
     <ClCompile Include="..\..\src\test\beast\SemanticVersion_test.cpp">
       <Filter>test\beast</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test\conditions\Ed25519_test.cpp">
+      <Filter>test\conditions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\conditions\PrefixSha256_test.cpp">
       <Filter>test\conditions</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test\conditions\PreimageSha256_test.cpp">
+      <Filter>test\conditions</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\conditions\RsaSha256_test.cpp">
       <Filter>test\conditions</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\consensus\LedgerConsensus_test.cpp">
+      <Filter>test\consensus</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\test\consensus\LedgerTiming_test.cpp">
+      <Filter>test\consensus</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\core\Config_test.cpp">
       <Filter>test\core</Filter>
@@ -5570,6 +5592,10 @@
     <ClCompile Include="..\..\src\unity\beast_test_unity.cpp">
       <Filter>unity</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\unity\conditions_test_unity.cpp">
+      <Filter>unity</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\src\unity\consensus_test_unity.cpp">
       <Filter>unity</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\unity\core_test_unity.cpp">
