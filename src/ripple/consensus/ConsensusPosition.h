@@ -70,12 +70,14 @@ public:
         LgrID_t const& prevLgr,
         PosID_t const& position,
         Time_t closeTime,
-        Time_t now)
+        Time_t now,
+        NodeID_t const& nodeID_t)
     : mPreviousLedger(prevLgr)
     , mCurrentHash(position)
     , mCloseTime(closeTime)
     , mTime(now)
     , mProposeSeq(seqJoin)
+    , mPeerID(nodeID_t)
     {
 
     }

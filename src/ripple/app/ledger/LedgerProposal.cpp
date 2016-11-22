@@ -53,8 +53,9 @@ LedgerProposal::LedgerProposal (
         uint256 const& prevLgr,
         uint256 const& position,
         NetClock::time_point closeTime,
-        NetClock::time_point now)
-    : Position{ prevLgr, position, closeTime, now }
+        NetClock::time_point now,
+        NodeID const& nodeID)
+    : Position{ prevLgr, position, closeTime, now, nodeID }
 {
 }
 

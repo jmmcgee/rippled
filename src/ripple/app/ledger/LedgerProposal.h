@@ -64,7 +64,8 @@ public:
         uint256 const& prevLedger,
         uint256 const& position,
         NetClock::time_point closeTime,
-        NetClock::time_point now);
+        NetClock::time_point now,
+        NodeID const& nodeID);
 
     uint256 getSigningHash () const;
     bool checkSign () const;

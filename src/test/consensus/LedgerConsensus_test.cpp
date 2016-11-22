@@ -20,6 +20,7 @@
 #include <ripple/beast/unit_test.h>
 #include <ripple/consensus/LedgerConsensus.h>
 #include <ripple/consensus/ConsensusPosition.h>
+#include <ripple/test/BasicNetwork.h>
 #include <ripple/beast/clock/manual_clock.h>
 #include <boost/container/flat_set.hpp>
 #include <boost/container/flat_map.hpp>
@@ -301,8 +302,6 @@ private:
 };
 
 
-
-
 inline std::ostream & operator<<(std::ostream & o, Ledger::id_type const & id)
 {
     return o << id.first << "," << id.second;
@@ -318,7 +317,6 @@ inline std::string to_string(Ledger::id_type const & id)
 
 using Position = ConsensusPosition<node_id_type, Ledger::id_type,
     tx_set_type, time_point>;
-
 
 class MissingTx : public std::runtime_error
 {
@@ -348,42 +346,57 @@ struct Traits
 };
 
 using Consensus = LedgerConsensus<Traits>;
+struct Peer;
 
-struct Callbacks
+using Network = BasicNetwork<Peer*>;
+
+// Represents a single node participating in the consensus process
+// and implements the Callbacks required by LedgerConsensus
+struct Peer
 {
-    std::shared_ptr<Consensus> consensus;
+
+    Position::node_id_type id;
     std::map<std::string, beast::Journal> j;
-    beast::manual_clock<clock_type> clock;
-    time_point lastCloseTime;
 
-    boost::optional<ConsensusChange> lastStatusChange;
     tx_set_type openTxs;
-    boost::container::flat_map<Ledger::id_type, Ledger> ledgers;
-    Ledger lastClosedLedger;
 
-    Callbacks()
+    time_point lastCloseTime;
+    boost::optional<ConsensusChange> lastStatusChange;
+    Ledger lastClosedLedger;
+    boost::container::flat_map<Ledger::id_type, Ledger> ledgers;
+    Network * net = nullptr;
+
+    std::map<Ledger::id_type, std::vector<Position>> proposals;
+
+    // All peers start from the default constructed ledger
+    Peer(Position::node_id_type i) : id{i}
     {
         ledgers[lastClosedLedger.ID()] = lastClosedLedger;
+        lastCloseTime = lastClosedLedger.closeTime();
     }
 
-    beast::Journal journal(std::string const & s)
+    // Callback functions
+    beast::Journal
+    journal(std::string const & s)
     {
         return j[s];
     }
 
-    std::pair<bool, bool> getMode(const bool correctLCL)
+    std::pair<bool, bool>
+    getMode(const bool correctLCL)
     {
         if (!correctLCL)
             return{ false, false };
         return{ true, true };
     }
 
-
-    boost::optional<Ledger> acquireLedger(Ledger::id_type const & ledgerHash)
+    boost::optional<Ledger>
+    acquireLedger(Ledger::id_type const & ledgerHash)
     {
         auto it = ledgers.find(ledgerHash);
         if (it != ledgers.end())
             return it->second;
+        // TODO: acquire from network?
         return boost::none;
     }
 
@@ -391,49 +404,68 @@ struct Callbacks
     // If f returns true, that means it was
     // a useful proposal and should be shared
     template <class F>
-    void getProposals(Ledger::id_type const & ledgerHash, F && f)
+    void
+    getProposals(Ledger::id_type const & ledgerHash, F && f)
     {
-        std::cout << "getProposals\n";
+        for (auto const & proposal : proposals[ledgerHash])
+        {
+            if (f(proposal))
+            {
+                 for(auto const& link : net.links(this))
+                    net.send(this, link.to,
+                        [&, id = this->id, msg = proposal, to = link.to]
+                        {
+                            to->receive(msg);
+                        });
+            }
+        }
     }
 
     // Aquire the details of the transaction corresponding
     // to this position; if not available locally, spawns
     // a network request that will call gotMap
-    boost::optional<TxSet> getTxSet(Position const & position)
+    boost::optional<TxSet>
+    getTxSet(Position const & position)
     {
         std::cout << "getTxSet\n";
         return {};
     }
 
 
-    bool hasOpenTransactions() const
+    bool
+    hasOpenTransactions() const
     {
         return !openTxs.empty();
     }
 
-    int numProposersValidated(Ledger::id_type const & prevLedger) const
+    int
+    numProposersValidated(Ledger::id_type const & prevLedger) const
     {
         std::cout << "numProposersValidated\n";
         return 0;
     }
 
-    int numProposersFinished(Ledger::id_type const & prevLedger) const
+    int
+    numProposersFinished(Ledger::id_type const & prevLedger) const
     {
         std::cout << "numProposersFinished\n";
         return 0;
     }
 
-    time_point getLastCloseTime() const
+    time_point
+    getLastCloseTime() const
     {
         return lastCloseTime;
     }
 
-    void setLastCloseTime(time_point tp)
+    void
+    setLastCloseTime(time_point tp)
     {
         lastCloseTime = tp;
     }
 
-    void statusChange(ConsensusChange c, Ledger const & prevLedger,
+    void
+    statusChange(ConsensusChange c, Ledger const & prevLedger,
         bool haveCorrectLCL)
     {
         lastStatusChange = c;
@@ -442,31 +474,36 @@ struct Callbacks
 
     // don't really offload
     template <class F>
-    void offloadAccept(F && f)
+    void
+    offloadAccept(F && f)
     {
         int dummy = 1;
         f(dummy);
     }
 
-    void shareSet(TxSet const &)
+    void
+    shareSet(TxSet const &)
     {
         std::cout << "shareSet\n";
     }
 
-    Ledger::id_type getLCL(
-        Ledger::id_type const & prevLedger,
+    Ledger::id_type
+    getLCL(Ledger::id_type const & prevLedger,
         Ledger::id_type  const & prevParent,
         bool haveCorrectLCL)
     {
+        // TODO: cases where this peer is behind others
         return lastClosedLedger.ID();
     }
 
-    void propose(Position pos)
+    void
+    propose(Position const & pos)
     {
-        std::cout << "propose\n";
+        relay(pos);
     }
 
-    void accept(TxSet const& set,
+    void
+    accept(TxSet const& set,
         time_point consensusCloseTime,
         bool proposing_,
         bool & validating_,
@@ -499,14 +536,14 @@ struct Callbacks
 
     }
 
-    void relayDisputedTx(Tx const &)
+    void
+    relayDisputedTx(Tx const &)
     {
         std::cout << "relay\n";
     }
 
-
-
-    void endConsensus(bool correct)
+    void
+    endConsensus(bool correct)
     {
        // kick off the next round...
        // in the actual implementation, this passes back through
@@ -516,7 +553,7 @@ struct Callbacks
     }
 
     std::pair <TxSet, Position>
-        makeInitialPosition(
+    makeInitialPosition(
             Ledger const & prevLedger,
             bool isProposing,
             bool isCorrectLCL,
@@ -528,7 +565,25 @@ struct Callbacks
         return { res, Position{prevLedger.ID(), res.getID(), closeTime, now} };
     }
 
+    //-------------------------------------------------------------------------
+    // non-callback helpers
+    void receive(Position const & p)
+    {
+        proposals[p.getPrevLedger()].push_back(p);
+    }
+
+    template <class T>
+    void relay(T && t)
+    {
+        for(auto const& link : net.links(this))
+            net.send(this, link.to,
+                [&, msg = t, to = link.to]
+                {
+                    to->receive(t);
+                });
+    }
 };
+
 
 class LedgerConsensus_test : public beast::unit_test::suite
 {
