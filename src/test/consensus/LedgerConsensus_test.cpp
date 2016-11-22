@@ -365,7 +365,7 @@ struct Peer
     boost::optional<ConsensusChange> lastStatusChange;
     Ledger lastClosedLedger;
     bc::flat_map<Ledger::id_type, Ledger> ledgers;
-    Network * net = nullptr;
+    Network & net;
     std::shared_ptr<Consensus> consensus;
 
     bc::flat_map<Ledger::id_type, std::vector<Position>> proposals;
@@ -373,8 +373,10 @@ struct Peer
     bc::flat_set<Tx::id_type> seenTxs;
 
     // All peers start from the default constructed ledger
-    Peer(Position::node_id_type i) : id{i}
+    Peer(Position::node_id_type i, Network & n) : id{i}, net{n}
     {
+        consensus = std::make_shared<Consensus>(*this, net.clock());
+        net.timer(1s, [&]() { timerEntry(); });
         ledgers[lastClosedLedger.ID()] = lastClosedLedger;
         lastCloseTime = lastClosedLedger.closeTime();
     }
@@ -444,7 +446,7 @@ struct Peer
         // everything auto-validates, so just count the number of peers
         // who have this as the last closed ledger
         int res = 0;
-        net->bfs(this, [&](auto, Peer * p)
+        net.bfs(this, [&](auto, Peer * p)
         {
             if (this == p) return;
             if (p->lastClosedLedger.ID() == prevLedger)
@@ -459,7 +461,7 @@ struct Peer
         // everything auto-validates, so just count the number of peers
         // who have this as a PRIOR ledger
         int res = 0;
-        net->bfs(this, [&](auto, Peer * p)
+        net.bfs(this, [&](auto, Peer * p)
         {
             if (this == p) return;
             auto & pLedger = p->lastClosedLedger.ID();
@@ -570,7 +572,7 @@ struct Peer
        // kick off the next round...
        // in the actual implementation, this passes back through
        // network ops
-       consensus->startRound(net->now(), lastClosedLedger.ID(),
+       consensus->startRound(net.now(), lastClosedLedger.ID(),
             lastClosedLedger);
     }
 
@@ -593,7 +595,7 @@ struct Peer
     {
         // filter proposals already seen?
         proposals[p.getPrevLedger()].push_back(p);
-        consensus->peerPosition(net->now(), p);
+        consensus->peerPosition(net.now(), p);
 
     }
 
@@ -602,7 +604,7 @@ struct Peer
         // save and map complete?
         auto it = txSets.try_emplace(txs.getID(), txs);
         if(it.second)
-            consensus->gotMap(net->now(), txs);
+            consensus->gotMap(net.now(), txs);
     }
 
     void receive(Tx const & tx)
@@ -617,25 +619,22 @@ struct Peer
     template <class T>
     void relay(T && t)
     {
-        for(auto const& link : net->links(this))
-            net->send(this, link.to,
+        for(auto const& link : net.links(this))
+            net.send(this, link.to,
                 [&, msg = t, to = link.to]
                 {
-                    to->receive(t);
+                    to->receive(msg);
                 });
     }
 
     void timerEntry()
     {
-        consensus->timerEntry(net->now());
-        net->timer(1s, [&]() { timerEntry(); });
+        consensus->timerEntry(net.now());
+        net.timer(1s, [&]() { timerEntry(); });
     }
-    void start(Network & n)
+    void start()
     {
-        net = &n;
-        n.timer(1s, [&]() { timerEntry(); });
-
-        consensus->startRound(n.now(), lastClosedLedger.ID(),
+        consensus->startRound(net.now(), lastClosedLedger.ID(),
             lastClosedLedger);
     }
 };
@@ -646,14 +645,11 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     testStandalone()
     {
-
-        Peer p{ 0 };
         Network n;
-        p.consensus = std::make_shared<Consensus>( p, n.clock() );
-
+        Peer p{ 0, n };
         n.step_for(9s);
 
-        p.start(n);
+        p.start();
 
         // No peers
         // Local transactions only
@@ -685,6 +681,31 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     testPeersAgree()
     {
+        Network n;
+        std::vector<Peer> peers;
+        peers.reserve(5);
+        for (int i = 0; i < 5; ++i)
+            peers.emplace_back(i, n);
+
+        // fully connect the graph?
+        for (int i = 0; i < peers.size(); ++i )
+            for (int j = 0; j < peers.size(); ++j)
+            {
+                if (i != j)
+                    n.connect(&peers[i], &peers[j], 1ms * (i + 1));
+            }
+
+        // everyone submits their own ID as a TX
+        for (auto & p : peers)
+        {
+            p.start();
+            p.receive(Tx{ p.id });
+        }
+
+        n.step_for(9s);
+        // Verify all peers have same LCL and it has all the TXs
+        std::cout << peers[0].lastClosedLedger.ID();
+
 
     }
 
@@ -703,7 +724,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     run() override
     {
-        testStandalone();
+        //testStandalone();
         testPeersAgree();
 
         testPeersDisagree();
