@@ -22,16 +22,16 @@
 #include <ripple/consensus/ConsensusPosition.h>
 #include <ripple/beast/clock/manual_clock.h>
 #include <boost/container/flat_set.hpp>
+#include <boost/container/flat_map.hpp>
 #include <boost/function_output_iterator.hpp>
 #include <ripple/beast/hash/hash_append.h>
 #include <utility>
 
 namespace ripple {
 namespace test {
-namespace consensus {
 
-using clock = std::chrono::steady_clock;
-using time_point = typename clock::time_point;
+using clock_type = std::chrono::steady_clock;
+using time_point = typename clock_type::time_point;
 using node_id_type = std::int32_t;
 
 /** Consensus test framework
@@ -142,6 +142,7 @@ public:
     friend class MutableTxSet;
 
     using id_type = tx_set_type;
+    using tx_type = Tx;
 
     // For the test, use the same object for mutable/immutable
     using mutable_t = MutableTxSet;
@@ -171,6 +172,11 @@ public:
     }
 
     auto getID() const
+    {
+        return txs;
+    }
+
+    auto peek() const
     {
         return txs;
     }
@@ -260,6 +266,28 @@ public:
         return res;
     }
 
+
+    auto const & peek() const
+    {
+        return txs_;
+    }
+
+    Ledger close(tx_set_type const & txs,
+        typename time_point::duration closeTimeResolution,
+        time_point const & consensusCloseTime,
+        bool closeTimeAgree) const
+    {
+        Ledger res{ *this };
+        res.txs_.insert(txs.begin(), txs.end());
+        res.seq_ = seq() + 1;
+        res.closeTimeResolution_ = closeTimeResolution;
+        res.closeTime_ = consensusCloseTime;
+        res.closeTimeAgree_ = closeTimeAgree;
+        res.parentCloseTime_ = closeTime();
+        res.parentID_ = ID();
+        return res;
+    }
+
 private:
 
     tx_set_type txs_;
@@ -307,14 +335,36 @@ std::ostream& operator<< (std::ostream & o, MissingTx const &m)
     return o << m.what();
 }
 
+struct Callbacks;
+
+struct Traits
+{
+    using Callback_t = Callbacks;
+    using NetTime_t = time_point;
+    using Ledger_t = Ledger;
+    using Pos_t = Position;
+    using TxSet_t = TxSet;
+    using MissingTx_t = MissingTx;
+};
+
+using Consensus = LedgerConsensus<Traits>;
 
 struct Callbacks
 {
+    std::shared_ptr<Consensus> consensus;
     std::map<std::string, beast::Journal> j;
+    beast::manual_clock<clock_type> clock;
     time_point lastCloseTime;
 
     boost::optional<ConsensusChange> lastStatusChange;
-    tx_set_type openTransactions;
+    tx_set_type openTxs;
+    boost::container::flat_map<Ledger::id_type, Ledger> ledgers;
+    Ledger lastClosedLedger;
+
+    Callbacks()
+    {
+        ledgers[lastClosedLedger.ID()] = lastClosedLedger;
+    }
 
     beast::Journal journal(std::string const & s)
     {
@@ -331,7 +381,10 @@ struct Callbacks
 
     boost::optional<Ledger> acquireLedger(Ledger::id_type const & ledgerHash)
     {
-        return {};
+        auto it = ledgers.find(ledgerHash);
+        if (it != ledgers.end())
+            return it->second;
+        return boost::none;
     }
 
     // Should be get and share?
@@ -340,7 +393,7 @@ struct Callbacks
     template <class F>
     void getProposals(Ledger::id_type const & ledgerHash, F && f)
     {
-
+        std::cout << "getProposals\n";
     }
 
     // Aquire the details of the transaction corresponding
@@ -348,22 +401,25 @@ struct Callbacks
     // a network request that will call gotMap
     boost::optional<TxSet> getTxSet(Position const & position)
     {
+        std::cout << "getTxSet\n";
         return {};
     }
 
 
     bool hasOpenTransactions() const
     {
-        return !openTransactions.empty();
+        return !openTxs.empty();
     }
 
     int numProposersValidated(Ledger::id_type const & prevLedger) const
     {
+        std::cout << "numProposersValidated\n";
         return 0;
     }
 
     int numProposersFinished(Ledger::id_type const & prevLedger) const
     {
+        std::cout << "numProposersFinished\n";
         return 0;
     }
 
@@ -394,19 +450,20 @@ struct Callbacks
 
     void shareSet(TxSet const &)
     {
-
+        std::cout << "shareSet\n";
     }
 
-    Ledger::id_type getLCL(Ledger::id_type const & prevLedger,
+    Ledger::id_type getLCL(
+        Ledger::id_type const & prevLedger,
         Ledger::id_type  const & prevParent,
         bool haveCorrectLCL)
     {
-        return Ledger::id_type{};
+        return lastClosedLedger.ID();
     }
 
     void propose(Position pos)
     {
-
+        std::cout << "propose\n";
     }
 
     void accept(TxSet const& set,
@@ -415,7 +472,7 @@ struct Callbacks
         bool & validating_,
         bool haveCorrectLCL_,
         bool consensusFail_,
-        Ledger::id_type  &prevLedgerHash_,
+        Ledger::id_type const & prevLedgerHash_,
         Ledger const & previousLedger_,
         time_point::duration closeResolution_,
         time_point const & now,
@@ -425,18 +482,38 @@ struct Callbacks
         time_point const & closeTime,
         Json::Value && json)
     {
-        // Will change
+
         lastStatusChange = ConsensusChange::Accepted;
+
+        auto newLedger = previousLedger_.close(set.peek(), closeResolution_,
+            closeTime, consensusCloseTime != time_point{});
+        ledgers[newLedger.ID()] = newLedger;
+
+        lastClosedLedger = newLedger;
+
+        auto it = std::remove_if(openTxs.begin(), openTxs.end(), [&](Tx const & tx)
+        {
+            return set.hasEntry(tx.getID());
+        });
+        openTxs.erase(it, openTxs.end());
+
     }
 
     void relayDisputedTx(Tx const &)
     {
-
+        std::cout << "relay\n";
     }
 
 
 
-    void endConsensus(bool correct) {}
+    void endConsensus(bool correct)
+    {
+       // kick off the next round...
+       // in the actual implementation, this passes back through
+       // network ops
+        consensus->startRound(clock.now(), lastClosedLedger.ID(),
+            lastClosedLedger);
+    }
 
     std::pair <TxSet, Position>
         makeInitialPosition(
@@ -446,61 +523,23 @@ struct Callbacks
             time_point closeTime,
             time_point now)
     {
-        TxSet res{ openTransactions };
+        TxSet res{ openTxs };
 
         return { res, Position{prevLedger.ID(), res.getID(), closeTime, now} };
     }
 
 };
 
-struct Traits
-{
-    using Callback_t = Callbacks;
-    using NetTime_t = time_point;
-    using Ledger_t = Ledger;
-    using Pos_t = Position;
-    using TxSet_t = TxSet;
-    using Tx_t = Tx;
-    using NodeID_t = node_id_type;
-    using MissingTx_t = MissingTx;
-
-
-};
-
-} // consensus
-
 class LedgerConsensus_test : public beast::unit_test::suite
 {
-
-    using clock_type = beast::manual_clock<consensus::clock>;
-
-    using Consensus = LedgerConsensus<consensus::Traits>;
-
-
-    void
-    testDefaultState()
-    {
-        clock_type clock;
-        consensus::Callbacks cb;
-        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0, clock);
-
-//        BEAST_EXPECT(!c->isProposing());
-//        BEAST_EXPECT(!c->isValidating());
-//        BEAST_EXPECT(!c->isCorrectLCL());
-//        BEAST_EXPECT(c->now() == clock.now());
-//        BEAST_EXPECT(c->closeTime() == clock.now());
-//        BEAST_EXPECT(c->getLastCloseProposers() == 0);
-//        BEAST_EXPECT(c->getLastCloseDuration() == LEDGER_IDLE_INTERVAL);
-//        BEAST_EXPECT(c->prevLedger().seq() == 0);
-    }
-
     void
     testStandalone()
     {
-        consensus::Callbacks cb;
+        //using namespace consensus;
+        Callbacks cb;
 
-        clock_type clock;
-        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0, clock );
+        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0, cb.clock );
+        cb.consensus = c;
 
         // No peers
         // Local transactions only
@@ -510,41 +549,31 @@ class LedgerConsensus_test : public beast::unit_test::suite
 
 
         // 1. Genesis ledger
-        consensus::Ledger currLedger;
-        clock.advance(10s);
+        Ledger currLedger;
+        cb.clock.advance(10s);
 
-        c->startRound(clock.now(), currLedger.ID(), currLedger);
-
-//        BEAST_EXPECT(c->isProposing());
-//        BEAST_EXPECT(c->isValidating());
-//        BEAST_EXPECT(c->isCorrectLCL());
-//        BEAST_EXPECT(c->now() == clock.now());
-//        BEAST_EXPECT(c->prevLedger().ID() == currLedger.ID());
+        c->startRound(cb.clock.now(), currLedger.ID(), currLedger);
         BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
 
 
-        clock.advance(1s);
-        cb.openTransactions.insert(consensus::Tx{ 1 });
-        c->timerEntry(clock.now());
+        cb.clock.advance(1s);
+        cb.openTxs.insert(Tx{ 1 });
+        c->timerEntry(cb.clock.now());
         // not enough time has elapsed to close the ledger
         BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
 
-        // advance enough to close
-        // we also accept since no peers have sent positions and its been long
-        // enough to have seen them
-        clock.advance(7s);
-        c->timerEntry(clock.now());
-        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::Accepted);
+        // advance enough to close and accept and start the next round
+        cb.clock.advance(7s);
+        c->timerEntry(cb.clock.now());
+        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
 
-
-        //send in some transactinons
-
-        // transition to state closing
-        c->getLCL();
-        //c->gotMap(clock.now(), Traits::TxSet_t{});
-        c->timerEntry(clock.now());
-        // observe transition to accept
-        // observe new closed ledger and it contains transactions?
+        // Inspect that the proper ledger was created
+        BEAST_EXPECT(c->getLCL() == cb.lastClosedLedger.ID());
+        BEAST_EXPECT(cb.lastClosedLedger.peek().size() == 1);
+        BEAST_EXPECT(cb.lastClosedLedger.peek().find(Tx{ 1 })
+            != cb.lastClosedLedger.peek().end());
+        BEAST_EXPECT(c->getLastCloseDuration() == 8s);
+        BEAST_EXPECT(c->getLastCloseProposers() == 0);
 
     }
 
@@ -569,7 +598,6 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     run() override
     {
-        testDefaultState();
         testStandalone();
         testPeersAgree();
 

@@ -32,7 +32,6 @@ namespace ripple {
 class RCLCxLedger
 {
 public:
-
     using id_type = LedgerHash;
 
     // Do we need this or can we force LedgerConsens to start with some ledger?

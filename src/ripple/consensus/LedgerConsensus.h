@@ -75,19 +75,14 @@ public:
     using Ledger_t = typename Traits::Ledger_t;
     using Pos_t = typename Traits::Pos_t;
     using TxSet_t = typename Traits::TxSet_t;
-    using Tx_t = typename Traits::Tx_t;
+    using Tx_t = typename TxSet_t::tx_type;
     using LgrID_t   = typename Ledger_t::id_type;
     using TxID_t    = typename Tx_t::id_type;
     using TxSetID_t = typename TxSet_t::id_type;
 
-    using NodeID_t = typename Traits::NodeID_t;
+    using NodeID_t = typename Pos_t::node_id_type;
     using MissingTx_t = typename Traits::MissingTx_t;
     using Dispute_t = DisputedTx <Tx_t, NodeID_t>;
-
-    /**
-     * The result of applying a transaction to a ledger.
-    */
-    enum {resultSuccess, resultFail, resultRetry};
 
     static char const* getCountedObjectName () { return "LedgerConsensus"; }
 

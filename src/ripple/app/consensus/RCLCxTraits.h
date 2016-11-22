@@ -38,18 +38,11 @@ namespace ripple {
 // For adapting consensus to RCL
 struct RCLCxTraits
 {
-
     using Callback_t = RCLCxCalls;
-
     using NetTime_t     = NetClock::time_point;
-
     using Ledger_t     = RCLCxLedger;
     using Pos_t        = LedgerProposal;
     using TxSet_t      = RCLTxSet;
-    using Tx_t         = RCLCxTx;
-
-    using NodeID_t  = NodeID;
-
     using MissingTx_t = SHAMapMissingNode;
 };
 

@@ -90,6 +90,7 @@ class RCLTxSet
 public:
     using id_type = uint256;
     using mutable_t = MutableRCLTxSet;
+    using tx_type = RCLCxTx;
 
     RCLTxSet (std::shared_ptr<SHAMap> map) :
         map_ (std::move(map))
@@ -106,12 +107,12 @@ public:
         return map_->hasItem (entry);
     }
 
-    boost::optional <RCLCxTx const>
+    boost::optional <tx_type const>
     getEntry (uint256 const& entry) const
     {
         auto item = map_->peekItem (entry);
         if (item)
-            return RCLCxTx(*item);
+            return tx_type{ *item };
         return boost::none;
     }
 

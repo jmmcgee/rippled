@@ -44,7 +44,6 @@ class LedgerProposal
 
 public:
     static char const* getCountedObjectName () { return "LedgerProposal"; }
-
     using pointer = std::shared_ptr<LedgerProposal>;
     using ref = const pointer&;
 

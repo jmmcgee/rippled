@@ -44,6 +44,9 @@ private:
     static std::uint32_t const seqLeave = 0xffffffff;
 
 public:
+
+    using node_id_type = NodeID_t;
+
     // Peer Proposal
     ConsensusPosition(
         LgrID_t const& prevLedger,
