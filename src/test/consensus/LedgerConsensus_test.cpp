@@ -31,6 +31,7 @@
 namespace ripple {
 namespace test {
 
+namespace bc = boost::container;
 using clock_type = std::chrono::steady_clock;
 using time_point = typename clock_type::time_point;
 using node_id_type = std::int32_t;
@@ -81,7 +82,7 @@ inline hash_append(Hasher& h, Tx const & tx)
 }
 
 
-using tx_set_type = boost::container::flat_set<Tx>;
+using tx_set_type = bc::flat_set<Tx>;
 
 
 inline std::ostream& operator<<(std::ostream & o, tx_set_type const & txs)
@@ -333,11 +334,11 @@ std::ostream& operator<< (std::ostream & o, MissingTx const &m)
     return o << m.what();
 }
 
-struct Callbacks;
+struct Peer;
 
 struct Traits
 {
-    using Callback_t = Callbacks;
+    using Callback_t = Peer;
     using NetTime_t = time_point;
     using Ledger_t = Ledger;
     using Pos_t = Position;
@@ -363,10 +364,13 @@ struct Peer
     time_point lastCloseTime;
     boost::optional<ConsensusChange> lastStatusChange;
     Ledger lastClosedLedger;
-    boost::container::flat_map<Ledger::id_type, Ledger> ledgers;
+    bc::flat_map<Ledger::id_type, Ledger> ledgers;
     Network * net = nullptr;
+    std::shared_ptr<Consensus> consensus;
 
-    std::map<Ledger::id_type, std::vector<Position>> proposals;
+    bc::flat_map<Ledger::id_type, std::vector<Position>> proposals;
+    bc::flat_map<TxSet::id_type, TxSet> txSets;
+    bc::flat_set<Tx::id_type> seenTxs;
 
     // All peers start from the default constructed ledger
     Peer(Position::node_id_type i) : id{i}
@@ -411,24 +415,20 @@ struct Peer
         {
             if (f(proposal))
             {
-                 for(auto const& link : net.links(this))
-                    net.send(this, link.to,
-                        [&, id = this->id, msg = proposal, to = link.to]
-                        {
-                            to->receive(msg);
-                        });
+                relay(proposal);
             }
         }
     }
 
-    // Aquire the details of the transaction corresponding
-    // to this position; if not available locally, spawns
-    // a network request that will call gotMap
     boost::optional<TxSet>
     getTxSet(Position const & position)
     {
-        std::cout << "getTxSet\n";
-        return {};
+        // Weird . . should getPosition() type really be TxSet_idtype?
+        auto it = txSets.find(position.getPosition());
+        if(it != txSets.end())
+            return it->second;
+        // TODO Ask network for it?
+        return boost::none;
     }
 
 
@@ -439,17 +439,40 @@ struct Peer
     }
 
     int
-    numProposersValidated(Ledger::id_type const & prevLedger) const
+    numProposersValidated(Ledger::id_type const & prevLedger)
     {
-        std::cout << "numProposersValidated\n";
-        return 0;
+        // everything auto-validates, so just count the number of peers
+        // who have this as the last closed ledger
+        int res = 0;
+        net->bfs(this, [&](auto, Peer * p)
+        {
+            if (this == p) return;
+            if (p->lastClosedLedger.ID() == prevLedger)
+                res++;
+        });
+        return res;
     }
 
     int
-    numProposersFinished(Ledger::id_type const & prevLedger) const
+    numProposersFinished(Ledger::id_type const & prevLedger)
     {
-        std::cout << "numProposersFinished\n";
-        return 0;
+        // everything auto-validates, so just count the number of peers
+        // who have this as a PRIOR ledger
+        int res = 0;
+        net->bfs(this, [&](auto, Peer * p)
+        {
+            if (this == p) return;
+            auto & pLedger = p->lastClosedLedger.ID();
+            // prevLedger precceeds pLedger iff it has a smaller
+            // sequence number AND its Tx's are a subset of pLedger's
+            if(prevLedger.first < pLedger.first
+                && std::includes(pLedger.second.begin(), pLedger.second.end(),
+                    prevLedger.second.begin(), prevLedger.second.end()))
+            {
+                res++;
+            }
+        });
+        return res;
     }
 
     time_point
@@ -482,17 +505,17 @@ struct Peer
     }
 
     void
-    shareSet(TxSet const &)
+    shareSet(TxSet const &s)
     {
-        std::cout << "shareSet\n";
+        relay(s);
     }
 
     Ledger::id_type
-    getLCL(Ledger::id_type const & prevLedger,
-        Ledger::id_type  const & prevParent,
+    getLCL(Ledger::id_type const & currLedger,
+        Ledger::id_type  const & priorLedger,
         bool haveCorrectLCL)
     {
-        // TODO: cases where this peer is behind others
+        // TODO: cases where this peer is behind others ?
         return lastClosedLedger.ID();
     }
 
@@ -533,13 +556,12 @@ struct Peer
             return set.hasEntry(tx.getID());
         });
         openTxs.erase(it, openTxs.end());
-
     }
 
     void
-    relayDisputedTx(Tx const &)
+    relayDisputedTx(Tx const &tx)
     {
-        std::cout << "relay\n";
+        relay(tx);
     }
 
     void
@@ -548,7 +570,7 @@ struct Peer
        // kick off the next round...
        // in the actual implementation, this passes back through
        // network ops
-        consensus->startRound(clock.now(), lastClosedLedger.ID(),
+       consensus->startRound(net->now(), lastClosedLedger.ID(),
             lastClosedLedger);
     }
 
@@ -562,25 +584,59 @@ struct Peer
     {
         TxSet res{ openTxs };
 
-        return { res, Position{prevLedger.ID(), res.getID(), closeTime, now} };
+        return { res, Position{prevLedger.ID(), res.getID(), closeTime, now, id} };
     }
 
     //-------------------------------------------------------------------------
     // non-callback helpers
     void receive(Position const & p)
     {
+        // filter proposals already seen?
         proposals[p.getPrevLedger()].push_back(p);
+        consensus->peerPosition(net->now(), p);
+
+    }
+
+    void receive(TxSet const & txs)
+    {
+        // save and map complete?
+        auto it = txSets.try_emplace(txs.getID(), txs);
+        if(it.second)
+            consensus->gotMap(net->now(), txs);
+    }
+
+    void receive(Tx const & tx)
+    {
+        if (seenTxs.find(tx.getID()) == seenTxs.end())
+        {
+            openTxs.insert(tx);
+            seenTxs.insert(tx.getID());
+        }
     }
 
     template <class T>
     void relay(T && t)
     {
-        for(auto const& link : net.links(this))
-            net.send(this, link.to,
+        for(auto const& link : net->links(this))
+            net->send(this, link.to,
                 [&, msg = t, to = link.to]
                 {
                     to->receive(t);
                 });
+    }
+
+    void timerEntry()
+    {
+        consensus->timerEntry(net->now());
+        net->timer(1s, [&]() { timerEntry(); });
+    }
+    void start(Network & n)
+    {
+        net = &n;
+        n.timer(1s, [&]() { timerEntry(); });
+
+        consensus->startRound(n.now(), lastClosedLedger.ID(),
+            lastClosedLedger);
     }
 };
 
@@ -590,46 +646,40 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     testStandalone()
     {
-        //using namespace consensus;
-        Callbacks cb;
 
-        std::shared_ptr<Consensus> c = std::make_shared<Consensus>( cb, 0, cb.clock );
-        cb.consensus = c;
+        Peer p{ 0 };
+        Network n;
+        p.consensus = std::make_shared<Consensus>( p, n.clock() );
+
+        n.step_for(9s);
+
+        p.start(n);
 
         // No peers
         // Local transactions only
         // Always have ledger
         // Proposing and validating
 
+        BEAST_EXPECT(p.lastStatusChange.get() == ConsensusChange::StartRound);
 
+        p.receive(Tx{ 1 });
+        n.step_for(2s);
 
-        // 1. Genesis ledger
-        Ledger currLedger;
-        cb.clock.advance(10s);
-
-        c->startRound(cb.clock.now(), currLedger.ID(), currLedger);
-        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
-
-
-        cb.clock.advance(1s);
-        cb.openTxs.insert(Tx{ 1 });
-        c->timerEntry(cb.clock.now());
         // not enough time has elapsed to close the ledger
-        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
+        BEAST_EXPECT(p.lastStatusChange.get() == ConsensusChange::StartRound);
 
         // advance enough to close and accept and start the next round
-        cb.clock.advance(7s);
-        c->timerEntry(cb.clock.now());
-        BEAST_EXPECT(cb.lastStatusChange.get() == ConsensusChange::StartRound);
+        n.step_for(7s);
+
+        BEAST_EXPECT(p.lastStatusChange.get() == ConsensusChange::StartRound);
 
         // Inspect that the proper ledger was created
-        BEAST_EXPECT(c->getLCL() == cb.lastClosedLedger.ID());
-        BEAST_EXPECT(cb.lastClosedLedger.peek().size() == 1);
-        BEAST_EXPECT(cb.lastClosedLedger.peek().find(Tx{ 1 })
-            != cb.lastClosedLedger.peek().end());
-        BEAST_EXPECT(c->getLastCloseDuration() == 8s);
-        BEAST_EXPECT(c->getLastCloseProposers() == 0);
-
+        BEAST_EXPECT(p.consensus->getLCL() == p.lastClosedLedger.ID());
+        BEAST_EXPECT(p.lastClosedLedger.peek().size() == 1);
+        BEAST_EXPECT(p.lastClosedLedger.peek().find(Tx{ 1 })
+            != p.lastClosedLedger.peek().end());
+        BEAST_EXPECT(p.consensus->getLastCloseDuration() == 8s);
+        BEAST_EXPECT(p.consensus->getLastCloseProposers() == 0);
     }
 
     void

@@ -242,6 +242,7 @@ private:
     InboundTransactions& inboundTransactions_;
     beast::Journal j_;
 
+    NodeID nodeID_;
     PublicKey valPublic_;
     SecretKey valSecret_;
     LedgerHash acquiringLedger_;

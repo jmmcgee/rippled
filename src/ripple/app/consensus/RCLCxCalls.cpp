@@ -55,6 +55,7 @@ RCLCxCalls::RCLCxCalls (
         , localTxs_(localTxs)
         , inboundTransactions_{ inboundTxs }
         , j_ (j)
+        , nodeID_{ calcNodeID(app.nodeIdentity().first) }
         , valPublic_ (app_.config().VALIDATION_PUB)
         , valSecret_ (app_.config().VALIDATION_PRIV)
 { }
@@ -262,7 +263,8 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
             initialLedger->info().parentHash,
             setHash,
             closeTime,
-            now});
+            now,
+            nodeID_ });
 }
 
 boost::optional<RCLCxLedger> RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
