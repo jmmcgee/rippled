@@ -103,7 +103,6 @@ public:
     */
     LedgerConsensus (
         Callback_t& callbacks,
-        NodeID_t id,
         clock_type const & clock);
 
     /**
@@ -279,58 +278,61 @@ private:
 
 private:
     Callback_t& callbacks_;
-    clock_type const & clock_;
 
     mutable std::recursive_mutex lock_;
 
-    NodeID_t ourID_;
     State state_;
+    bool proposing_, validating_, haveCorrectLCL_, consensusFail_;
+    bool haveCloseTimeConsensus_;
+
+
+
     NetTime_t now_;
 
     // The wall time this ledger closed
     NetTime_t closeTime_;
+    // Close time estimates, keep ordered for predictable traverse
+    std::map <NetTime_t, int> closeTimes_;
+
 
     LgrID_t prevLedgerHash_;
-
     Ledger_t previousLedger_;
-    boost::optional<Pos_t> ourPosition_;
-    boost::optional<TxSet_t> ourSet_;
-    bool proposing_, validating_, haveCorrectLCL_, consensusFail_;
 
-    // How much time has elapsed since the round started
-    std::chrono::milliseconds roundTime_;
-
-    // How long the close has taken, expressed as a percentage of the time that
-    // we expected it to take.
-    int closePercent_;
-
-    Duration_t closeResolution_;
-
-    bool haveCloseTimeConsensus_;
-
-    clock_type::time_point consensusStartTime_;
-
-    // The number of proposers who participated in the last consensus round
-    int previousProposers_;
-
-    // Time it took for the last consensus round to converge
-    std::chrono::milliseconds previousRoundTime_;
-
-    // Convergence tracking, trusted peers indexed by hash of public key
-    hash_map<NodeID_t, Pos_t>  peerPositions_;
 
     // Transaction Sets, indexed by hash of transaction tree
     hash_map<TxSetID_t, const TxSet_t> acquired_;
 
+
+    boost::optional<Pos_t> ourPosition_;
+    boost::optional<TxSet_t> ourSet_;
+
+
+    // How much time has elapsed since the round started
+    clock_type const & clock_;
+
+    std::chrono::milliseconds roundTime_;
+    // How long the close has taken, expressed as a percentage of the time that
+    // we expected it to take.
+    int closePercent_;
+    Duration_t closeResolution_;
+    clock_type::time_point consensusStartTime_;
+    // Time it took for the last consensus round to converge
+    std::chrono::milliseconds previousRoundTime_;
+
+    // The number of proposers who participated in the last consensus round
+    int previousProposers_;
+
+
+    // Convergence tracking, trusted peers indexed by hash of public key
+    hash_map<NodeID_t, Pos_t>  peerPositions_;
+
     // Disputed transactions
     hash_map<TxID_t, Dispute_t> disputes_;
     hash_set<TxSetID_t> compares_;
-
-    // Close time estimates, keep ordered for predictable traverse
-    std::map <NetTime_t, int> closeTimes_;
-
     // nodes that have bowed out of this consensus process
     hash_set<NodeID_t> deadNodes_;
+
+
     beast::Journal j_;
 
 
@@ -339,11 +341,9 @@ private:
 template <class Traits>
 LedgerConsensus<Traits>::LedgerConsensus (
         Callback_t& callbacks,
-        NodeID_t id,
         clock_type const & clock)
     : callbacks_ (callbacks)
     , clock_(clock)
-    , ourID_ (id)
     , state_ (State::open)
     , proposing_(false)
     , validating_(false)
