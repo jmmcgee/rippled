@@ -45,7 +45,6 @@ struct RCLCxTraits
     using TxSet_t      = RCLTxSet;
     using MissingTx_t = SHAMapMissingNode;
 };
-
 }
 
 #endif

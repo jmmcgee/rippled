@@ -36,16 +36,26 @@ using clock_type = std::chrono::steady_clock;
 using time_point = typename clock_type::time_point;
 using node_id_type = std::int32_t;
 
-/** Consensus test framework
+/** Consensus unit test types
 
-    For unit tests @b LedgerConsensus, we define
+    Peers in the consensus process are trying to agree on a set of transactions
+    to include in a ledger.  For unit testing, each transaction is a
+    single integer and the ledger is a set of observed integers.  This means
+    future ledgers have prior ledgers as subsets, e.g.
 
-    Tx : integer
-    TxSet : set of integers
-    Ledger : set of integers
-    Pos :
+        Ledger 0 :  {}
+        Ledger 1 :  {1,4,5}
+        Ledger 2 :  {1,2,4,5,10}
+        ....
+
+    Tx - Integer
+    TxSet/MutableTxSet - Set of Tx
+    Ledger - Set of Tx and sequence number
+
 */
 
+
+// A single transaction
 class Tx
 {
 public:
@@ -53,17 +63,20 @@ public:
 
     Tx(id_type i) : id{ i } {}
 
-    id_type getID() const
+    id_type
+    getID() const
     {
         return id;
     }
 
-    bool operator<(Tx const & o) const
+    bool
+    operator<(Tx const & o) const
     {
         return id < o.id;
     }
 
-    bool operator==(Tx const & o) const
+    bool
+    operator==(Tx const & o) const
     {
         return id == o.id;
     }
@@ -81,9 +94,9 @@ inline hash_append(Hasher& h, Tx const & tx)
     hash_append(h, tx.getID());
 }
 
-
+//!-------------------------------------------------------------------------
+// All sets of Tx are represented as a flat_set.
 using tx_set_type = bc::flat_set<Tx>;
-
 
 inline std::ostream& operator<<(std::ostream & o, tx_set_type const & txs)
 {
@@ -111,6 +124,8 @@ inline std::string to_string(tx_set_type const & txs)
     return ss.str();
 }
 
+// TxSet/MutableTxSet are a set of transactions to consider including in the
+// ledger
 class TxSet;
 
 class MutableTxSet
@@ -122,12 +137,14 @@ public:
 
     MutableTxSet(TxSet const &);
 
-    bool insert(Tx const & t)
+    bool
+    insert(Tx const & t)
     {
         return txs.insert(t).second;
     }
 
-    bool remove(Tx::id_type const & tx_id)
+    bool
+    remove(Tx::id_type const & tx_id)
     {
         return txs.erase(Tx{ tx_id }) > 0;
     }
@@ -145,8 +162,6 @@ public:
 
     using id_type = tx_set_type;
     using tx_type = Tx;
-
-    // For the test, use the same object for mutable/immutable
     using mutable_t = MutableTxSet;
 
     TxSet() = default;
@@ -173,12 +188,8 @@ public:
         return boost::none;
     }
 
-    auto getID() const
-    {
-        return txs;
-    }
-
-    auto peek() const
+    auto
+    getID() const
     {
         return txs;
     }
@@ -211,6 +222,13 @@ public:
         return res;
     }
 
+    auto const &
+    peek() const
+    {
+        return txs;
+    }
+
+
 private:
     // The set contains the actual transactions
     tx_set_type txs;
@@ -220,61 +238,73 @@ private:
 MutableTxSet::MutableTxSet(TxSet const & s)
     : txs(s.txs) {}
 
+// A ledger is a set of observed transactions and a sequence number
+// identifying the ledger.
 class Ledger
 {
 public:
 
     using id_type = std::pair<std::uint32_t, tx_set_type>;
 
-    id_type ID() const
+    id_type
+    ID() const
     {
         return { seq_, txs_ };
     }
 
-    auto seq() const
+    auto
+    seq() const
     {
         return seq_;
     }
 
-    auto closeTimeResolution() const
+    auto
+    closeTimeResolution() const
     {
         return closeTimeResolution_;
     }
 
-    auto getCloseAgree() const
+    auto
+    getCloseAgree() const
     {
         return closeTimeAgree_;
     }
 
-    auto closeTime() const
+    auto
+    closeTime() const
     {
         return closeTime_;
     }
 
-    auto parentCloseTime() const
+    auto
+    parentCloseTime() const
     {
         return parentCloseTime_;
     }
 
-    auto parentID() const
+    auto
+    parentID() const
     {
         return parentID_;
     }
 
-    Json::Value getJson() const
+    Json::Value
+    getJson() const
     {
         Json::Value res(Json::objectValue);
         res["seq"] = seq();
         return res;
     }
 
-
-    auto const & peek() const
+    auto const &
+    peek() const
     {
         return txs_;
     }
 
-    Ledger close(tx_set_type const & txs,
+    // Apply the given transactions to this ledger
+    Ledger
+    close(tx_set_type const & txs,
         typename time_point::duration closeTimeResolution,
         time_point const & consensusCloseTime,
         bool closeTimeAgree) const
@@ -292,14 +322,22 @@ public:
 
 private:
 
+    // Set of transactions in the ledger
     tx_set_type txs_;
+    // Sequence number of the ledger
     std::int32_t seq_ = 0;
+    // Bucket resolution used to determine close time
     typename time_point::duration closeTimeResolution_ = ledgerDefaultTimeResolution;
+    // When the ledger closed
     time_point closeTime_;
+    // Whether consenssus agreed on the close time
     bool closeTimeAgree_ = true;
 
-    time_point parentCloseTime_;
+    // Parent ledger id
     id_type parentID_;
+    // Parent ledger close time
+    time_point parentCloseTime_;
+
 };
 
 
@@ -315,10 +353,14 @@ inline std::string to_string(Ledger::id_type const & id)
     return ss.str();
 }
 
-
+// Position is a peer proposal in the consensus process and is represented
+// directly from the generic types
 using Position = ConsensusPosition<node_id_type, Ledger::id_type,
     tx_set_type, time_point>;
 
+// The RCL consensus process catches missing node SHAMap error
+// in several points. This exception is meant to represent a similar
+// case for the unit test.
 class MissingTx : public std::runtime_error
 {
 public:
@@ -336,9 +378,12 @@ std::ostream& operator<< (std::ostream & o, MissingTx const &m)
 
 struct Peer;
 
+// Collect the set of concrete consensus types in a Traits class.
 struct Traits
 {
     using Callback_t = Peer;
+    // For testing, network and internal time of the consensus process
+    // are the same.  In the RCL, the internal time and network time differ.
     using NetTime_t = time_point;
     using Ledger_t = Ledger;
     using Pos_t = Position;
@@ -347,30 +392,41 @@ struct Traits
 };
 
 using Consensus = LedgerConsensus<Traits>;
-struct Peer;
 
 using Network = BasicNetwork<Peer*>;
 
 // Represents a single node participating in the consensus process
-// and implements the Callbacks required by LedgerConsensus
+// It implements the Callbacks required by Consensus and
+// owns/drives the Consensus instance.
 struct Peer
 {
-
+    // Our unique ID
     Position::node_id_type id;
+    // Journal needed for consensus debugging
     std::map<std::string, beast::Journal> j;
+    // last time a ledger closed
+    time_point lastCloseTime;
 
+    // openTxs that haven't been closed in a ledger yet
     tx_set_type openTxs;
 
-    time_point lastCloseTime;
-    boost::optional<ConsensusChange> lastStatusChange;
+    // last ledger this peer closed
     Ledger lastClosedLedger;
-    bc::flat_map<Ledger::id_type, Ledger> ledgers;
+    // Handle to network for sending messages
     Network & net;
-    std::shared_ptr<Consensus> consensus;
 
+    // The ledgers, proposals, TxSets and Txs this peer has seen
+    bc::flat_map<Ledger::id_type, Ledger> ledgers;
+    // Map from Ledger::id_type to vector of Positions with that ledger
+    // as the prior ledger
     bc::flat_map<Ledger::id_type, std::vector<Position>> proposals;
     bc::flat_map<TxSet::id_type, TxSet> txSets;
     bc::flat_set<Tx::id_type> seenTxs;
+
+    // Instance of Consensus
+    std::shared_ptr<Consensus> consensus;
+
+    const std::chrono::seconds timerFreq = 1s;
 
     // All peers start from the default constructed ledger
     Peer(Position::node_id_type i, Network & n) : id{i}, net{n}
@@ -378,16 +434,18 @@ struct Peer
         consensus = std::make_shared<Consensus>(*this, net.clock());
         ledgers[lastClosedLedger.ID()] = lastClosedLedger;
         lastCloseTime = lastClosedLedger.closeTime();
-        net.timer(1s, [&]() { timerEntry(); });
+        net.timer(timerFreq, [&]() { timerEntry(); });
     }
 
-    // Callback functions
+
     beast::Journal
     journal(std::string const & s)
     {
         return j[s];
     }
 
+    // @return whether we are validating,proposing
+    // TODO: Bit akward that this is in callbacks, would be nice to extract
     std::pair<bool, bool>
     getMode(const bool correctLCL)
     {
@@ -406,7 +464,7 @@ struct Peer
         return boost::none;
     }
 
-    // Should be get and share?
+    // Should be named get and share?
     // If f returns true, that means it was
     // a useful proposal and should be shared
     template <class F>
@@ -464,7 +522,7 @@ struct Peer
         net.bfs(this, [&](auto, Peer * p)
         {
             if (this == p) return;
-            auto & pLedger = p->lastClosedLedger.ID();
+            auto const & pLedger = p->lastClosedLedger.ID();
             // prevLedger preceeds pLedger iff it has a smaller
             // sequence number AND its Tx's are a subset of pLedger's
             if(prevLedger.first < pLedger.first
@@ -493,11 +551,12 @@ struct Peer
     statusChange(ConsensusChange c, Ledger const & prevLedger,
         bool haveCorrectLCL)
     {
-        lastStatusChange = c;
+
     }
 
 
     // don't really offload
+    // TODO: Should not be imposed on clients?
     template <class F>
     void
     offloadAccept(F && f)
@@ -514,7 +573,7 @@ struct Peer
 
     Ledger::id_type
     getLCL(Ledger::id_type const & currLedger,
-        Ledger::id_type  const & priorLedger,
+        Ledger::id_type const & priorLedger,
         bool haveCorrectLCL)
     {
         // TODO: cases where this peer is behind others ?
@@ -527,6 +586,10 @@ struct Peer
         relay(pos);
     }
 
+
+    // Process the accepted transaction set, generating the newly closed ledger
+    // and clearing out hte openTxs that were included.
+    // TODO: Kinda nasty it takes so many arguments . . . sign of bad coupling
     void
     accept(TxSet const& set,
         time_point consensusCloseTime,
@@ -544,19 +607,17 @@ struct Peer
         time_point const & closeTime,
         Json::Value && json)
     {
-
-        lastStatusChange = ConsensusChange::Accepted;
-
         auto newLedger = previousLedger_.close(set.peek(), closeResolution_,
             closeTime, consensusCloseTime != time_point{});
         ledgers[newLedger.ID()] = newLedger;
 
         lastClosedLedger = newLedger;
 
-        auto it = std::remove_if(openTxs.begin(), openTxs.end(), [&](Tx const & tx)
-        {
-            return set.hasEntry(tx.getID());
-        });
+        auto it = std::remove_if(openTxs.begin(), openTxs.end(),
+            [&](Tx const & tx)
+            {
+                return set.hasEntry(tx.getID());
+            });
         openTxs.erase(it, openTxs.end());
     }
 
@@ -586,12 +647,14 @@ struct Peer
     {
         TxSet res{ openTxs };
 
-        return { res, Position{prevLedger.ID(), res.getID(), closeTime, now, id} };
+        return { res,
+            Position{prevLedger.ID(), res.getID(), closeTime, now, id} };
     }
 
     //-------------------------------------------------------------------------
     // non-callback helpers
-    void receive(Position const & p)
+    void
+    receive(Position const & p)
     {
         // filter proposals already seen?
         proposals[p.getPrevLedger()].push_back(p);
@@ -599,15 +662,17 @@ struct Peer
 
     }
 
-    void receive(TxSet const & txs)
+    void
+    receive(TxSet const & txs)
     {
         // save and map complete?
-        auto it = txSets.try_emplace(txs.getID(), txs);
+        auto it = txSets.insert(std::make_pair(txs.getID(), txs));
         if(it.second)
             consensus->gotMap(net.now(), txs);
     }
 
-    void receive(Tx const & tx)
+    void
+    receive(Tx const & tx)
     {
         if (seenTxs.find(tx.getID()) == seenTxs.end())
         {
@@ -617,7 +682,8 @@ struct Peer
     }
 
     template <class T>
-    void relay(T && t)
+    void
+    relay(T && t)
     {
         for(auto const& link : net.links(this))
             net.send(this, link.to,
@@ -629,18 +695,21 @@ struct Peer
 
     // Receive a locally submitted transaction and
     // share with peers
-    void submit(Tx const & tx)
+    void
+    submit(Tx const & tx)
     {
         receive(tx);
         relay(tx);
     }
 
-    void timerEntry()
+    void
+    timerEntry()
     {
         consensus->timerEntry(net.now());
-        net.timer(1s, [&]() { timerEntry(); });
+        net.timer(timerFreq, [&]() { timerEntry(); });
     }
-    void start()
+    void
+    start()
     {
         consensus->startRound(net.now(), lastClosedLedger.ID(),
             lastClosedLedger);
@@ -656,28 +725,18 @@ class LedgerConsensus_test : public beast::unit_test::suite
         Network n;
         Peer p{ 0, n };
         n.step_for(9s);
-
         p.start();
-
-        // No peers
-        // Local transactions only
-        // Always have ledger
-        // Proposing and validating
-
-        BEAST_EXPECT(p.lastStatusChange.get() == ConsensusChange::StartRound);
-
         p.receive(Tx{ 1 });
         n.step_for(2s);
 
         // not enough time has elapsed to close the ledger
-        BEAST_EXPECT(p.lastStatusChange.get() == ConsensusChange::StartRound);
+        BEAST_EXPECT(p.consensus->getLCL().first == 0);
 
         // advance enough to close and accept and start the next round
         n.step_for(7s);
 
-        BEAST_EXPECT(p.lastStatusChange.get() == ConsensusChange::StartRound);
-
         // Inspect that the proper ledger was created
+        BEAST_EXPECT(p.consensus->getLCL().first == 1);
         BEAST_EXPECT(p.consensus->getLCL() == p.lastClosedLedger.ID());
         BEAST_EXPECT(p.lastClosedLedger.peek().size() == 1);
         BEAST_EXPECT(p.lastClosedLedger.peek().find(Tx{ 1 })
@@ -730,7 +789,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
     }
 
     void
-    testPeersDisagree()
+    testSlowPeer()
     {
         Network n;
         std::vector<Peer> peers;
@@ -779,6 +838,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
             // Matches peer 0 ledger
             BEAST_EXPECT(lgrID.second == peers[0].consensus->getLCL().second);
         }
+        BEAST_EXPECT(peers[0].openTxs.find(Tx{ 0 }) != peers[0].openTxs.end());
     }
 
 
@@ -792,7 +852,7 @@ class LedgerConsensus_test : public beast::unit_test::suite
     {
         testStandalone();
         testPeersAgree();
-        testPeersDisagree();
+        testSlowPeer();
         testGetJson();
     }
 };
