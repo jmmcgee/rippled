@@ -17,19 +17,20 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
+#include <test/support/TestSuite.h>
 #include <beast/core/placeholders.hpp>
 #include <beast/core/detail/base64.hpp>
 #include <beast/http.hpp>
 #include <ripple/basics/Slice.h>
 #include <ripple/basics/strHex.h>
-#include <ripple/basics/TestSuite.h>
 #include <ripple/app/misc/ValidatorSite.h>
 #include <ripple/protocol/digest.h>
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/PublicKey.h>
 #include <ripple/protocol/SecretKey.h>
 #include <ripple/protocol/Sign.h>
-#include <ripple/test/jtx.h>
+#include <test/support/jtx.h>
 #include <boost/utility/in_place_factory.hpp>
 #include <boost/asio.hpp>
 

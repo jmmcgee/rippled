@@ -17,10 +17,11 @@
 */
 //==============================================================================
 
+#include <BeastConfig.h>
 #include <beast/core/detail/base64.hpp>
 #include <ripple/basics/Slice.h>
 #include <ripple/basics/strHex.h>
-#include <ripple/basics/TestSuite.h>
+#include <test/support/TestSuite.h>
 #include <ripple/app/misc/ValidatorList.h>
 #include <ripple/protocol/digest.h>
 #include <ripple/protocol/HashPrefix.h>

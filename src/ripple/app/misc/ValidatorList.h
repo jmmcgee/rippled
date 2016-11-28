@@ -28,6 +28,7 @@
 #include <boost/iterator/counting_iterator.hpp>
 #include <boost/range/adaptors.hpp>
 #include <boost/thread/shared_mutex.hpp>
+#include <boost/thread/lock_types.hpp>
 #include <mutex>
 #include <numeric>
 
