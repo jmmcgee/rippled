@@ -376,9 +376,9 @@ struct Peer
     Peer(Position::node_id_type i, Network & n) : id{i}, net{n}
     {
         consensus = std::make_shared<Consensus>(*this, net.clock());
-        net.timer(1s, [&]() { timerEntry(); });
         ledgers[lastClosedLedger.ID()] = lastClosedLedger;
         lastCloseTime = lastClosedLedger.closeTime();
+        net.timer(1s, [&]() { timerEntry(); });
     }
 
     // Callback functions
@@ -465,7 +465,7 @@ struct Peer
         {
             if (this == p) return;
             auto & pLedger = p->lastClosedLedger.ID();
-            // prevLedger precceeds pLedger iff it has a smaller
+            // prevLedger preceeds pLedger iff it has a smaller
             // sequence number AND its Tx's are a subset of pLedger's
             if(prevLedger.first < pLedger.first
                 && std::includes(pLedger.second.begin(), pLedger.second.end(),
@@ -627,6 +627,14 @@ struct Peer
                 });
     }
 
+    // Receive a locally submitted transaction and
+    // share with peers
+    void submit(Tx const & tx)
+    {
+        receive(tx);
+        relay(tx);
+    }
+
     void timerEntry()
     {
         consensus->timerEntry(net.now());
@@ -692,19 +700,31 @@ class LedgerConsensus_test : public beast::unit_test::suite
             for (int j = 0; j < peers.size(); ++j)
             {
                 if (i != j)
-                    n.connect(&peers[i], &peers[j], 1ms * (i + 1));
+                    n.connect(&peers[i], &peers[j], 20ms * (i + 1));
             }
 
         // everyone submits their own ID as a TX
         for (auto & p : peers)
         {
             p.start();
-            p.receive(Tx{ p.id });
+            p.submit(Tx{ p.id });
         }
 
-        n.step_for(9s);
+        // Let consensus proceed
+        n.step_for(5s);
+
         // Verify all peers have same LCL and it has all the TXs
-        std::cout << peers[0].lastClosedLedger.ID();
+        for (auto & p : peers)
+        {
+            auto const &lgrID = p.consensus->getLCL();
+            BEAST_EXPECT(lgrID.first == 1);
+            BEAST_EXPECT(p.consensus->getLastCloseProposers() == 4);
+            BEAST_EXPECT(p.consensus->getLastCloseDuration() == 3s);
+            for(int i = 0; i < peers.size(); ++i)
+                BEAST_EXPECT(lgrID.second.find(Tx{ i }) != lgrID.second.end());
+            // Matches peer 0 ledger
+            BEAST_EXPECT(lgrID.second == peers[0].consensus->getLCL().second);
+        }
 
 
     }
@@ -712,7 +732,53 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     testPeersDisagree()
     {
+        Network n;
+        std::vector<Peer> peers;
+        peers.reserve(5);
+        for (int i = 0; i < 5; ++i)
+            peers.emplace_back(i, n);
 
+        // Fully connected, but node 0 has a large delay
+        for (int i = 0; i < peers.size(); ++i )
+            for (int j = 0; j < peers.size(); ++j)
+            {
+                auto delay = (i == 0 || j == 0) ? 1100ms : 0ms;
+                n.connect(&peers[i], &peers[j], delay);
+            }
+
+        // everyone submits their own ID as a TX
+        for (auto & p : peers)
+        {
+            p.start();
+            p.submit(Tx{ p.id });
+        }
+
+        // Let consensus proceed
+        n.step_for(5s);
+
+        // Verify all peers have same LCL but are missing transaction 0 which
+        // was not received by all peers before the ledger closed
+        for (auto & p : peers)
+        {
+            using namespace std::chrono;
+
+            auto const &lgrID = p.consensus->getLCL();
+            BEAST_EXPECT(lgrID.first == 1);
+            BEAST_EXPECT(p.consensus->getLastCloseProposers() == 4);
+            // Peer 0 closes first because it sees a quorum of agreeing positions
+            // from all other peers in one hop (1->0, 2->0, ..)
+            // The other peers take an extra timer period before they find that
+            // Peer 0 agrees with them ( 1->0->1,  2->0->2, ...)
+            if(&p == &peers[0])
+                BEAST_EXPECT(p.consensus->getLastCloseDuration() == 3s);
+            else
+                BEAST_EXPECT(p.consensus->getLastCloseDuration() == 4s);
+            BEAST_EXPECT(lgrID.second.find(Tx{ 0 }) == lgrID.second.end());
+            for(int i = 1; i < peers.size(); ++i)
+                BEAST_EXPECT(lgrID.second.find(Tx{ i }) != lgrID.second.end());
+            // Matches peer 0 ledger
+            BEAST_EXPECT(lgrID.second == peers[0].consensus->getLCL().second);
+        }
     }
 
 
@@ -724,11 +790,9 @@ class LedgerConsensus_test : public beast::unit_test::suite
     void
     run() override
     {
-        //testStandalone();
+        testStandalone();
         testPeersAgree();
-
         testPeersDisagree();
-
         testGetJson();
     }
 };
