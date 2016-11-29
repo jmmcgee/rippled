@@ -702,7 +702,6 @@ PeerImp::doProtocolStart()
     onReadMessage(error_code(), 0);
 
     protocol::TMManifests tm;
-    tm.set_history (true);
 
     app_.manifestCache ().for_each_manifest (
         [&tm](std::size_t s){tm.mutable_list()->Reserve(s);},
