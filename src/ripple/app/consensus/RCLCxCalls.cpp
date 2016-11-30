@@ -102,10 +102,10 @@ uint256 RCLCxCalls::getLCL (
     return netLgr;
 }
 
-void RCLCxCalls::shareSet (RCLTxSet const& set)
+void RCLCxCalls::share (RCLTxSet const& set)
 {
-    app_.getInboundTransactions().giveSet (set.getID(),
-        set.peek(), false);
+    app_.getInboundTransactions().giveSet (set.ID(),
+        set.map, false);
 }
 
 void RCLCxCalls::propose (LedgerProposal const& position)
@@ -140,35 +140,33 @@ void RCLCxCalls::propose (LedgerProposal const& position)
     app_.overlay().send(prop);
 }
 
-void RCLCxCalls::getProposals (LedgerHash const& prevLedger,
-    std::function <bool (LedgerProposal const&)> func)
+std::vector<LedgerProposal>
+RCLCxCalls::proposals (LedgerHash const& prevLedger)
 {
-    auto proposals = consensus_.getStoredProposals (prevLedger);
-    for (auto& proposal : proposals)
-    {
-        if (func (proposal))
-        {
-            protocol::TMProposeSet prop;
+    return consensus_.getStoredProposals (prevLedger);
+}
 
-            prop.set_proposeseq (
-                proposal.getProposeSeq ());
-            prop.set_closetime (
-                proposal.getCloseTime ().time_since_epoch().count());
+void RCLCxCalls::relay(LedgerProposal const & proposal)
+{
+    protocol::TMProposeSet prop;
 
-            prop.set_currenttxhash (
-                proposal.getPosition().begin(), 256 / 8);
-            prop.set_previousledger (
-                proposal.getPrevLedger().begin(), 256 / 8);
+    prop.set_proposeseq (
+        proposal.getProposeSeq ());
+    prop.set_closetime (
+        proposal.getCloseTime ().time_since_epoch().count());
 
-            auto const pk = proposal.getPublicKey().slice();
-            prop.set_nodepubkey (pk.data(), pk.size());
+    prop.set_currenttxhash (
+        proposal.getPosition().begin(), 256 / 8);
+    prop.set_previousledger (
+        proposal.getPrevLedger().begin(), 256 / 8);
 
-            auto const sig = proposal.getSignature();
-            prop.set_signature (sig.data(), sig.size());
+    auto const pk = proposal.getPublicKey().slice();
+    prop.set_nodepubkey (pk.data(), pk.size());
 
-            app_.overlay().relay (prop, proposal.getSuppressionID ());
-        }
-    }
+    auto const sig = proposal.getSignature();
+    prop.set_signature (sig.data(), sig.size());
+
+    app_.overlay().relay (prop, proposal.getSuppressionID ());
 }
 
 
@@ -178,7 +176,6 @@ std::pair <bool, bool> RCLCxCalls::getMode (bool correctLCL)
 {
     bool propose = false;
     bool validate = false;
-
 
     if (! app_.getOPs().isNeedNetworkLedger() && (valPublic_.size() != 0))
     {
@@ -204,7 +201,7 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
         NetClock::time_point now)
 {
     auto& ledgerMaster = app_.getLedgerMaster();
-    auto const &prevLedger = prevLedgerT.peek();
+    auto const &prevLedger = prevLedgerT.ledger;
     // Tell the ledger master not to acquire the ledger we're probably building
     ledgerMaster.setBuildingLedger (prevLedger->info().seq + 1);
 
@@ -267,7 +264,8 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
             nodeID_ });
 }
 
-boost::optional<RCLCxLedger> RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
+boost::optional<RCLCxLedger>
+RCLCxCalls::acquireLedger(LedgerHash const & ledgerHash)
 {
 
     // we need to switch the ledger we're working from
@@ -379,7 +377,7 @@ applyTransactions (
 {
     auto j = app.journal ("LedgerConsensus");
 
-    auto& set = *(cSet.peek());
+    auto& set = *(cSet.map);
     CanonicalTXSet retriableTxs (set.getHash().as_uint256());
 
 
@@ -461,7 +459,7 @@ applyTransactions (
 }
 
 
-std::pair<RCLCxLedger, RCLCxRetryTxSet>
+std::pair<RCLCxLedger, CanonicalTXSet>
 RCLCxCalls::accept(
     RCLCxLedger const & previousLedger,
     RCLTxSet const & set,
@@ -471,7 +469,7 @@ RCLCxCalls::accept(
     NetClock::time_point now,
     std::chrono::milliseconds roundTime)
 {
-    RCLCxRetryTxSet retriableTxs{ set.getID() };
+    CanonicalTXSet retriableTxs{ set.ID() };
 
     auto replay = ledgerMaster_.releaseReplay();
     if (replay)
@@ -482,14 +480,14 @@ RCLCxCalls::accept(
     }
 
     JLOG (j_.debug())
-        << "Report: TxSt = " << set.getID ()
+        << "Report: TxSt = " << set.ID ()
         << ", close " << closeTime.time_since_epoch().count()
         << (closeTimeCorrect ? "" : "X");
 
 
     // Build the new last closed ledger
     auto buildLCL = std::make_shared<Ledger>(
-        *previousLedger.peek(), now);
+        *previousLedger.ledger, now);
     auto const v2_enabled = buildLCL->rules().enabled(featureSHAMapV2,
                                                     app_.config().features);
     auto v2_transition = false;
@@ -517,7 +515,7 @@ RCLCxCalls::accept(
         else
         {
             // Normal case, we are not replaying a ledger close
-            retriableTxs.txs() = applyTransactions (app_, set, accum,
+            retriableTxs = applyTransactions (app_, set, accum,
                 [&buildLCL](uint256 const& txID)
                 {
                     return ! buildLCL->txExists(txID);
@@ -570,7 +568,7 @@ RCLCxCalls::accept(
 
 bool RCLCxCalls::shouldValidate(RCLCxLedger const & ledger)
 {
-    return  ledgerMaster_.isCompatible(*ledger.peek(),
+    return  ledgerMaster_.isCompatible(*ledger.ledger,
         app_.journal("LedgerConsensus").warn(),
         "Not validating");
 }
@@ -599,8 +597,8 @@ void RCLCxCalls::validate(
     // next ledger is flag ledger
     {
         // Suggest fee changes and new features
-        feeVote_->doValidation (ledger.peek(), *v);
-        app_.getAmendmentTable ().doValidation (ledger.peek(), *v);
+        feeVote_->doValidation (ledger.ledger, *v);
+        app_.getAmendmentTable ().doValidation (ledger.ledger, *v);
     }
 
     auto const signingHash = v->sign (valSecret_);
@@ -619,13 +617,13 @@ void RCLCxCalls::consensusBuilt(
     RCLCxLedger const & ledger,
     Json::Value && json)
 {
-    ledgerMaster_.consensusBuilt (ledger.peek(), std::move(json));
+    ledgerMaster_.consensusBuilt (ledger.ledger, std::move(json));
 }
 
 
 void RCLCxCalls::createOpenLedger(
     RCLCxLedger const & closedLedger,
-    RCLCxRetryTxSet & retriableTxs,
+    CanonicalTXSet & retriableTxs,
     bool anyDisputes)
 {
     // Build new open ledger
@@ -642,8 +640,8 @@ void RCLCxCalls::createOpenLedger(
     else
         rules.emplace();
     app_.openLedger().accept(app_, *rules,
-        closedLedger.peek(), localTxs_.getTxSet(), anyDisputes,
-        retriableTxs.txs(), tapNONE,
+        closedLedger.ledger, localTxs_.getTxSet(), anyDisputes,
+        retriableTxs, tapNONE,
             "consensus",
                 [&](OpenView& view, beast::Journal j)
                 {
@@ -654,7 +652,7 @@ void RCLCxCalls::createOpenLedger(
 
 void RCLCxCalls::switchLCL(RCLCxLedger const & ledger)
 {
-    ledgerMaster_.switchLCL (ledger.peek());
+    ledgerMaster_.switchLCL (ledger.ledger);
 
     // Do these need to exist?
     assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.ID());
@@ -690,12 +688,13 @@ int RCLCxCalls::numProposersFinished(LedgerHash const & h) const
     return app_.getValidations().getNodesAfter(h);
 }
 
-void RCLCxCalls::relayDisputedTx(RCLCxTx const & tx)
+void RCLCxCalls::relay(DisputedTx <RCLCxTx, NodeID> const & dispute)
 {
      // If we didn't relay this transaction recently, relay it to all peers
-    if (app_.getHashRouter ().shouldRelay (tx.getID()))
+    auto const & tx = dispute.tx();
+    if (app_.getHashRouter ().shouldRelay (tx.ID()))
     {
-        auto const slice = tx.txn().slice();
+        auto const slice = tx.txn.slice();
 
         protocol::TMTransaction msg;
         msg.set_rawtransaction (slice.data(), slice.size());
@@ -708,20 +707,19 @@ void RCLCxCalls::relayDisputedTx(RCLCxTx const & tx)
     }
 }
 
-void RCLCxCalls::offloadAccept(JobQueue::JobFunction const & f)
+void RCLCxCalls::dispatchAccept(JobQueue::JobFunction const & f)
 {
     app_.getJobQueue().addJob(jtACCEPT, "acceptLedger", f);
 }
 
-boost::optional<RCLTxSet> RCLCxCalls::getTxSet(LedgerProposal const & position)
+boost::optional<RCLTxSet>
+RCLCxCalls::acquireTxSet(LedgerProposal const & position)
 {
-    if (auto set = inboundTransactions_.getSet(
-        position.getPosition(), true))
+    if (auto set = inboundTransactions_.getSet(position.getPosition(), true))
     {
         return RCLTxSet{std::move(set)};
     }
-    else
-        return boost::none;
+    return boost::none;
 }
 
 void RCLCxCalls::accept(
@@ -827,7 +825,9 @@ void RCLCxCalls::accept(
                         << "Test applying disputed transaction that did"
                         << " not get in";
 
-                    retriableTxs.insert (it.second.tx());
+                    SerialIter sit (it.second.tx().txn.slice());
+                    auto txn = std::make_shared<STTx const>(sit);
+                    retriableTxs.insert (txn);
 
                     anyDisputes = true;
                 }

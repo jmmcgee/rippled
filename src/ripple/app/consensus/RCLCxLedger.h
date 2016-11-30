@@ -37,58 +37,61 @@ public:
     // Do we need this or can we force LedgerConsens to start with some ledger?
     RCLCxLedger() = default;
 
-    RCLCxLedger(std::shared_ptr<Ledger const> const & l) : ledger_{ l } {}
+    RCLCxLedger(std::shared_ptr<Ledger const> const & l) : ledger{ l } {}
 
-    auto seq() const
+    auto
+    seq() const
     {
-        return ledger_->info().seq;
+        return ledger->info().seq;
     }
 
-    auto closeTimeResolution() const
+    auto
+    closeTimeResolution() const
     {
-        return ledger_->info().closeTimeResolution;
+        return ledger->info().closeTimeResolution;
     }
 
-    bool getCloseAgree() const
+    bool
+    closeAgree() const
     {
-        return ripple::getCloseAgree(ledger_->info());
+        return ripple::getCloseAgree(ledger->info());
     }
 
-    auto ID() const
+    auto
+    ID() const
     {
-        return ledger_->info().hash;
+        return ledger->info().hash;
     }
 
-    auto parentID() const
+    auto
+    parentID() const
     {
-        return ledger_->info().parentHash;
+        return ledger->info().parentHash;
     }
 
-    auto closeTime() const
+    auto
+    closeTime() const
     {
-        return ledger_->info().closeTime;
+        return ledger->info().closeTime;
     }
 
-    auto parentCloseTime() const
+    auto
+    parentCloseTime() const
     {
-        return ledger_->info().parentCloseTime;
+        return ledger->info().parentCloseTime;
     }
 
-    Json::Value getJson() const
+    Json::Value
+    getJson() const
     {
-        return ripple::getJson(*ledger_);
+        return ripple::getJson(*ledger);
     }
 
-    auto const & peek() const
-    {
-        return ledger_;
-    }
 
-protected:
 
     // TODO: Make this shared_ptr<ReadView const> .. requires ability to create
     // a new ledger from a readview?
-    std::shared_ptr<Ledger const> ledger_;
+    std::shared_ptr<Ledger const> ledger;
 
 };
 

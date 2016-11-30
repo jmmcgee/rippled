@@ -64,7 +64,7 @@ public:
     Tx(id_type i) : id{ i } {}
 
     id_type
-    getID() const
+    ID() const
     {
         return id;
     }
@@ -91,7 +91,7 @@ void
 inline hash_append(Hasher& h, Tx const & tx)
 {
     using beast::hash_append;
-    hash_append(h, tx.getID());
+    hash_append(h, tx.ID());
 }
 
 //!-------------------------------------------------------------------------
@@ -108,7 +108,7 @@ inline std::ostream& operator<<(std::ostream & o, tx_set_type const & txs)
             o << ", ";
         else
             do_comma = true;
-        o << tx.getID();
+        o << tx.ID();
 
 
     }
@@ -124,18 +124,15 @@ inline std::string to_string(tx_set_type const & txs)
     return ss.str();
 }
 
-// TxSet/MutableTxSet are a set of transactions to consider including in the
-// ledger
-class TxSet;
-
-class MutableTxSet
+// TxSet is a set of transactions to consider including in the ledger
+class TxSet
 {
 public:
-    friend class TxSet;
+    using id_type = tx_set_type;
+    using tx_type = Tx;
 
-    MutableTxSet() = default;
-
-    MutableTxSet(TxSet const &);
+    TxSet() = default;
+    TxSet(tx_set_type const & s) : txs{ s } {}
 
     bool
     insert(Tx const & t)
@@ -144,52 +141,29 @@ public:
     }
 
     bool
-    remove(Tx::id_type const & tx_id)
+    erase(Tx::id_type const & tx_id)
     {
         return txs.erase(Tx{ tx_id }) > 0;
     }
 
-private:
-    // The set contains the actual transactions
-    tx_set_type txs;
-
-};
-
-class TxSet
-{
-public:
-    friend class MutableTxSet;
-
-    using id_type = tx_set_type;
-    using tx_type = Tx;
-    using mutable_t = MutableTxSet;
-
-    TxSet() = default;
-    TxSet(tx_set_type const & s) : txs{ s } {}
-    TxSet(MutableTxSet const & s)
-        : txs{ s.txs }
-    {
-
-    }
-
     bool
-    hasEntry(Tx::id_type const tx_id) const
+    exists(Tx::id_type const tx_id) const
     {
         auto it = txs.find(Tx{ tx_id });
         return it != txs.end();
     }
 
-    boost::optional <Tx const>
-    getEntry(Tx::id_type const& tx_id) const
+    tx_type const *
+    find(Tx::id_type const& tx_id) const
     {
         auto it = txs.find(Tx{ tx_id });
         if (it != txs.end())
-            return *it;
-        return boost::none;
+            return &(*it);
+        return nullptr;
     }
 
     auto
-    getID() const
+    ID() const
     {
         return txs;
     }
@@ -198,7 +172,7 @@ public:
     // true means it was in this set and not other
     // false means it was in the other set and not this
     std::map<Tx::id_type, bool>
-    getDifferences(TxSet const& other) const
+    diff(TxSet const& other) const
     {
         std::map<Tx::id_type, bool> res;
 
@@ -206,7 +180,7 @@ public:
         {
             auto populator = [&](auto const & tx)
             {
-                        res[tx.getID()] = s;
+                        res[tx.ID()] = s;
             };
             std::set_difference(
                 a.begin(), a.end(),
@@ -222,21 +196,10 @@ public:
         return res;
     }
 
-    auto const &
-    peek() const
-    {
-        return txs;
-    }
-
-
-private:
     // The set contains the actual transactions
     tx_set_type txs;
 
 };
-
-MutableTxSet::MutableTxSet(TxSet const & s)
-    : txs(s.txs) {}
 
 // A ledger is a set of observed transactions and a sequence number
 // identifying the ledger.
@@ -249,7 +212,7 @@ public:
     id_type
     ID() const
     {
-        return { seq_, txs_ };
+        return { seq_, txs };
     }
 
     auto
@@ -265,7 +228,7 @@ public:
     }
 
     auto
-    getCloseAgree() const
+    closeAgree() const
     {
         return closeTimeAgree_;
     }
@@ -296,11 +259,6 @@ public:
         return res;
     }
 
-    auto const &
-    peek() const
-    {
-        return txs_;
-    }
 
     // Apply the given transactions to this ledger
     Ledger
@@ -310,7 +268,7 @@ public:
         bool closeTimeAgree) const
     {
         Ledger res{ *this };
-        res.txs_.insert(txs.begin(), txs.end());
+        res.txs.insert(txs.begin(), txs.end());
         res.seq_ = seq() + 1;
         res.closeTimeResolution_ = closeTimeResolution;
         res.closeTime_ = consensusCloseTime;
@@ -320,10 +278,11 @@ public:
         return res;
     }
 
+    // Set of transactions in the ledger
+    tx_set_type txs;
+
 private:
 
-    // Set of transactions in the ledger
-    tx_set_type txs_;
     // Sequence number of the ledger
     std::int32_t seq_ = 0;
     // Bucket resolution used to determine close time
@@ -419,7 +378,7 @@ struct Peer
     bc::flat_map<Ledger::id_type, Ledger> ledgers;
     // Map from Ledger::id_type to vector of Positions with that ledger
     // as the prior ledger
-    bc::flat_map<Ledger::id_type, std::vector<Position>> proposals;
+    bc::flat_map<Ledger::id_type, std::vector<Position>> proposals_;
     bc::flat_map<TxSet::id_type, TxSet> txSets;
     bc::flat_set<Tx::id_type> seenTxs;
 
@@ -454,41 +413,31 @@ struct Peer
         return{ true, true };
     }
 
-    boost::optional<Ledger>
+    Ledger const *
     acquireLedger(Ledger::id_type const & ledgerHash)
     {
         auto it = ledgers.find(ledgerHash);
         if (it != ledgers.end())
-            return it->second;
+            return &(it->second);
         // TODO: acquire from network?
-        return boost::none;
+        return nullptr;
     }
 
-    // Should be named get and share?
-    // If f returns true, that means it was
-    // a useful proposal and should be shared
-    template <class F>
-    void
-    getProposals(Ledger::id_type const & ledgerHash, F && f)
+    auto const &
+    proposals(Ledger::id_type const & ledgerHash)
     {
-        for (auto const & proposal : proposals[ledgerHash])
-        {
-            if (f(proposal))
-            {
-                relay(proposal);
-            }
-        }
+        return proposals_[ledgerHash];
     }
 
-    boost::optional<TxSet>
-    getTxSet(Position const & position)
+    TxSet const *
+    acquireTxSet(Position const & position)
     {
         // Weird . . should getPosition() type really be TxSet_idtype?
         auto it = txSets.find(position.getPosition());
         if(it != txSets.end())
-            return it->second;
+            return &(it->second);
         // TODO Ask network for it?
-        return boost::none;
+        return nullptr;
     }
 
 
@@ -559,14 +508,14 @@ struct Peer
     // TODO: Should not be imposed on clients?
     template <class F>
     void
-    offloadAccept(F && f)
+    dispatchAccept(F && f)
     {
         int dummy = 1;
         f(dummy);
     }
 
     void
-    shareSet(TxSet const &s)
+    share(TxSet const &s)
     {
         relay(s);
     }
@@ -586,6 +535,25 @@ struct Peer
         relay(pos);
     }
 
+    void
+    relay(Consensus::Dispute_t const & dispute)
+    {
+        relay(dispute.tx());
+    }
+
+    std::pair <TxSet, Position>
+    makeInitialPosition(
+            Ledger const & prevLedger,
+            bool isProposing,
+            bool isCorrectLCL,
+            time_point closeTime,
+            time_point now)
+    {
+        TxSet res{ openTxs };
+
+        return { res,
+            Position{prevLedger.ID(), res.ID(), closeTime, now, id} };
+    }
 
     // Process the accepted transaction set, generating the newly closed ledger
     // and clearing out hte openTxs that were included.
@@ -607,7 +575,7 @@ struct Peer
         time_point const & closeTime,
         Json::Value && json)
     {
-        auto newLedger = previousLedger_.close(set.peek(), closeResolution_,
+        auto newLedger = previousLedger_.close(set.txs, closeResolution_,
             closeTime, consensusCloseTime != time_point{});
         ledgers[newLedger.ID()] = newLedger;
 
@@ -616,15 +584,9 @@ struct Peer
         auto it = std::remove_if(openTxs.begin(), openTxs.end(),
             [&](Tx const & tx)
             {
-                return set.hasEntry(tx.getID());
+                return set.exists(tx.ID());
             });
         openTxs.erase(it, openTxs.end());
-    }
-
-    void
-    relayDisputedTx(Tx const &tx)
-    {
-        relay(tx);
     }
 
     void
@@ -637,27 +599,13 @@ struct Peer
             lastClosedLedger);
     }
 
-    std::pair <TxSet, Position>
-    makeInitialPosition(
-            Ledger const & prevLedger,
-            bool isProposing,
-            bool isCorrectLCL,
-            time_point closeTime,
-            time_point now)
-    {
-        TxSet res{ openTxs };
-
-        return { res,
-            Position{prevLedger.ID(), res.getID(), closeTime, now, id} };
-    }
-
     //-------------------------------------------------------------------------
     // non-callback helpers
     void
     receive(Position const & p)
     {
         // filter proposals already seen?
-        proposals[p.getPrevLedger()].push_back(p);
+        proposals_[p.getPrevLedger()].push_back(p);
         consensus->peerPosition(net.now(), p);
 
     }
@@ -666,7 +614,7 @@ struct Peer
     receive(TxSet const & txs)
     {
         // save and map complete?
-        auto it = txSets.insert(std::make_pair(txs.getID(), txs));
+        auto it = txSets.insert(std::make_pair(txs.ID(), txs));
         if(it.second)
             consensus->gotMap(net.now(), txs);
     }
@@ -674,16 +622,16 @@ struct Peer
     void
     receive(Tx const & tx)
     {
-        if (seenTxs.find(tx.getID()) == seenTxs.end())
+        if (seenTxs.find(tx.ID()) == seenTxs.end())
         {
             openTxs.insert(tx);
-            seenTxs.insert(tx.getID());
+            seenTxs.insert(tx.ID());
         }
     }
 
     template <class T>
     void
-    relay(T && t)
+    relay(T const & t)
     {
         for(auto const& link : net.links(this))
             net.send(this, link.to,
@@ -738,9 +686,9 @@ class LedgerConsensus_test : public beast::unit_test::suite
         // Inspect that the proper ledger was created
         BEAST_EXPECT(p.consensus->getLCL().first == 1);
         BEAST_EXPECT(p.consensus->getLCL() == p.lastClosedLedger.ID());
-        BEAST_EXPECT(p.lastClosedLedger.peek().size() == 1);
-        BEAST_EXPECT(p.lastClosedLedger.peek().find(Tx{ 1 })
-            != p.lastClosedLedger.peek().end());
+        BEAST_EXPECT(p.lastClosedLedger.txs.size() == 1);
+        BEAST_EXPECT(p.lastClosedLedger.txs.find(Tx{ 1 })
+            != p.lastClosedLedger.txs.end());
         BEAST_EXPECT(p.consensus->getLastCloseDuration() == 8s);
         BEAST_EXPECT(p.consensus->getLastCloseProposers() == 0);
     }

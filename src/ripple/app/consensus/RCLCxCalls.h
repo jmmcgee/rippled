@@ -62,19 +62,23 @@ public:
         return lastCloseTime_;
     }
 
-    uint256 getLCL (
+    uint256
+    getLCL (
         uint256 const& currentLedger,
         uint256 const& priorLedger,
         bool believedCorrect);
 
-    std::pair <bool, bool> getMode (bool correctLCL);
+    std::pair <bool, bool>
+    getMode (bool correctLCL);
 
-    void shareSet (RCLTxSet const& set);
+    void
+    share (RCLTxSet const& set);
 
-    void propose (LedgerProposal const& position);
+    void
+    propose (LedgerProposal const& position);
 
-    void getProposals (LedgerHash const& prevLedger,
-        std::function <bool (LedgerProposal const&)>);
+    std::vector<LedgerProposal>
+    proposals (LedgerHash const& prevLedger);
 
     std::pair <RCLTxSet, LedgerProposal>
     makeInitialPosition (
@@ -84,7 +88,8 @@ public:
         NetClock::time_point closeTime,
         NetClock::time_point now);
 
-    boost::optional<RCLCxLedger> acquireLedger(LedgerHash const & ledgerHash);
+    boost::optional<RCLCxLedger>
+    acquireLedger(LedgerHash const & ledgerHash);
 
    /*
     * Senda status change message to peers due to a change in ledger
@@ -92,12 +97,14 @@ public:
     * @param ledger the ledger we are changing to
     * @param haveCorrectLCL whether we believe this is the correct LCL
     */
-    void statusChange(
+    void
+    statusChange(
         ConsensusChange c,
         RCLCxLedger const & ledger,
         bool haveCorrectLCL);
 
-    void accept(
+    void
+    accept(
         RCLTxSet const& set,
         NetClock::time_point consensusCloseTime,
         bool proposing_,
@@ -121,44 +128,58 @@ public:
     * Signal the end of consensus to the application, which will start the
     * next round.
     */
-    void endConsensus(bool correctLCL);
+    void
+    endConsensus(bool correctLCL);
 
     /*
     * @return a handle to the given journal
     */
-    beast::Journal journal(std::string const & s) const;
+    beast::Journal
+    journal(std::string const & s) const;
 
     /*
     *@return whether the open ledger has any transactions
     */
-    bool hasOpenTransactions() const;
+    bool
+    hasOpenTransactions() const;
 
     /*
     * @return the number of proposers that validated the last validated ledger
     */
-    int numProposersValidated(LedgerHash const & h) const;
+    int
+    numProposersValidated(LedgerHash const & h) const;
 
     /*
     * @return the number of validating peers that have validated a ledger
     * succeeding the one provided
     */
-    int numProposersFinished(LedgerHash const & h) const;
+    int
+    numProposersFinished(LedgerHash const & h) const;
 
     /**
     * If the provided transaction hasn't been shared recently, relay it to peers
     * @param tx the disputed transaction to relay
     */
-    void relayDisputedTx(RCLCxTx const & tx);
+    void
+    relay(DisputedTx <RCLCxTx, NodeID> const & dispute);
+
+    /**
+     * Relay the given proposal to all peers
+     */
+    void
+    relay(LedgerProposal const & proposal);
 
     /*
     * Schedule an offloaded call to accept
     */
-    void offloadAccept(JobQueue::JobFunction const & f);
+    void
+    dispatchAccept(JobQueue::JobFunction const & f);
 
     /**
     * @return the transaction set associated with this position
     */
-    boost::optional<RCLTxSet> getTxSet(LedgerProposal const & position);
+    boost::optional<RCLTxSet>
+    acquireTxSet(LedgerProposal const & position);
 
 private:
 
@@ -170,7 +191,7 @@ private:
     * next round.
     * @return the newly built ledger
     */
-    std::pair<RCLCxLedger, RCLCxRetryTxSet>
+    std::pair<RCLCxLedger, CanonicalTXSet>
     accept(
         RCLCxLedger const & previousLedger,
         RCLTxSet const & set,
@@ -221,7 +242,7 @@ private:
     */
     void createOpenLedger(
         RCLCxLedger const & closedLedger,
-        RCLCxRetryTxSet & retriableTxs,
+        CanonicalTXSet & retriableTxs,
         bool anyDisputes);
 
     /*

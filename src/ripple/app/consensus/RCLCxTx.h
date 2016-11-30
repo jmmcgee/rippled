@@ -33,54 +33,16 @@ class RCLCxTx
 public:
     using id_type = uint256;
 
-    RCLCxTx (SHAMapItem const& txn) : txn_ (txn)
+    RCLCxTx(SHAMapItem const& txn) : txn{ txn }
     { }
 
-    id_type const& getID() const
+    id_type const&
+    ID() const
     {
-        return txn_.key ();
+        return txn.key ();
     }
 
-    SHAMapItem const& txn() const
-    {
-        return txn_;
-    }
-
-protected:
-
-    SHAMapItem const txn_;
-};
-
-class RCLTxSet;
-
-class MutableRCLTxSet
-{
-public:
-
-    MutableRCLTxSet (RCLTxSet const&);
-
-    bool
-    insert (RCLCxTx const& p)
-    {
-        return map_->addItem (
-            SHAMapItem {p.getID(), p.txn().peekData()},
-            true, false);
-    }
-
-    bool
-    remove (uint256 const& entry)
-    {
-        return map_->delItem (entry);
-    }
-
-    std::shared_ptr <SHAMap> const& peek() const
-    {
-        return map_;
-    }
-
-protected:
-
-    std::shared_ptr <SHAMap> map_;
+    SHAMapItem const txn;
 };
 
 // Sets of transactions
@@ -89,46 +51,54 @@ class RCLTxSet
 {
 public:
     using id_type = uint256;
-    using mutable_t = MutableRCLTxSet;
     using tx_type = RCLCxTx;
 
-    RCLTxSet (std::shared_ptr<SHAMap> map) :
-        map_ (std::move(map))
+    RCLTxSet (std::shared_ptr<SHAMap> m) :
+        map{ std::move(m) }
     {
-        assert (map_);
+        assert(map);
     }
 
-    RCLTxSet (MutableRCLTxSet const& set) :
-        map_ (set.peek()->snapShot (false))
-    { }
-
-    bool hasEntry (uint256 const& entry) const
+    bool
+    insert (tx_type const& t)
     {
-        return map_->hasItem (entry);
+        return map->addItem (
+            SHAMapItem {t.ID(), t.txn.peekData()},
+            true, false);
     }
 
-    boost::optional <tx_type const>
-    getEntry (uint256 const& entry) const
+    bool
+    erase (tx_type::id_type const& entry)
     {
-        auto item = map_->peekItem (entry);
-        if (item)
-            return tx_type{ *item };
-        return boost::none;
+        return map->delItem (entry);
     }
 
-    id_type getID() const
+    bool
+    exists(tx_type::id_type const& entry) const
     {
-        return map_->getHash().as_uint256();
+        return map->hasItem (entry);
     }
 
-    std::map <uint256, bool>
-    getDifferences (RCLTxSet const& j) const
+    auto
+    find(tx_type::id_type const& entry) const
+    {
+        return map->peekItem (entry);
+    }
+
+    id_type
+    ID() const
+    {
+        return map->getHash().as_uint256();
+    }
+
+    std::map <tx_type::id_type, bool>
+    diff (RCLTxSet const& j) const
     {
         SHAMap::Delta delta;
 
         // Bound the work we do in case of a malicious
         // map from a trusted validator
-        map_->compare (*(j.map_), delta, 65536);
+        map->compare (*(j.map), delta, 65536);
 
         std::map <uint256, bool> ret;
         for (auto const& item : delta)
@@ -141,38 +111,7 @@ public:
         return ret;
     }
 
-    std::shared_ptr<SHAMap> const& peek() const
-    {
-        return map_;
-    }
-
-protected:
-
-    std::shared_ptr <SHAMap> map_;
-};
-
-inline MutableRCLTxSet::MutableRCLTxSet (RCLTxSet const& set)
-    : map_ (set.peek()->snapShot (true))
-{ }
-
-class RCLCxRetryTxSet
-{
-public:
-    RCLCxRetryTxSet(uint256 id) : txs_{ id } {}
-
-    void insert(RCLCxTx cTxn)
-    {
-        SerialIter sit (cTxn.txn().slice());
-        auto txn = std::make_shared<STTx const>(sit);
-        txs_.insert (txn);
-    }
-
-    CanonicalTXSet & txs()
-    {
-        return txs_;
-    }
-private:
-    CanonicalTXSet txs_;
+    std::shared_ptr <SHAMap> map;
 };
 
 }

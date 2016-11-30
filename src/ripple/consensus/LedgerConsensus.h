@@ -494,7 +494,7 @@ LedgerConsensus<Traits>::mapCompleteInternal (
     TxSet_t const& map,
     bool acquired)
 {
-    auto const hash = map.getID ();
+    auto const hash = map.ID ();
 
     if (acquired_.find (hash) != acquired_.end())
         return;
@@ -511,7 +511,7 @@ LedgerConsensus<Traits>::mapCompleteInternal (
         // If we generated this locally,
         // put the map where others can get it
         // If we acquired it, it's already shared
-        callbacks_.shareSet (map);
+        callbacks_.share (map);
     }
 
     if (! ourPosition_)
@@ -753,7 +753,7 @@ void LedgerConsensus<Traits>::statePreClose ()
     milliseconds sinceClose;
     {
         bool previousCloseCorrect = haveCorrectLCL_
-            && previousLedger_.getCloseAgree ()
+            && previousLedger_.closeAgree ()
             && (previousLedger_.closeTime() !=
                 (previousLedger_.parentCloseTime() + 1s));
 
@@ -952,7 +952,7 @@ bool LedgerConsensus<Traits>::peerPosition (
         auto ait = acquired_.find (newPosition.getPosition());
         if (ait == acquired_.end())
         {
-            if (auto set = callbacks_.getTxSet(newPosition))
+            if (auto set = callbacks_.acquireTxSet(newPosition))
             {
                 ait = acquired_.emplace (newPosition.getPosition(),
                     std::move(*set)).first;
@@ -964,7 +964,7 @@ bool LedgerConsensus<Traits>::peerPosition (
         {
             for (auto& it : disputes_)
                 it.second.setVote (peerID,
-                    ait->second.hasEntry (it.first));
+                    ait->second.exists (it.first));
         }
         else
         {
@@ -1029,12 +1029,12 @@ void LedgerConsensus<Traits>::createDisputes (
     TxSet_t const& m1,
     TxSet_t const& m2)
 {
-    if (m1.getID() == m2.getID())
+    if (m1.ID() == m2.ID())
         return;
 
     JLOG (j_.debug()) << "createDisputes "
-        << m1.getID() << " to " << m2.getID();
-    auto differences = m1.getDifferences (m2);
+        << m1.ID() << " to " << m2.ID();
+    auto differences = m1.diff (m2);
 
     int dc = 0;
     // for each difference between the transactions
@@ -1043,13 +1043,13 @@ void LedgerConsensus<Traits>::createDisputes (
         ++dc;
         // create disputed transactions (from the ledger that has them)
         assert (
-            (id.second && m1.getEntry(id.first) && !m2.getEntry(id.first)) ||
-            (!id.second && !m1.getEntry(id.first) && m2.getEntry(id.first))
+            (id.second && m1.find(id.first) && !m2.find(id.first)) ||
+            (!id.second && !m1.find(id.first) && m2.find(id.first))
         );
         if (id.second)
-            addDisputedTransaction (*m1.getEntry (id.first));
+            addDisputedTransaction (*m1.find (id.first));
         else
-            addDisputedTransaction (*m2.getEntry (id.first));
+            addDisputedTransaction (*m2.find (id.first));
     }
     JLOG (j_.debug()) << dc << " differences found";
 }
@@ -1058,7 +1058,7 @@ template <class Traits>
 void LedgerConsensus<Traits>::addDisputedTransaction (
     Tx_t const& tx)
 {
-    auto txID = tx.getID();
+    auto txID = tx.ID();
 
     if (disputes_.find (txID) != disputes_.end ())
         return;
@@ -1070,9 +1070,9 @@ void LedgerConsensus<Traits>::addDisputedTransaction (
 
     // Update our vote on the disputed transaction
     if (ourSet_)
-        ourVote = ourSet_->hasEntry (txID);
+        ourVote = ourSet_->exists (txID);
 
-    Dispute_t txn {tx, ourVote, j_};
+    Dispute_t dtx {tx, ourVote, j_};
 
     // Update all of the peer's votes on the disputed transaction
     for (auto& pit : peerPositions_)
@@ -1080,13 +1080,13 @@ void LedgerConsensus<Traits>::addDisputedTransaction (
         auto cit (acquired_.find (pit.second.getPosition ()));
 
         if (cit != acquired_.end ())
-            txn.setVote (pit.first,
-                cit->second.hasEntry (txID));
+            dtx.setVote (pit.first,
+                cit->second.exists (txID));
     }
 
-    callbacks_.relayDisputedTx(tx);
+    callbacks_.relay(dtx);
 
-    disputes_.emplace (txID, std::move (txn));
+    disputes_.emplace (txID, std::move (dtx));
 }
 
 template <class Traits>
@@ -1095,7 +1095,7 @@ void LedgerConsensus<Traits>::adjustCount (TxSet_t const& map,
 {
     for (auto& it : disputes_)
     {
-        bool setHas = map.hasEntry (it.first);
+        bool setHas = map.exists (it.first);
         for (auto const& pit : peers)
             it.second.setVote (pit, setHas);
     }
@@ -1119,20 +1119,20 @@ void LedgerConsensus<Traits>::takeInitialPosition()
        haveCorrectLCL_,  closeTime_, now_ );
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
-    assert (initialSet.getID() == initialPos.getPosition());
+    assert (initialSet.ID() == initialPos.getPosition());
 
     ourPosition_ = initialPos;
     ourSet_ = initialSet;
 
     for (auto& it : disputes_)
     {
-        it.second.setOurVote (initialSet.hasEntry (it.first));
+        it.second.setOurVote (initialSet.exists (it.first));
     }
 
     // When we take our initial position,
     // we need to create any disputes required by our position
     // and any peers who have already taken positions
-    compares_.emplace (initialSet.getID());
+    compares_.emplace (initialSet.ID());
     for (auto& it : peerPositions_)
     {
         auto hash = it.second.getPosition();
@@ -1205,11 +1205,11 @@ void LedgerConsensus<Traits>::updateOurPositions ()
     }
 
     // This will stay unseated unless there are any changes
-    boost::optional <TxSet_t> ourSet;
+    boost::optional <TxSet_t> ourNewSet;
 
     // Update votes on disputed transactions
     {
-        boost::optional <typename TxSet_t::mutable_t> changedSet;
+        boost::optional <TxSet_t> changedSet;
         for (auto& it : disputes_)
         {
             // Because the threshold for inclusion increases,
@@ -1227,13 +1227,13 @@ void LedgerConsensus<Traits>::updateOurPositions ()
                 else
                 {
                     // now a no
-                    changedSet->remove (it.first);
+                    changedSet->erase (it.first);
                 }
             }
         }
         if (changedSet)
         {
-            ourSet.emplace (*changedSet);
+            ourNewSet.emplace (*changedSet);
         }
     }
 
@@ -1313,22 +1313,22 @@ void LedgerConsensus<Traits>::updateOurPositions ()
     // claimed close time. Once the new close time code is deployed
     // to the full network, this can be relaxed to force a change
     // only if the rounded close time has changed.
-    if (! ourSet &&
+    if (! ourNewSet &&
             ((closeTime != ourPosition_->getCloseTime())
             || ourPosition_->isStale (ourCutoff)))
     {
         // close time changed or our position is stale
-        ourSet.emplace (*ourSet_);
+        ourNewSet.emplace (*ourSet_);
     }
 
-    if (ourSet)
+    if (ourNewSet)
     {
-        auto newHash = ourSet->getID();
+        auto newHash = ourNewSet->ID();
 
         // Setting ourSet_ here prevents mapCompleteInternal
         // from checking for new disputes. But we only changed
         // positions on existing disputes, so no need to.
-        ourSet_ = ourSet;
+        ourSet_ = ourNewSet;
 
         JLOG (j_.info())
             << "Position change: CTime "
@@ -1341,7 +1341,7 @@ void LedgerConsensus<Traits>::updateOurPositions ()
             if (proposing_)
                 callbacks_.propose (*ourPosition_);
 
-            mapCompleteInternal (*ourSet, false);
+            mapCompleteInternal (*ourNewSet, false);
         }
     }
 }
@@ -1349,11 +1349,11 @@ void LedgerConsensus<Traits>::updateOurPositions ()
 template <class Traits>
 void LedgerConsensus<Traits>::playbackProposals ()
 {
-    callbacks_.getProposals (prevLedgerHash_,
-        [=](Pos_t const& pos)
-        {
-            return peerPosition (now_, pos);
-        });
+    for (auto const & p : callbacks_.proposals(prevLedgerHash_))
+    {
+        if(peerPosition(now_, p))
+            callbacks_.relay(p);
+    }
 }
 
 template <class Traits>
@@ -1390,7 +1390,7 @@ void LedgerConsensus<Traits>::beginAccept (bool synchronous)
         accept (*ourSet_);
     else
     {
-        callbacks_.offloadAccept(
+        callbacks_.dispatchAccept(
             [that = this->shared_from_this(),
             consensusSet = *ourSet_]
             (auto &)
@@ -1439,7 +1439,7 @@ void LedgerConsensus<Traits>::startRound (
 
     closeResolution_ = getNextLedgerTimeResolution (
         previousLedger_.closeTimeResolution(),
-        previousLedger_.getCloseAgree(),
+        previousLedger_.closeAgree(),
         previousLedger_.seq() + 1);
 
 

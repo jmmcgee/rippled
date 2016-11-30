@@ -25,6 +25,7 @@
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/json_value.h>
+
 namespace ripple {
 
 /** A transaction discovered to be in dispute during conensus.
@@ -44,7 +45,7 @@ public:
 
     DisputedTx (Tx_t const& tx,
             bool ourVote, beast::Journal j)
-        : mTransactionID (tx.getID())
+        : mTransactionID (tx.ID())
         , mYays (0)
         , mNays (0)
         , mOurVote (ourVote)
@@ -53,7 +54,7 @@ public:
     {
     }
 
-    TxID_t const& getID () const
+    TxID_t const& ID () const
     {
         return mTransactionID;
     }
