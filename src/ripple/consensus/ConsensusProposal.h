@@ -16,8 +16,8 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
-#ifndef RIPPLE_CONSENSUS_CONSENSUSPOSITION_H_INCLUDED
-#define RIPPLE_CONSENSUS_CONSENSUSPOSITION_H_INCLUDED
+#ifndef RIPPLE_CONSENSUS_ConsensusProposal_H_INCLUDED
+#define RIPPLE_CONSENSUS_ConsensusProposal_H_INCLUDED
 
 #include <cstdint>
 #include <ripple/json/json_value.h>
@@ -27,14 +27,14 @@ namespace ripple
 {
 /**
  Represents a proposed position taken during a round of consensus.
- This can either be our own position or one of our peers.
+ This can either be our own proposal or a proposal from a peer.
  */
 template <
     class NodeID_t,
-    class LgrID_t,
-    class PosID_t,
+    class LedgerID_t,
+    class Position_t,
     class Time_t>
-class ConsensusPosition
+class ConsensusProposal
 {
 private:
     // A peer initial joins the consensus process
@@ -45,96 +45,96 @@ private:
 
 public:
 
-    using node_id_type = NodeID_t;
+    using NodeID = NodeID_t;
 
     // Peer Proposal
-    ConsensusPosition(
-        LgrID_t const& prevLedger,
+    ConsensusProposal(
+        LedgerID_t const& prevLedger,
         std::uint32_t seq,
-        PosID_t const& position,
+        Position_t const& position,
         Time_t closeTime,
         Time_t now,
-        NodeID_t const& nodeID_t)
-    : mPreviousLedger(prevLedger)
-    , mCurrentHash(position)
-    , mCloseTime(closeTime)
-    , mTime(now)
-    , mProposeSeq(seq)
-    , mPeerID(nodeID_t)
+        NodeID_t const& nodeID)
+    : previousLedger_(prevLedger)
+    , position_(position)
+    , closeTime_(closeTime)
+    , time_(now)
+    , proposeSeq_(seq)
+    , nodeID_(nodeID)
     {
 
     }
 
     // Our proposal
-    ConsensusPosition(
-        LgrID_t const& prevLgr,
-        PosID_t const& position,
+    ConsensusProposal(
+        LedgerID_t const& prevLgr,
+        Position_t const& position,
         Time_t closeTime,
         Time_t now,
-        NodeID_t const& nodeID_t)
-    : mPreviousLedger(prevLgr)
-    , mCurrentHash(position)
-    , mCloseTime(closeTime)
-    , mTime(now)
-    , mProposeSeq(seqJoin)
-    , mPeerID(nodeID_t)
+        NodeID_t const& nodeID)
+    : previousLedger_(prevLgr)
+    , position_(position)
+    , closeTime_(closeTime)
+    , time_(now)
+    , proposeSeq_(seqJoin)
+    , nodeID_(nodeID)
     {
 
     }
 
     // @return identifying index of which peer took this position
-    NodeID_t const& getPeerID () const
+    NodeID_t const& getNodeID () const
     {
-        return mPeerID;
+        return nodeID_;
     }
 
     // @return identify
-    PosID_t const& getPosition () const
+    Position_t const& getPosition () const
     {
-        return mCurrentHash;
+        return position_;
     }
 
     // @return the prior accepted ledger this position is based on
-    LgrID_t const& getPrevLedger () const
+    LedgerID_t const& getPrevLedgerID () const
     {
-        return mPreviousLedger;
+        return previousLedger_;
     }
 
     // @return
     std::uint32_t getProposeSeq () const
     {
-        return mProposeSeq;
+        return proposeSeq_;
     }
 
     // @return the current position on the consensus close time
     Time_t getCloseTime () const
     {
-        return mCloseTime;
+        return closeTime_;
     }
 
     // @return when this position was taken
     Time_t getSeenTime () const
     {
-        return mTime;
+        return time_;
     }
 
     // @return whether this is the first position taken during the current
     // consensus round
     bool isInitial () const
     {
-        return mProposeSeq == seqJoin;
+        return proposeSeq_ == seqJoin;
     }
 
     // @return whether this node left the consensus process
     bool isBowOut () const
     {
-        return mProposeSeq == seqLeave;
+        return proposeSeq_ == seqLeave;
     }
 
     // @return whether this position is stale relative to the provided cutoff
     bool isStale (Time_t cutoff) const
     {
-        return mTime <= cutoff;
+        return time_ <= cutoff;
     }
 
     /**
@@ -149,25 +149,25 @@ public:
         already left this consensus round
      */
     bool changePosition(
-        PosID_t const& newPosition,
+        Position_t const& newPosition,
         Time_t newCloseTime,
         Time_t now)
     {
-         if (mProposeSeq == seqLeave)
+         if (proposeSeq_ == seqLeave)
             return false;
 
-        mCurrentHash    = newPosition;
-        mCloseTime      = newCloseTime;
-        mTime           = now;
-        ++mProposeSeq;
+        position_    = newPosition;
+        closeTime_      = newCloseTime;
+        time_           = now;
+        ++proposeSeq_;
         return true;
     }
 
     // Leave consensus
     void bowOut(Time_t now)
     {
-        mTime           = now;
-        mProposeSeq     = seqLeave;
+        time_           = now;
+        proposeSeq_     = seqLeave;
     }
 
 
@@ -176,7 +176,7 @@ public:
         using std::to_string;
 
         Json::Value ret = Json::objectValue;
-        ret[jss::previous_ledger] = to_string (getPrevLedger());
+        ret[jss::previous_ledger] = to_string (getPrevLedgerID());
 
         if (!isBowOut())
         {
@@ -192,23 +192,23 @@ public:
 private:
 
     // Unique identifier of prior ledger this proposal is based on
-    LgrID_t mPreviousLedger;
+    LedgerID_t previousLedger_;
 
     // Unique identifier of the position this proposal is taking
-    PosID_t mCurrentHash;
+    Position_t position_;
 
     // The ledger close time this position is taking
-    Time_t mCloseTime;
+    Time_t closeTime_;
 
     // The time this position was last updated
-    Time_t mTime;
+    Time_t time_;
 
     // The sequence number of positions taken by this node during this consensus
     // round.
-    std::uint32_t mProposeSeq;
+    std::uint32_t proposeSeq_;
 
     // The identifier of the node taking this position
-    NodeID_t mPeerID;
+    NodeID_t nodeID_;
 
 };
 }

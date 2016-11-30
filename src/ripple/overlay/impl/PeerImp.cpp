@@ -1904,7 +1904,7 @@ PeerImp::checkPropose (Job& job,
     }
     else
     {
-        if (app_.getOPs().getConsensusLCL() == proposal->getPrevLedger())
+        if (app_.getOPs().getConsensusLCL() == proposal->getPrevLedgerID())
         {
             // relay untrusted proposal
             JLOG(p_journal_.trace()) <<

@@ -1800,7 +1800,7 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\conditions\RsaSha256.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusPosition.h">
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
     </ClInclude>

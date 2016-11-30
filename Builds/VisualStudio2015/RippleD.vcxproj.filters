@@ -2445,7 +2445,7 @@
     <ClInclude Include="..\..\src\ripple\conditions\RsaSha256.h">
       <Filter>ripple\conditions</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusPosition.h">
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
       <Filter>ripple\consensus</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">

@@ -32,14 +32,14 @@ namespace ripple {
 class RCLCxLedger
 {
 public:
-    using id_type = LedgerHash;
+    using ID = LedgerHash;
 
     // Do we need this or can we force LedgerConsens to start with some ledger?
     RCLCxLedger() = default;
 
     RCLCxLedger(std::shared_ptr<Ledger const> const & l) : ledger{ l } {}
 
-    auto
+    auto const &
     seq() const
     {
         return ledger->info().seq;
@@ -57,13 +57,13 @@ public:
         return ripple::getCloseAgree(ledger->info());
     }
 
-    auto
-    ID() const
+    auto const &
+    id() const
     {
         return ledger->info().hash;
     }
 
-    auto
+    auto const &
     parentID() const
     {
         return ledger->info().parentHash;

@@ -27,7 +27,7 @@
 #include <ripple/protocol/PublicKey.h>
 #include <ripple/protocol/SecretKey.h>
 #include <ripple/beast/hash/hash_append.h>
-#include <ripple/consensus/ConsensusPosition.h>
+#include <ripple/consensus/ConsensusProposal.h>
 #include <chrono>
 #include <cstdint>
 #include <string>
@@ -36,10 +36,10 @@ namespace ripple {
 
 class LedgerProposal
     : public CountedObject <LedgerProposal>
-    , public ConsensusPosition<NodeID, uint256, uint256, NetClock::time_point>
+    , public ConsensusProposal<NodeID, uint256, uint256, NetClock::time_point>
 {
-    using Position =
-        ConsensusPosition<NodeID, uint256, uint256, NetClock::time_point>;
+    using Base =
+        ConsensusProposal<NodeID, uint256, uint256, NetClock::time_point>;
 
 
 public:
@@ -95,7 +95,7 @@ private:
         hash_append(h, HashPrefix::proposal);
         hash_append(h, std::uint32_t(getProposeSeq()));
         hash_append(h, getCloseTime());
-        hash_append(h, getPrevLedger());
+        hash_append(h, getPrevLedgerID());
         hash_append(h, getPosition());
     }
 

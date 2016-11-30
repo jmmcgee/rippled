@@ -116,7 +116,7 @@ public:
         NetClock::duration closeResolution_,
         NetClock::time_point const & now,
         std::chrono::milliseconds const & roundTime_,
-        hash_map<RCLCxTx::id_type, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
+        hash_map<RCLCxTx::ID, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
         std::map <NetClock::time_point, int> closeTimes_,
         NetClock::time_point const & closeTime,
         Json::Value && json

@@ -104,8 +104,8 @@ uint256 RCLCxCalls::getLCL (
 
 void RCLCxCalls::share (RCLTxSet const& set)
 {
-    app_.getInboundTransactions().giveSet (set.ID(),
-        set.map, false);
+    app_.getInboundTransactions().giveSet (set.id(),
+        set.map_, false);
 }
 
 void RCLCxCalls::propose (LedgerProposal const& position)
@@ -118,7 +118,7 @@ void RCLCxCalls::propose (LedgerProposal const& position)
 
     prop.set_currenttxhash (position.getPosition().begin(),
         256 / 8);
-    prop.set_previousledger (position.getPrevLedger().begin(),
+    prop.set_previousledger (position.getPrevLedgerID().begin(),
         256 / 8);
     prop.set_proposeseq (position.getProposeSeq ());
     prop.set_closetime (
@@ -130,7 +130,7 @@ void RCLCxCalls::propose (LedgerProposal const& position)
         HashPrefix::proposal,
         std::uint32_t(position.getProposeSeq()),
         position.getCloseTime().time_since_epoch().count(),
-        position.getPrevLedger(), position.getPosition());
+        position.getPrevLedgerID(), position.getPosition());
 
     auto sig = signDigest (
         valPublic_, valSecret_, signingHash);
@@ -158,7 +158,7 @@ void RCLCxCalls::relay(LedgerProposal const & proposal)
     prop.set_currenttxhash (
         proposal.getPosition().begin(), 256 / 8);
     prop.set_previousledger (
-        proposal.getPrevLedger().begin(), 256 / 8);
+        proposal.getPrevLedgerID().begin(), 256 / 8);
 
     auto const pk = proposal.getPublicKey().slice();
     prop.set_nodepubkey (pk.data(), pk.size());
@@ -331,8 +331,8 @@ void RCLCxCalls::statusChange(
     s.set_networktime (app_.timeKeeper().now().time_since_epoch().count());
     s.set_ledgerhashprevious(ledger.parentID().begin (),
         std::decay_t<decltype(ledger.parentID())>::bytes);
-    s.set_ledgerhash (ledger.ID().begin (),
-        std::decay_t<decltype(ledger.ID())>::bytes);
+    s.set_ledgerhash (ledger.id().begin (),
+        std::decay_t<decltype(ledger.id())>::bytes);
 
     std::uint32_t uMin, uMax;
     if (! ledgerMaster_.getFullValidatedRange (uMin, uMax))
@@ -377,7 +377,7 @@ applyTransactions (
 {
     auto j = app.journal ("LedgerConsensus");
 
-    auto& set = *(cSet.map);
+    auto& set = *(cSet.map_);
     CanonicalTXSet retriableTxs (set.getHash().as_uint256());
 
 
@@ -469,7 +469,7 @@ RCLCxCalls::accept(
     NetClock::time_point now,
     std::chrono::milliseconds roundTime)
 {
-    CanonicalTXSet retriableTxs{ set.ID() };
+    CanonicalTXSet retriableTxs{ set.id() };
 
     auto replay = ledgerMaster_.releaseReplay();
     if (replay)
@@ -480,7 +480,7 @@ RCLCxCalls::accept(
     }
 
     JLOG (j_.debug())
-        << "Report: TxSt = " << set.ID ()
+        << "Report: TxSt = " << set.id ()
         << ", close " << closeTime.time_since_epoch().count()
         << (closeTimeCorrect ? "" : "X");
 
@@ -579,7 +579,7 @@ void RCLCxCalls::validate(
     bool proposing)
 {
     // Build validation
-    auto v = std::make_shared<STValidation> (ledger.ID(),
+    auto v = std::make_shared<STValidation> (ledger.id(),
         consensus_.validationTimestamp(now),
         valPublic_, proposing);
     v->setFieldU32 (sfLedgerSequence, ledger.seq());
@@ -655,8 +655,8 @@ void RCLCxCalls::switchLCL(RCLCxLedger const & ledger)
     ledgerMaster_.switchLCL (ledger.ledger);
 
     // Do these need to exist?
-    assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.ID());
-    assert (app_.openLedger().current()->info().parentHash == ledger.ID());
+    assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.id());
+    assert (app_.openLedger().current()->info().parentHash == ledger.id());
 }
 
 void RCLCxCalls::adjustCloseTime(std::chrono::duration<std::int32_t> offset)
@@ -692,9 +692,9 @@ void RCLCxCalls::relay(DisputedTx <RCLCxTx, NodeID> const & dispute)
 {
      // If we didn't relay this transaction recently, relay it to all peers
     auto const & tx = dispute.tx();
-    if (app_.getHashRouter ().shouldRelay (tx.ID()))
+    if (app_.getHashRouter ().shouldRelay (tx.id()))
     {
-        auto const slice = tx.txn.slice();
+        auto const slice = tx.tx_.slice();
 
         protocol::TMTransaction msg;
         msg.set_rawtransaction (slice.data(), slice.size());
@@ -734,7 +734,7 @@ void RCLCxCalls::accept(
     NetClock::duration closeResolution_,
     NetClock::time_point const & now_,
     std::chrono::milliseconds const & roundTime_,
-    hash_map<RCLCxTx::id_type, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
+    hash_map<RCLCxTx::ID, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
     std::map <NetClock::time_point, int> closeTimes_,
     NetClock::time_point const & closeTime_,
     Json::Value && json
@@ -776,7 +776,7 @@ void RCLCxCalls::accept(
     auto & sharedLCL =  acceptRes.first;
     auto & retriableTxs = acceptRes.second;
 
-    auto const newLCLHash = sharedLCL.ID();
+    auto const newLCLHash = sharedLCL.id();
     JLOG (j_.debug())
         << "Report: NewL  = " << newLCLHash
         << ":" << sharedLCL.seq();
@@ -825,7 +825,7 @@ void RCLCxCalls::accept(
                         << "Test applying disputed transaction that did"
                         << " not get in";
 
-                    SerialIter sit (it.second.tx().txn.slice());
+                    SerialIter sit (it.second.tx().tx_.slice());
                     auto txn = std::make_shared<STTx const>(sit);
                     retriableTxs.insert (txn);
 

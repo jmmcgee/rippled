@@ -1507,7 +1507,7 @@ void NetworkOPsImp::processTrustedProposal (
 {
     mConsensus.storeProposal (proposal, node);
 
-    if (mLedgerConsensus->peerPosition (
+    if (mLedgerConsensus->peerProposal (
         app_.timeKeeper().closeTime(), *proposal))
         app_.overlay().relay(*set, proposal->getSuppressionID());
     else

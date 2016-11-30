@@ -22,10 +22,8 @@
 
 #include <ripple/basics/chrono.h>
 #include <ripple/basics/base_uint.h>
-
 #include <ripple/protocol/UintTypes.h>
 #include <ripple/protocol/RippleLedgerHash.h>
-
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/ledger/LedgerProposal.h>
 #include <ripple/app/consensus/RCLCxTx.h>
@@ -38,13 +36,14 @@ namespace ripple {
 // For adapting consensus to RCL
 struct RCLCxTraits
 {
-    using Callback_t = RCLCxCalls;
-    using NetTime_t     = NetClock::time_point;
-    using Ledger_t     = RCLCxLedger;
-    using Pos_t        = LedgerProposal;
-    using TxSet_t      = RCLTxSet;
-    using MissingTx_t = SHAMapMissingNode;
+    using Callbacks_t = RCLCxCalls;
+    using NetTime_t = NetClock::time_point;
+    using Ledger_t = RCLCxLedger;
+    using Proposal_t = LedgerProposal;
+    using TxSet_t = RCLTxSet;
+    using MissingTxException_t = SHAMapMissingNode;
 };
+
 }
 
 #endif

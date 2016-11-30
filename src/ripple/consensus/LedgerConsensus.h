@@ -69,20 +69,14 @@ private:
 public:
     using clock_type = beast::abstract_clock <std::chrono::steady_clock>;
 
-    using Callback_t = typename Traits::Callback_t;
+    using Callbacks_t = typename Traits::Callbacks_t;
     using NetTime_t = typename Traits::NetTime_t;
-    using Duration_t = typename NetTime_t::duration;
     using Ledger_t = typename Traits::Ledger_t;
-    using Pos_t = typename Traits::Pos_t;
+    using Proposal_t = typename Traits::Proposal_t;
     using TxSet_t = typename Traits::TxSet_t;
-    using Tx_t = typename TxSet_t::tx_type;
-    using LgrID_t   = typename Ledger_t::id_type;
-    using TxID_t    = typename Tx_t::id_type;
-    using TxSetID_t = typename TxSet_t::id_type;
-
-    using NodeID_t = typename Pos_t::node_id_type;
-    using MissingTx_t = typename Traits::MissingTx_t;
-    using Dispute_t = DisputedTx <Tx_t, NodeID_t>;
+    using Tx_t = typename TxSet_t::Tx;
+    using NodeID_t = typename Proposal_t::NodeID;
+    using Dispute_t = DisputedTx<Tx_t, NodeID_t>;
 
     static char const* getCountedObjectName () { return "LedgerConsensus"; }
 
@@ -97,7 +91,7 @@ public:
         @param id identifier for this node to use in consensus process
     */
     LedgerConsensus (
-        Callback_t& callbacks,
+        Callbacks_t& callbacks,
         clock_type const & clock);
 
     /**
@@ -112,7 +106,7 @@ public:
     */
     void startRound (
         NetTime_t const& now,
-        LgrID_t const& prevLgrId,
+        typename Ledger_t::ID const& prevLgrId,
         Ledger_t const& prevLedger);
 
     /**
@@ -125,7 +119,11 @@ public:
     Json::Value getJson (bool full) const;
 
     /* The hash of the last closed ledger */
-    LgrID_t getLCL ();
+    typename Ledger_t::ID getLCL()
+    {
+       std::lock_guard<std::recursive_mutex> _(lock_);
+       return prevLedgerHash_;
+    }
 
     /**
       We have a complete transaction set, typically acquired from the network
@@ -142,15 +140,14 @@ public:
     void timerEntry (NetTime_t const& now);
 
     /**
-      A server has taken a new position, adjust our tracking
-      Called when a peer takes a new postion.
+      A peer has proposed a new position, adjust our tracking
 
       @param newPosition the new position
-      @return            true if we should do delayed relay of this position.
+      @return            true if we should do delayed relay of this proposal.
     */
-    bool peerPosition (
+    bool peerProposal (
         NetTime_t const& now,
-        Pos_t const& newPosition);
+        Proposal_t const& newPosition);
 
     void simulate(
         NetTime_t const& now,
@@ -196,7 +193,7 @@ private:
 
       @param lclHash Hash of the last closed ledger.
     */
-    void handleLCL (LgrID_t const& lclHash);
+    void handleLCL (typename Ledger_t::ID const& lclHash);
 
     /**
       We have a complete transaction set, typically acquired from the network
@@ -272,7 +269,7 @@ private:
     void beginAccept (bool synchronous);
 
 private:
-    Callback_t& callbacks_;
+    Callbacks_t& callbacks_;
 
     mutable std::recursive_mutex lock_;
 
@@ -290,15 +287,15 @@ private:
     std::map <NetTime_t, int> closeTimes_;
 
 
-    LgrID_t prevLedgerHash_;
+    typename Ledger_t::ID prevLedgerHash_;
     Ledger_t previousLedger_;
 
 
     // Transaction Sets, indexed by hash of transaction tree
-    hash_map<TxSetID_t, const TxSet_t> acquired_;
+    hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
 
 
-    boost::optional<Pos_t> ourPosition_;
+    boost::optional<Proposal_t> ourPosition_;
     boost::optional<TxSet_t> ourSet_;
 
 
@@ -309,7 +306,7 @@ private:
     // How long the close has taken, expressed as a percentage of the time that
     // we expected it to take.
     int closePercent_;
-    Duration_t closeResolution_;
+    typename NetTime_t::duration closeResolution_;
     clock_type::time_point consensusStartTime_;
     // Time it took for the last consensus round to converge
     std::chrono::milliseconds previousRoundTime_;
@@ -319,11 +316,11 @@ private:
 
 
     // Convergence tracking, trusted peers indexed by hash of public key
-    hash_map<NodeID_t, Pos_t>  peerPositions_;
+    hash_map<NodeID_t, Proposal_t>  peerProposals_;
 
     // Disputed transactions
-    hash_map<TxID_t, Dispute_t> disputes_;
-    hash_set<TxSetID_t> compares_;
+    hash_map<typename Tx_t::ID, Dispute_t> disputes_;
+    hash_set<typename TxSet_t::ID> compares_;
     // nodes that have bowed out of this consensus process
     hash_set<NodeID_t> deadNodes_;
 
@@ -335,7 +332,7 @@ private:
 
 template <class Traits>
 LedgerConsensus<Traits>::LedgerConsensus (
-        Callback_t& callbacks,
+        Callbacks_t& callbacks,
         clock_type const & clock)
     : callbacks_ (callbacks)
     , clock_(clock)
@@ -367,7 +364,7 @@ Json::Value LedgerConsensus<Traits>::getJson (bool full) const
 
     ret["proposing"] = proposing_;
     ret["validating"] = validating_;
-    ret["proposers"] = static_cast<int> (peerPositions_.size ());
+    ret["proposers"] = static_cast<int> (peerProposals_.size ());
 
     if (haveCorrectLCL_)
     {
@@ -415,11 +412,11 @@ Json::Value LedgerConsensus<Traits>::getJson (bool full) const
         ret["previous_mseconds"] =
             static_cast<Int>(previousRoundTime_.count());
 
-        if (! peerPositions_.empty ())
+        if (! peerProposals_.empty ())
         {
             Json::Value ppj (Json::objectValue);
 
-            for (auto& pp : peerPositions_)
+            for (auto& pp : peerProposals_)
             {
                 ppj[to_string (pp.first)] = pp.second.getJson ();
             }
@@ -470,16 +467,6 @@ Json::Value LedgerConsensus<Traits>::getJson (bool full) const
     return ret;
 }
 
-template <class Traits>
-auto
-LedgerConsensus<Traits>::getLCL () -> LgrID_t
-{
-    std::lock_guard<std::recursive_mutex> _(lock_);
-
-    return prevLedgerHash_;
-}
-
-
 // Called when:
 // 1) We take our initial position
 // 2) We take a new position
@@ -494,7 +481,7 @@ LedgerConsensus<Traits>::mapCompleteInternal (
     TxSet_t const& map,
     bool acquired)
 {
-    auto const hash = map.ID ();
+    auto const hash = map.id();
 
     if (acquired_.find (hash) != acquired_.end())
         return;
@@ -539,10 +526,10 @@ LedgerConsensus<Traits>::mapCompleteInternal (
 
     // Adjust tracking for each peer that takes this position
     std::vector<NodeID_t> peers;
-    for (auto& it : peerPositions_)
+    for (auto& it : peerProposals_)
     {
         if (it.second.getPosition () == hash)
-            peers.push_back (it.second.getPeerID ());
+            peers.push_back (it.second.getNodeID ());
     }
 
     if (!peers.empty ())
@@ -572,7 +559,7 @@ void LedgerConsensus<Traits>::gotMap (
     {
         mapCompleteInternal (map, true);
     }
-    catch (MissingTx_t const& mn)
+    catch (typename Traits::MissingTxException_t const& mn)
     {
         // This should never happen
         leaveConsensus();
@@ -585,9 +572,9 @@ void LedgerConsensus<Traits>::gotMap (
 template <class Traits>
 void LedgerConsensus<Traits>::checkLCL ()
 {
-    LgrID_t netLgr = callbacks_.getLCL (
+    auto netLgr = callbacks_.getLCL (
         prevLedgerHash_,
-        haveCorrectLCL_ ? previousLedger_.parentID() : LgrID_t{},
+        haveCorrectLCL_ ? previousLedger_.parentID() : typename Ledger_t::ID{},
         haveCorrectLCL_);
 
     if (netLgr != prevLedgerHash_)
@@ -634,10 +621,10 @@ void LedgerConsensus<Traits>::checkLCL ()
 
 // Handle a change in the LCL during a consensus round
 template <class Traits>
-void LedgerConsensus<Traits>::handleLCL (LgrID_t const& lclHash)
+void LedgerConsensus<Traits>::handleLCL (typename Ledger_t::ID const& lclHash)
 {
     assert (lclHash != prevLedgerHash_ ||
-            previousLedger_.ID() != lclHash);
+            previousLedger_.id() != lclHash);
 
     if (prevLedgerHash_ != lclHash)
     {
@@ -652,7 +639,7 @@ void LedgerConsensus<Traits>::handleLCL (LgrID_t const& lclHash)
 
         // Stop proposing because we are out of sync
         proposing_ = false;
-        peerPositions_.clear ();
+        peerProposals_.clear ();
         disputes_.clear ();
         compares_.clear ();
         closeTimes_.clear ();
@@ -661,7 +648,7 @@ void LedgerConsensus<Traits>::handleLCL (LgrID_t const& lclHash)
         playbackProposals ();
     }
 
-    if (previousLedger_.ID() == prevLedgerHash_)
+    if (previousLedger_.id() == prevLedgerHash_)
         return;
 
     // we need to switch the ledger we're working from
@@ -730,7 +717,7 @@ void LedgerConsensus<Traits>::timerEntry (NetTime_t const& now)
 
         assert (false);
     }
-    catch (MissingTx_t const& mn)
+    catch (typename Traits::MissingTxException_t const& mn)
     {
         // This should never happen
         leaveConsensus ();
@@ -745,7 +732,7 @@ void LedgerConsensus<Traits>::statePreClose ()
 {
     // it is shortly before ledger close time
     bool anyTransactions = callbacks_.hasOpenTransactions();
-    int proposersClosed = peerPositions_.size ();
+    int proposersClosed = peerProposals_.size ();
     int proposersValidated = callbacks_.numProposersValidated(prevLedgerHash_);
 
     // This computes how long since last ledger's close time
@@ -801,7 +788,7 @@ void LedgerConsensus<Traits>::stateEstablish ()
     }
 
     JLOG (j_.info()) <<
-        "Converge cutoff (" << peerPositions_.size () << " participants)";
+        "Converge cutoff (" << peerProposals_.size () << " participants)";
     state_ = State::processing;
     beginAccept (false);
 }
@@ -814,7 +801,7 @@ bool LedgerConsensus<Traits>::haveConsensus ()
     auto  ourPosition = ourPosition_->getPosition ();
 
     // Count number of agreements/disagreements with our position
-    for (auto& it : peerPositions_)
+    for (auto& it : peerProposals_)
     {
         if (it.second.isBowOut ())
             continue;
@@ -874,20 +861,20 @@ bool LedgerConsensus<Traits>::haveConsensus ()
 }
 
 template <class Traits>
-bool LedgerConsensus<Traits>::peerPosition (
+bool LedgerConsensus<Traits>::peerProposal (
     NetTime_t const& now,
-    Pos_t const& newPosition)
+    Proposal_t const& newPosition)
 {
-    auto const peerID = newPosition.getPeerID ();
+    auto const peerID = newPosition.getNodeID ();
 
     std::lock_guard<std::recursive_mutex> _(lock_);
 
     now_ = now;
 
-    if (newPosition.getPrevLedger() != prevLedgerHash_)
+    if (newPosition.getPrevLedgerID() != prevLedgerHash_)
     {
         JLOG (j_.debug()) << "Got proposal for "
-            << newPosition.getPrevLedger ()
+            << newPosition.getPrevLedgerID ()
             << " but we are on " << prevLedgerHash_;
         return false;
     }
@@ -902,9 +889,9 @@ bool LedgerConsensus<Traits>::peerPosition (
 
     {
         // update current position
-        auto currentPosition = peerPositions_.find(peerID);
+        auto currentPosition = peerProposals_.find(peerID);
 
-        if (currentPosition != peerPositions_.end())
+        if (currentPosition != peerProposals_.end())
         {
             if (newPosition.getProposeSeq ()
                 <= currentPosition->second.getProposeSeq ())
@@ -922,17 +909,17 @@ bool LedgerConsensus<Traits>::peerPosition (
 
             for (auto& it : disputes_)
                 it.second.unVote (peerID);
-            if (currentPosition != peerPositions_.end())
-                peerPositions_.erase (peerID);
+            if (currentPosition != peerProposals_.end())
+                peerProposals_.erase (peerID);
             deadNodes_.insert (peerID);
 
             return true;
         }
 
-        if (currentPosition != peerPositions_.end())
+        if (currentPosition != peerProposals_.end())
             currentPosition->second = newPosition;
         else
-            peerPositions_.emplace (peerID, newPosition);
+            peerProposals_.emplace (peerID, newPosition);
     }
 
     if (newPosition.isInitial ())
@@ -1029,11 +1016,11 @@ void LedgerConsensus<Traits>::createDisputes (
     TxSet_t const& m1,
     TxSet_t const& m2)
 {
-    if (m1.ID() == m2.ID())
+    if (m1.id() == m2.id())
         return;
 
     JLOG (j_.debug()) << "createDisputes "
-        << m1.ID() << " to " << m2.ID();
+        << m1.id() << " to " << m2.id();
     auto differences = m1.diff (m2);
 
     int dc = 0;
@@ -1058,7 +1045,7 @@ template <class Traits>
 void LedgerConsensus<Traits>::addDisputedTransaction (
     Tx_t const& tx)
 {
-    auto txID = tx.ID();
+    auto txID = tx.id();
 
     if (disputes_.find (txID) != disputes_.end ())
         return;
@@ -1075,7 +1062,7 @@ void LedgerConsensus<Traits>::addDisputedTransaction (
     Dispute_t dtx {tx, ourVote, j_};
 
     // Update all of the peer's votes on the disputed transaction
-    for (auto& pit : peerPositions_)
+    for (auto& pit : peerProposals_)
     {
         auto cit (acquired_.find (pit.second.getPosition ()));
 
@@ -1119,7 +1106,7 @@ void LedgerConsensus<Traits>::takeInitialPosition()
        haveCorrectLCL_,  closeTime_, now_ );
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
-    assert (initialSet.ID() == initialPos.getPosition());
+    assert (initialSet.id() == initialPos.getPosition());
 
     ourPosition_ = initialPos;
     ourSet_ = initialSet;
@@ -1132,8 +1119,8 @@ void LedgerConsensus<Traits>::takeInitialPosition()
     // When we take our initial position,
     // we need to create any disputes required by our position
     // and any peers who have already taken positions
-    compares_.emplace (initialSet.ID());
-    for (auto& it : peerPositions_)
+    compares_.emplace (initialSet.id());
+    for (auto& it : peerProposals_)
     {
         auto hash = it.second.getPosition();
         auto iit (acquired_.find (hash));
@@ -1181,18 +1168,18 @@ void LedgerConsensus<Traits>::updateOurPositions ()
     // Verify freshness of peer positions and compute close times
     std::map<NetTime_t, int> closeTimes;
     {
-        auto it = peerPositions_.begin ();
-        while (it != peerPositions_.end ())
+        auto it = peerProposals_.begin ();
+        while (it != peerProposals_.end ())
         {
             if (it->second.isStale (peerCutoff))
             {
                 // peer's proposal is stale, so remove it
-                auto const& peerID = it->second.getPeerID ();
+                auto const& peerID = it->second.getNodeID ();
                 JLOG (j_.warn())
                     << "Removing stale proposal from " << peerID;
                 for (auto& dt : disputes_)
                     dt.second.unVote (peerID);
-                it = peerPositions_.erase (it);
+                it = peerProposals_.erase (it);
             }
             else
             {
@@ -1251,7 +1238,7 @@ void LedgerConsensus<Traits>::updateOurPositions ()
     NetTime_t closeTime = {};
     haveCloseTimeConsensus_ = false;
 
-    if (peerPositions_.empty ())
+    if (peerProposals_.empty ())
     {
         // no other times
         haveCloseTimeConsensus_ = true;
@@ -1260,7 +1247,7 @@ void LedgerConsensus<Traits>::updateOurPositions ()
     }
     else
     {
-        int participants = peerPositions_.size ();
+        int participants = peerProposals_.size ();
         if (proposing_)
         {
             ++closeTimes[effectiveCloseTime(ourPosition_->getCloseTime(),
@@ -1277,7 +1264,7 @@ void LedgerConsensus<Traits>::updateOurPositions ()
             participants, AV_CT_CONSENSUS_PCT);
 
         JLOG (j_.info()) << "Proposers:"
-            << peerPositions_.size () << " nw:" << neededWeight
+            << peerProposals_.size () << " nw:" << neededWeight
             << " thrV:" << threshVote << " thrC:" << threshConsensus;
 
         for (auto const& it : closeTimes)
@@ -1302,7 +1289,7 @@ void LedgerConsensus<Traits>::updateOurPositions ()
         if (!haveCloseTimeConsensus_)
         {
             JLOG (j_.debug()) << "No CT consensus:"
-                << " Proposers:" << peerPositions_.size ()
+                << " Proposers:" << peerProposals_.size ()
                 << " Proposing:" << (proposing_ ? "yes" : "no")
                 << " Thresh:" << threshConsensus
                 << " Pos:" << closeTime.time_since_epoch().count();
@@ -1323,7 +1310,7 @@ void LedgerConsensus<Traits>::updateOurPositions ()
 
     if (ourNewSet)
     {
-        auto newHash = ourNewSet->ID();
+        auto newHash = ourNewSet->id();
 
         // Setting ourSet_ here prevents mapCompleteInternal
         // from checking for new disputes. But we only changed
@@ -1351,7 +1338,7 @@ void LedgerConsensus<Traits>::playbackProposals ()
 {
     for (auto const & p : callbacks_.proposals(prevLedgerHash_))
     {
-        if(peerPosition(now_, p))
+        if(peerProposal(now_, p))
             callbacks_.relay(p);
     }
 }
@@ -1383,7 +1370,7 @@ void LedgerConsensus<Traits>::beginAccept (bool synchronous)
     }
 
 
-    previousProposers_ = peerPositions_.size();
+    previousProposers_ = peerProposals_.size();
     previousRoundTime_ = roundTime_;
 
     if (synchronous)
@@ -1403,7 +1390,7 @@ void LedgerConsensus<Traits>::beginAccept (bool synchronous)
 template <class Traits>
 void LedgerConsensus<Traits>::startRound (
     NetTime_t const& now,
-    LgrID_t const& prevLCLHash,
+    typename Ledger_t::ID const& prevLCLHash,
     Ledger_t const & prevLedger)
 {
     std::lock_guard<std::recursive_mutex> _(lock_);
@@ -1426,11 +1413,11 @@ void LedgerConsensus<Traits>::startRound (
     closePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     consensusStartTime_ = clock_.now();
-    haveCorrectLCL_ = (previousLedger_.ID() == prevLedgerHash_);
+    haveCorrectLCL_ = (previousLedger_.id() == prevLedgerHash_);
 
     callbacks_.statusChange(ConsensusChange::StartRound, previousLedger_, haveCorrectLCL_);
 
-    peerPositions_.clear();
+    peerProposals_.clear();
     acquired_.clear();
     disputes_.clear();
     compares_.clear();
@@ -1473,14 +1460,14 @@ void LedgerConsensus<Traits>::startRound (
         {
             JLOG (j_.info())
                 << "Entering consensus with: "
-                << previousLedger_.ID();
+                << previousLedger_.id();
             JLOG (j_.info())
                 << "Correct LCL is: " << prevLCLHash;
         }
     }
 
     playbackProposals ();
-    if (peerPositions_.size() > (previousProposers_ / 2))
+    if (peerProposals_.size() > (previousProposers_ / 2))
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately

@@ -31,18 +31,18 @@ namespace ripple {
 class RCLCxTx
 {
 public:
-    using id_type = uint256;
+    using ID = uint256;
 
-    RCLCxTx(SHAMapItem const& txn) : txn{ txn }
+    RCLCxTx(SHAMapItem const& txn) : tx_{ txn }
     { }
 
-    id_type const&
-    ID() const
+    ID const&
+    id() const
     {
-        return txn.key ();
+        return tx_.key ();
     }
 
-    SHAMapItem const txn;
+    SHAMapItem const tx_;
 };
 
 // Sets of transactions
@@ -50,55 +50,55 @@ public:
 class RCLTxSet
 {
 public:
-    using id_type = uint256;
-    using tx_type = RCLCxTx;
+    using ID = uint256;
+    using Tx = RCLCxTx;
 
     RCLTxSet (std::shared_ptr<SHAMap> m) :
-        map{ std::move(m) }
+        map_{ std::move(m) }
     {
-        assert(map);
+        assert(map_);
     }
 
     bool
-    insert (tx_type const& t)
+    insert (Tx const& t)
     {
-        return map->addItem (
-            SHAMapItem {t.ID(), t.txn.peekData()},
+        return map_->addItem (
+            SHAMapItem {t.id(), t.tx_.peekData()},
             true, false);
     }
 
     bool
-    erase (tx_type::id_type const& entry)
+    erase (Tx::ID const& entry)
     {
-        return map->delItem (entry);
+        return map_->delItem (entry);
     }
 
     bool
-    exists(tx_type::id_type const& entry) const
+    exists(Tx::ID const& entry) const
     {
-        return map->hasItem (entry);
+        return map_->hasItem (entry);
     }
 
-    auto
-    find(tx_type::id_type const& entry) const
+    std::shared_ptr<const SHAMapItem> const &
+    find(Tx::ID const& entry) const
     {
-        return map->peekItem (entry);
+        return map_->peekItem (entry);
     }
 
-    id_type
-    ID() const
+    ID
+    id() const
     {
-        return map->getHash().as_uint256();
+        return map_->getHash().as_uint256();
     }
 
-    std::map <tx_type::id_type, bool>
+    std::map<Tx::ID, bool>
     diff (RCLTxSet const& j) const
     {
         SHAMap::Delta delta;
 
         // Bound the work we do in case of a malicious
-        // map from a trusted validator
-        map->compare (*(j.map), delta, 65536);
+        // map_ from a trusted validator
+        map_->compare (*(j.map_), delta, 65536);
 
         std::map <uint256, bool> ret;
         for (auto const& item : delta)
@@ -111,7 +111,7 @@ public:
         return ret;
     }
 
-    std::shared_ptr <SHAMap> map;
+    std::shared_ptr <SHAMap> map_;
 };
 
 }

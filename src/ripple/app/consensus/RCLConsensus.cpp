@@ -78,7 +78,7 @@ RCLConsensus::getStoredProposals (uint256 const& prevLedger)
 
         for (auto const& it : storedProposals_)
             for (auto const& prop : it.second)
-                if (prop->getPrevLedger() == prevLedger)
+                if (prop->getPrevLedgerID() == prevLedger)
                     ret.emplace_back (*prop);
     }
 

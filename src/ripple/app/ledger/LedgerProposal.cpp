@@ -38,7 +38,7 @@ LedgerProposal::LedgerProposal (
         NodeID const& nodeID,
         Slice const& signature,
         uint256 const& suppression)
-    : Position{ pLgr, seq, tx, closeTime, now, nodeID }
+    : Base{ pLgr, seq, tx, closeTime, now, nodeID }
     , mSuppression (suppression)
     , publicKey_ (publicKey)
 {
@@ -55,7 +55,7 @@ LedgerProposal::LedgerProposal (
         NetClock::time_point closeTime,
         NetClock::time_point now,
         NodeID const& nodeID)
-    : Position{ prevLgr, position, closeTime, now, nodeID }
+    : Base{ prevLgr, position, closeTime, now, nodeID }
 {
 }
 
@@ -65,7 +65,7 @@ uint256 LedgerProposal::getSigningHash () const
         HashPrefix::proposal,
         std::uint32_t(getProposeSeq()),
         getCloseTime().time_since_epoch().count(),
-        getPrevLedger(),
+        getPrevLedgerID(),
         getPosition());
 }
 
@@ -80,7 +80,7 @@ bool LedgerProposal::checkSign () const
 
 Json::Value LedgerProposal::getJson () const
 {
-    auto ret = Position::getJson();
+    auto ret = Base::getJson();
 
     if (publicKey_.size())
         ret[jss::peer_id] =  toBase58 (
