@@ -269,62 +269,73 @@ private:
     void beginAccept (bool synchronous);
 
 private:
+    mutable std::recursive_mutex lock_;
     Callbacks_t& callbacks_;
 
-    mutable std::recursive_mutex lock_;
-
+    //-------------------------------------------------------------------------
+    // Consensus state variables
     State state_;
-    bool proposing_, validating_, haveCorrectLCL_, consensusFail_;
-    bool haveCloseTimeConsensus_;
+    bool proposing_ = false;
+    bool validating_ = false;
+    bool haveCorrectLCL_ = false;
+    bool consensusFail_ = false;
+    bool haveCloseTimeConsensus_ = false;
 
+    //-------------------------------------------------------------------------
+    // Internal time measurements of consensus progress
+    clock_type const & clock_;
 
+    // How much time has elapsed since the round started
+    std::chrono::milliseconds roundTime_ = std::chrono::milliseconds{0};
 
+    // How long the close has taken, expressed as a percentage of the time that
+    // we expected it to take.
+    int closePercent_{0};
+    typename NetTime_t::duration closeResolution_ = ledgerDefaultTimeResolution;
+    clock_type::time_point consensusStartTime_;
+
+    // Time it took for the last consensus round to converge
+    std::chrono::milliseconds previousRoundTime_ = LEDGER_IDLE_INTERVAL;
+
+    //-------------------------------------------------------------------------
+    // Network time measurements of consensus progress
     NetTime_t now_;
 
-    // The wall time this ledger closed
+    // The network time this ledger closed
     NetTime_t closeTime_;
+
     // Close time estimates, keep ordered for predictable traverse
     std::map <NetTime_t, int> closeTimes_;
 
-
+    //-------------------------------------------------------------------------
+    // Non-peer (self) consensus data
     typename Ledger_t::ID prevLedgerHash_;
     Ledger_t previousLedger_;
-
 
     // Transaction Sets, indexed by hash of transaction tree
     hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
 
-
     boost::optional<Proposal_t> ourPosition_;
     boost::optional<TxSet_t> ourSet_;
 
-
-    // How much time has elapsed since the round started
-    clock_type const & clock_;
-
-    std::chrono::milliseconds roundTime_;
-    // How long the close has taken, expressed as a percentage of the time that
-    // we expected it to take.
-    int closePercent_;
-    typename NetTime_t::duration closeResolution_;
-    clock_type::time_point consensusStartTime_;
-    // Time it took for the last consensus round to converge
-    std::chrono::milliseconds previousRoundTime_;
-
-    // The number of proposers who participated in the last consensus round
-    int previousProposers_;
-
-
+    //-------------------------------------------------------------------------
+    // Peer related consensus data
     // Convergence tracking, trusted peers indexed by hash of public key
     hash_map<NodeID_t, Proposal_t>  peerProposals_;
 
+    // The number of proposers who participated in the last consensus round
+    int previousProposers_ = 0;
+
     // Disputed transactions
     hash_map<typename Tx_t::ID, Dispute_t> disputes_;
+
+    // Set of TxSet ids we have already compared/created disputes
     hash_set<typename TxSet_t::ID> compares_;
+
     // nodes that have bowed out of this consensus process
     hash_set<NodeID_t> deadNodes_;
 
-
+    //-------------------------------------------------------------------------
     beast::Journal j_;
 
 
@@ -335,19 +346,9 @@ LedgerConsensus<Traits>::LedgerConsensus (
         Callbacks_t& callbacks,
         clock_type const & clock)
     : callbacks_ (callbacks)
-    , clock_(clock)
     , state_ (State::open)
-    , proposing_(false)
-    , validating_(false)
-    , haveCorrectLCL_(false)
-    , consensusFail_ (false)
-    , roundTime_ (0)
-    , closePercent_ (0)
-    , closeResolution_ (ledgerDefaultTimeResolution)
-    , haveCloseTimeConsensus_ (false)
+    , clock_(clock)
     , consensusStartTime_ (clock_.now ())
-    , previousProposers_ (0)
-    , previousRoundTime_ (LEDGER_IDLE_INTERVAL)
     , j_ (callbacks.journal ("LedgerConsensus"))
 {
     JLOG (j_.debug()) << "Creating consensus object";

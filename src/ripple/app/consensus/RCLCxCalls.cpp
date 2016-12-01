@@ -201,7 +201,7 @@ RCLCxCalls::makeInitialPosition (RCLCxLedger const & prevLedgerT,
         NetClock::time_point now)
 {
     auto& ledgerMaster = app_.getLedgerMaster();
-    auto const &prevLedger = prevLedgerT.ledger;
+    auto const &prevLedger = prevLedgerT.ledger_;
     // Tell the ledger master not to acquire the ledger we're probably building
     ledgerMaster.setBuildingLedger (prevLedger->info().seq + 1);
 
@@ -323,6 +323,9 @@ void RCLCxCalls::statusChange(
             break;
         case ConsensusChange::Accepted:
             s.set_newevent (protocol::neACCEPTED_LEDGER);
+            break;
+        case ConsensusChange::StartRound:
+            return; // TODO: this is a sign of poor design
             break;
         }
     }
@@ -459,7 +462,7 @@ applyTransactions (
 }
 
 
-std::pair<RCLCxLedger, CanonicalTXSet>
+RCLCxLedger
 RCLCxCalls::accept(
     RCLCxLedger const & previousLedger,
     RCLTxSet const & set,
@@ -467,10 +470,9 @@ RCLCxCalls::accept(
     bool closeTimeCorrect,
     NetClock::duration closeResolution,
     NetClock::time_point now,
-    std::chrono::milliseconds roundTime)
+    std::chrono::milliseconds roundTime,
+    CanonicalTXSet & retriableTxs)
 {
-    CanonicalTXSet retriableTxs{ set.id() };
-
     auto replay = ledgerMaster_.releaseReplay();
     if (replay)
     {
@@ -486,8 +488,8 @@ RCLCxCalls::accept(
 
 
     // Build the new last closed ledger
-    auto buildLCL = std::make_shared<Ledger>(
-        *previousLedger.ledger, now);
+    auto buildLCL = std::make_shared<Ledger>(*previousLedger.ledger_, now);
+
     auto const v2_enabled = buildLCL->rules().enabled(featureSHAMapV2,
                                                     app_.config().features);
     auto v2_transition = false;
@@ -561,17 +563,11 @@ RCLCxCalls::accept(
     else
         JLOG (j_.debug())
             << "Consensus built new ledger";
-    return { RCLCxLedger{std::move(buildLCL)}, retriableTxs };
+    return RCLCxLedger{std::move(buildLCL)};
 
 
 }
 
-bool RCLCxCalls::shouldValidate(RCLCxLedger const & ledger)
-{
-    return  ledgerMaster_.isCompatible(*ledger.ledger,
-        app_.journal("LedgerConsensus").warn(),
-        "Not validating");
-}
 
 void RCLCxCalls::validate(
     RCLCxLedger const & ledger,
@@ -597,8 +593,8 @@ void RCLCxCalls::validate(
     // next ledger is flag ledger
     {
         // Suggest fee changes and new features
-        feeVote_->doValidation (ledger.ledger, *v);
-        app_.getAmendmentTable ().doValidation (ledger.ledger, *v);
+        feeVote_->doValidation (ledger.ledger_, *v);
+        app_.getAmendmentTable ().doValidation (ledger.ledger_, *v);
     }
 
     auto const signingHash = v->sign (valSecret_);
@@ -611,13 +607,6 @@ void RCLCxCalls::validate(
     val.set_validation (&validation[0], validation.size ());
     // Send signed validation to all of our directly connected peers
     app_.overlay().send(val);
-}
-
-void RCLCxCalls::consensusBuilt(
-    RCLCxLedger const & ledger,
-    Json::Value && json)
-{
-    ledgerMaster_.consensusBuilt (ledger.ledger, std::move(json));
 }
 
 
@@ -640,7 +629,7 @@ void RCLCxCalls::createOpenLedger(
     else
         rules.emplace();
     app_.openLedger().accept(app_, *rules,
-        closedLedger.ledger, localTxs_.getTxSet(), anyDisputes,
+        closedLedger.ledger_, localTxs_.getTxSet(), anyDisputes,
         retriableTxs, tapNONE,
             "consensus",
                 [&](OpenView& view, beast::Journal j)
@@ -650,19 +639,6 @@ void RCLCxCalls::createOpenLedger(
                 });
 }
 
-void RCLCxCalls::switchLCL(RCLCxLedger const & ledger)
-{
-    ledgerMaster_.switchLCL (ledger.ledger);
-
-    // Do these need to exist?
-    assert (ledgerMaster_.getClosedLedger()->info().hash == ledger.id());
-    assert (app_.openLedger().current()->info().parentHash == ledger.id());
-}
-
-void RCLCxCalls::adjustCloseTime(std::chrono::duration<std::int32_t> offset)
-{
-    app_.timeKeeper().adjustCloseTime(offset);
-}
 
 void RCLCxCalls::endConsensus(bool correctLCL)
 {
@@ -767,14 +743,15 @@ void RCLCxCalls::accept(
         << "Report: Prev = " << prevLedgerHash_
         << ":" << previousLedger_.seq();
 
+    //--------------------------------------------------------------------------
     // Put transactions into a deterministic, but unpredictable, order
+    CanonicalTXSet retriableTxs{ set.id() };
 
-    auto acceptRes = accept(previousLedger_, set,
-        consensusCloseTime, closeTimeCorrect, closeResolution_, now_,
-        roundTime_);
+    auto sharedLCL
+            = accept(previousLedger_, set,
+                     consensusCloseTime, closeTimeCorrect,
+                     closeResolution_, now_, roundTime_, retriableTxs);
 
-    auto & sharedLCL =  acceptRes.first;
-    auto & retriableTxs = acceptRes.second;
 
     auto const newLCLHash = sharedLCL.id();
     JLOG (j_.debug())
@@ -786,7 +763,9 @@ void RCLCxCalls::accept(
         sharedLCL, haveCorrectLCL_);
 
     if (validating_)
-        validating_ = shouldValidate(sharedLCL);
+        validating_ = ledgerMaster_.isCompatible(*sharedLCL.ledger_,
+        app_.journal("LedgerConsensus").warn(),
+        "Not validating");
 
     if (validating_ && ! consensusFail_)
     {
@@ -799,8 +778,9 @@ void RCLCxCalls::accept(
             << "CNF buildLCL " << newLCLHash;
 
     // See if we can accept a ledger as fully-validated
-    consensusBuilt(sharedLCL, std::move(json));
+    ledgerMaster_.consensusBuilt (sharedLCL.ledger_, std::move(json));
 
+    //-------------------------------------------------------------------------
     {
         // Apply disputed transactions that didn't get in
         //
@@ -842,8 +822,16 @@ void RCLCxCalls::accept(
 
     }
 
-    switchLCL(sharedLCL);
+    //-------------------------------------------------------------------------
+    {
+        ledgerMaster_.switchLCL (sharedLCL.ledger_);
 
+        // Do these need to exist?
+        assert (ledgerMaster_.getClosedLedger()->info().hash == sharedLCL.id());
+        assert (app_.openLedger().current()->info().parentHash == sharedLCL.id());
+    }
+
+    //-------------------------------------------------------------------------
     if (haveCorrectLCL_ && ! consensusFail_)
     {
         // we entered the round with the network,
@@ -876,7 +864,8 @@ void RCLCxCalls::accept(
         JLOG (j_.info())
             << "Our close offset is estimated at "
             << offset.count() << " (" << closeCount << ")";
-        adjustCloseTime(offset);
+
+        app_.timeKeeper().adjustCloseTime(offset);
     }
 }
 

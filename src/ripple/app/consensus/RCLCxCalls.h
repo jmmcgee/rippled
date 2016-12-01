@@ -191,7 +191,7 @@ private:
     * next round.
     * @return the newly built ledger
     */
-    std::pair<RCLCxLedger, CanonicalTXSet>
+    RCLCxLedger
     accept(
         RCLCxLedger const & previousLedger,
         RCLTxSet const & set,
@@ -199,14 +199,9 @@ private:
         bool closeTimeCorrect,
         NetClock::duration closeResolution,
         NetClock::time_point now,
-        std::chrono::milliseconds roundTime
+        std::chrono::milliseconds roundTime,
+        CanonicalTXSet & retriableTxs
     );
-
-    /*
-    * @return whether the newly created ledger should be validated during
-    * the accept phase of consensus
-    */
-    bool shouldValidate(RCLCxLedger const & ledger);
 
     /*
     * Validate the given ledger and share with peers as necessary
@@ -220,15 +215,6 @@ private:
         RCLCxLedger const & ledger,
         NetClock::time_point now,
         bool proposing);
-
-    /*
-    * Notify that consensus has built the given ledger and see if it can be
-    * acccepted as fullyl validated
-    */
-    void consensusBuilt(
-        RCLCxLedger const & ledger,
-        Json::Value && json
-    );
 
     /*
     * Create the new open ledger based on the prior closed ledger and any
@@ -245,15 +231,6 @@ private:
         CanonicalTXSet & retriableTxs,
         bool anyDisputes);
 
-    /*
-    * Switch the local last closed ledger.
-    */
-    void switchLCL(RCLCxLedger const & ledger);
-
-    /*
-    * Adjust closed time based on observed offset to peers during last round
-    */
-    void adjustCloseTime(std::chrono::duration<std::int32_t> offset);
 
     Application& app_;
     RCLConsensus& consensus_;

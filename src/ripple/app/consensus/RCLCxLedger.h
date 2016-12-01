@@ -37,61 +37,61 @@ public:
     // Do we need this or can we force LedgerConsens to start with some ledger?
     RCLCxLedger() = default;
 
-    RCLCxLedger(std::shared_ptr<Ledger const> const & l) : ledger{ l } {}
+    RCLCxLedger(std::shared_ptr<Ledger const> const & l) : ledger_{ l } {}
 
     auto const &
     seq() const
     {
-        return ledger->info().seq;
+        return ledger_->info().seq;
     }
 
     auto
     closeTimeResolution() const
     {
-        return ledger->info().closeTimeResolution;
+        return ledger_->info().closeTimeResolution;
     }
 
     bool
     closeAgree() const
     {
-        return ripple::getCloseAgree(ledger->info());
+        return ripple::getCloseAgree(ledger_->info());
     }
 
     auto const &
     id() const
     {
-        return ledger->info().hash;
+        return ledger_->info().hash;
     }
 
     auto const &
     parentID() const
     {
-        return ledger->info().parentHash;
+        return ledger_->info().parentHash;
     }
 
     auto
     closeTime() const
     {
-        return ledger->info().closeTime;
+        return ledger_->info().closeTime;
     }
 
     auto
     parentCloseTime() const
     {
-        return ledger->info().parentCloseTime;
+        return ledger_->info().parentCloseTime;
     }
 
     Json::Value
     getJson() const
     {
-        return ripple::getJson(*ledger);
+        return ripple::getJson(*ledger_);
     }
 
 
 
     // TODO: Make this shared_ptr<ReadView const> .. requires ability to create
     // a new ledger from a readview?
-    std::shared_ptr<Ledger const> ledger;
+    std::shared_ptr<Ledger const> ledger_;
 
 };
 
