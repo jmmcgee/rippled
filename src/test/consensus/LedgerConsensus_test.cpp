@@ -59,12 +59,12 @@ public:
 
 
     // A single transaction
-    class Tx
+    class Txn
     {
     public:
         using ID = int;
 
-        Tx(ID i) : id_{ i } {}
+        Txn(ID i) : id_{ i } {}
 
         ID
         id() const
@@ -73,13 +73,13 @@ public:
         }
 
         bool
-        operator<(Tx const & o) const
+        operator<(Txn const & o) const
         {
             return id_ < o.id_;
         }
 
         bool
-        operator==(Tx const & o) const
+        operator==(Txn const & o) const
         {
             return id_ == o.id_;
         }
@@ -91,14 +91,14 @@ public:
 
     //!-------------------------------------------------------------------------
     // All sets of Tx are represented as a flat_set.
-    using TxSetType = bc::flat_set<Tx>;
+    using TxSetType = bc::flat_set<Txn>;
 
     // TxSet is a set of transactions to consider including in the ledger
     class TxSet
     {
     public:
         using ID = TxSetType;
-        using Tx = Tx;
+        using Tx = Txn;
 
         TxSet() = default;
         TxSet(TxSetType const & s) : txs_{ s } {}
@@ -179,7 +179,7 @@ public:
         struct ID
         {
             std::uint32_t seq = 0;
-            TxSetType txs;
+            TxSetType txs = TxSetType{};
 
             bool operator==(ID const & o) const
             {
@@ -355,7 +355,7 @@ public:
         // as the prior ledger
         bc::flat_map<Ledger::ID, std::vector<Proposal>> proposals_;
         bc::flat_map<TxSet::ID, TxSet> txSets;
-        bc::flat_set<Tx::ID> seenTxs;
+        bc::flat_set<Txn::ID> seenTxs;
 
         // Instance of Consensus
         std::shared_ptr<Consensus> consensus;
@@ -547,7 +547,7 @@ public:
             Time::duration closeResolution_,
             Time const & now,
             std::chrono::milliseconds const & roundTime_,
-            hash_map<Tx::ID, DisputedTx <Tx, NodeID>> const & disputes_,
+            hash_map<Txn::ID, DisputedTx <Txn, NodeID>> const & disputes_,
             std::map <Time, int> closeTimes_,
             Time const & closeTime,
             Json::Value && json)
@@ -559,7 +559,7 @@ public:
             lastClosedLedger = newLedger;
 
             auto it = std::remove_if(openTxs.begin(), openTxs.end(),
-                [&](Tx const & tx)
+                [&](Txn const & tx)
                 {
                     return set.exists(tx.id());
                 });
@@ -603,7 +603,7 @@ public:
         }
 
         void
-        receive(Tx const & tx)
+        receive(Txn const & tx)
         {
             if (seenTxs.find(tx.id()) == seenTxs.end())
             {
@@ -627,7 +627,7 @@ public:
         // Receive a locally submitted transaction and
         // share with peers
         void
-        submit(Tx const & tx)
+        submit(Txn const & tx)
         {
             receive(tx);
             relay(tx);
@@ -656,7 +656,7 @@ public:
 
         p.targetRounds = 1;
         p.start();
-        p.receive(Tx{ 1 });
+        p.receive(Txn{ 1 });
 
         n.step();
 
@@ -664,7 +664,7 @@ public:
         BEAST_EXPECT(p.consensus->getLCL().seq == 1);
         BEAST_EXPECT(p.consensus->getLCL() == p.lastClosedLedger.id());
         BEAST_EXPECT(p.lastClosedLedger.id().txs.size() == 1);
-        BEAST_EXPECT(p.lastClosedLedger.id().txs.find(Tx{ 1 })
+        BEAST_EXPECT(p.lastClosedLedger.id().txs.find(Txn{ 1 })
             != p.lastClosedLedger.id().txs.end());
         BEAST_EXPECT(p.consensus->getLastCloseProposers() == 0);
     }
@@ -702,7 +702,7 @@ public:
         for (auto & p : peers)
         {
             p.start();
-            p.submit(Tx{ p.id });
+            p.submit(Txn{ p.id });
         }
 
         // Let consensus proceed for one round
@@ -715,7 +715,7 @@ public:
             BEAST_EXPECT(lgrID.seq == 1);
             BEAST_EXPECT(p.consensus->getLastCloseProposers() == peers.size() - 1);
             for(int i = 0; i < peers.size(); ++i)
-                BEAST_EXPECT(lgrID.txs.find(Tx{ i }) != lgrID.txs.end());
+                BEAST_EXPECT(lgrID.txs.find(Txn{ i }) != lgrID.txs.end());
             // Matches peer 0 ledger
             BEAST_EXPECT(lgrID.txs == peers[0].consensus->getLCL().txs);
         }
@@ -746,7 +746,7 @@ public:
         for (auto & p : peers)
         {
             p.start();
-            p.submit(Tx{ p.id });
+            p.submit(Txn{ p.id });
         }
 
         // Let consensus proceed, only 1 round needed
@@ -770,13 +770,13 @@ public:
                 BEAST_EXPECT(p.consensus->getLastCloseDuration()
                     > peers[0].consensus->getLastCloseDuration());
 
-            BEAST_EXPECT(lgrID.txs.find(Tx{ 0 }) == lgrID.txs.end());
+            BEAST_EXPECT(lgrID.txs.find(Txn{ 0 }) == lgrID.txs.end());
             for(int i = 1; i < peers.size(); ++i)
-                BEAST_EXPECT(lgrID.txs.find(Tx{ i }) != lgrID.txs.end());
+                BEAST_EXPECT(lgrID.txs.find(Txn{ i }) != lgrID.txs.end());
             // Matches peer 0 ledger
             BEAST_EXPECT(lgrID.txs == peers[0].consensus->getLCL().txs);
         }
-        BEAST_EXPECT(peers[0].openTxs.find(Tx{ 0 }) != peers[0].openTxs.end());
+        BEAST_EXPECT(peers[0].openTxs.find(Txn{ 0 }) != peers[0].openTxs.end());
     }
 
     void
@@ -833,7 +833,7 @@ std::ostream& operator<< (std::ostream & o, LedgerConsensus_test::MissingTx cons
 
 template <class Hasher>
 void
-inline hash_append(Hasher& h, LedgerConsensus_test::Tx const & tx)
+inline hash_append(Hasher& h, LedgerConsensus_test::Txn const & tx)
 {
     using beast::hash_append;
     hash_append(h, tx.id());

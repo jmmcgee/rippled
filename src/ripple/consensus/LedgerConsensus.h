@@ -1150,8 +1150,7 @@ void LedgerConsensus<Traits>::takeInitialPosition()
 
     @return the number of participants which must agree
 */
-static
-int
+inline int
 participantsNeeded (int participants, int percent)
 {
     int result = ((participants * percent) + (percent / 2)) / 100;
