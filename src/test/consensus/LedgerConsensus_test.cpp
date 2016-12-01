@@ -360,7 +360,9 @@ public:
         // Instance of Consensus
         std::shared_ptr<Consensus> consensus;
 
-        const std::chrono::seconds timerFreq = 1s;
+        int completedRounds = 0;
+        int targetRounds = std::numeric_limits<int>::max();
+        const std::chrono::milliseconds timerFreq = 100ms;
 
         // All peers start from the default constructed ledger
         Peer(NodeID i, Network & n) : id{i}, net{n}
@@ -570,8 +572,14 @@ public:
            // kick off the next round...
            // in the actual implementation, this passes back through
            // network ops
-           consensus->startRound(net.now(), lastClosedLedger.id(),
-                lastClosedLedger);
+           ++completedRounds;
+           // startRound sets the LCL state, so we need to call it once after
+           // the last requested round completes
+           if(completedRounds <= targetRounds)
+           {
+             consensus->startRound(net.now(), lastClosedLedger.id(),
+                    lastClosedLedger);
+           }
         }
 
         //-------------------------------------------------------------------------
@@ -629,7 +637,9 @@ public:
         timerEntry()
         {
             consensus->timerEntry(net.now());
-            net.timer(timerFreq, [&]() { timerEntry(); });
+            // only reschedule if not completed
+            if(completedRounds < targetRounds)
+                net.timer(timerFreq, [&]() { timerEntry(); });
         }
         void
         start()
@@ -643,16 +653,12 @@ public:
     {
         Network n;
         Peer p{ 0, n };
-        n.step_for(9s);
+
+        p.targetRounds = 1;
         p.start();
         p.receive(Tx{ 1 });
-        n.step_for(2s);
 
-        // not enough time has elapsed to close the ledger
-        BEAST_EXPECT(p.consensus->getLCL().seq == 0);
-
-        // advance enough to close and accept and start the next round
-        n.step_for(7s);
+        n.step();
 
         // Inspect that the proper ledger was created
         BEAST_EXPECT(p.consensus->getLCL().seq == 1);
@@ -660,8 +666,16 @@ public:
         BEAST_EXPECT(p.lastClosedLedger.id().txs.size() == 1);
         BEAST_EXPECT(p.lastClosedLedger.id().txs.find(Tx{ 1 })
             != p.lastClosedLedger.id().txs.end());
-        BEAST_EXPECT(p.consensus->getLastCloseDuration() == 8s);
         BEAST_EXPECT(p.consensus->getLastCloseProposers() == 0);
+    }
+
+
+    void
+    run_consensus(Network & n, std::vector<Peer> & peers, int rounds)
+    {
+        for(auto & p : peers)
+            p.targetRounds = p.completedRounds + rounds;
+        n.step();
     }
 
     void
@@ -670,8 +684,11 @@ public:
         Network n;
         std::vector<Peer> peers;
         peers.reserve(5);
+
         for (int i = 0; i < 5; ++i)
+        {
             peers.emplace_back(i, n);
+        }
 
         // fully connect the graph?
         for (int i = 0; i < peers.size(); ++i )
@@ -688,16 +705,15 @@ public:
             p.submit(Tx{ p.id });
         }
 
-        // Let consensus proceed
-        n.step_for(5s);
+        // Let consensus proceed for one round
+        run_consensus(n, peers, 1);
 
         // Verify all peers have same LCL and it has all the TXs
         for (auto & p : peers)
         {
             auto const &lgrID = p.consensus->getLCL();
             BEAST_EXPECT(lgrID.seq == 1);
-            BEAST_EXPECT(p.consensus->getLastCloseProposers() == 4);
-            BEAST_EXPECT(p.consensus->getLastCloseDuration() == 3s);
+            BEAST_EXPECT(p.consensus->getLastCloseProposers() == peers.size() - 1);
             for(int i = 0; i < peers.size(); ++i)
                 BEAST_EXPECT(lgrID.txs.find(Tx{ i }) != lgrID.txs.end());
             // Matches peer 0 ledger
@@ -714,7 +730,9 @@ public:
         std::vector<Peer> peers;
         peers.reserve(5);
         for (int i = 0; i < 5; ++i)
+        {
             peers.emplace_back(i, n);
+        }
 
         // Fully connected, but node 0 has a large delay
         for (int i = 0; i < peers.size(); ++i )
@@ -731,8 +749,9 @@ public:
             p.submit(Tx{ p.id });
         }
 
-        // Let consensus proceed
-        n.step_for(5s);
+        // Let consensus proceed, only 1 round needed
+        // since all but the slow peer have 0 delay
+        run_consensus(n, peers, 1);
 
         // Verify all peers have same LCL but are missing transaction 0 which
         // was not received by all peers before the ledger closed
@@ -742,15 +761,15 @@ public:
 
             auto const &lgrID = p.consensus->getLCL();
             BEAST_EXPECT(lgrID.seq == 1);
-            BEAST_EXPECT(p.consensus->getLastCloseProposers() == 4);
+            BEAST_EXPECT(p.consensus->getLastCloseProposers() == peers.size() - 1);
             // Peer 0 closes first because it sees a quorum of agreeing positions
             // from all other peers in one hop (1->0, 2->0, ..)
             // The other peers take an extra timer period before they find that
             // Peer 0 agrees with them ( 1->0->1,  2->0->2, ...)
-            if(&p == &peers[0])
-                BEAST_EXPECT(p.consensus->getLastCloseDuration() == 3s);
-            else
-                BEAST_EXPECT(p.consensus->getLastCloseDuration() == 4s);
+            if(p.id != 0)
+                BEAST_EXPECT(p.consensus->getLastCloseDuration()
+                    > peers[0].consensus->getLastCloseDuration());
+
             BEAST_EXPECT(lgrID.txs.find(Tx{ 0 }) == lgrID.txs.end());
             for(int i = 1; i < peers.size(); ++i)
                 BEAST_EXPECT(lgrID.txs.find(Tx{ i }) != lgrID.txs.end());
