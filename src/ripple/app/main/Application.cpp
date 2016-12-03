@@ -83,6 +83,7 @@
 #include <boost/asio/signal_set.hpp>
 #include <boost/optional.hpp>
 #include <atomic>
+#include <chrono>
 #include <fstream>
 
 namespace ripple {
@@ -830,8 +831,9 @@ public:
         JLOG(m_journal.info())
             << "Application starting. Version is " << BuildInfo::getVersionString();
 
-        m_sweepTimer.setExpiration (10);
-        m_entropyTimer.setRecurringExpiration (300);
+        using namespace std::chrono_literals;
+        m_sweepTimer.setExpiration (10s);
+        m_entropyTimer.setRecurringExpiration (5min);
 
         m_io_latency_sampler.start();
 
@@ -934,7 +936,8 @@ public:
         cachedSLEs_.expire();
 
         // VFALCO NOTE does the call to sweep() happen on another thread?
-        m_sweepTimer.setExpiration (config_->getSize (siSweepInterval));
+        m_sweepTimer.setExpiration (
+            std::chrono::seconds {config_->getSize (siSweepInterval)});
     }
 
 
