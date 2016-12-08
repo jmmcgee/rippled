@@ -23,7 +23,6 @@
 #include <ripple/core/DatabaseCon.h>
 #include <ripple/consensus/LedgerConsensus.h>
 #include <ripple/app/main/Application.h>
-#include <ripple/app/consensus/RCLCxTraits.h>
 #include <ripple/app/consensus/RCLCxConsensus.h>
 #include <ripple/app/ledger/AcceptedLedger.h>
 #include <ripple/app/ledger/InboundLedger.h>
@@ -198,11 +197,14 @@ public:
         , m_amendmentBlocked (false)
         , m_heartbeatTimer (this)
         , m_clusterTimer (this)
-        , mLedgerConsensus (makeLedgerConsensus (mConsensus,
-            app_.logs().journal("Consensus"),
-               make_FeeVote (setup_FeeVote (app_.config().section ("voting")),
-                   app_.logs().journal("FeeVote")),
-            app, app.getInboundTransactions(), ledgerMaster, *m_localTX, stopwatch()))
+        , mConsensus (app,
+            make_FeeVote(setup_FeeVote (app_.config().section ("voting")),
+                                        app_.logs().journal("FeeVote")),
+            ledgerMaster,
+            *m_localTX,
+            app.getInboundTransactions(),
+            app_.logs().journal("Consensus"))
+        , mLedgerConsensus(std::make_shared<LedgerConsensus<RCLCxConsensus>>(mConsensus, stopwatch()))
         , m_ledgerMaster (ledgerMaster)
         , mLastLoadBase (256)
         , mLastLoadFactor (256)
@@ -528,7 +530,7 @@ private:
     DeadlineTimer m_clusterTimer;
 
     RCLCxConsensus mConsensus;
-    std::shared_ptr<LedgerConsensus<RCLCxTraits>> mLedgerConsensus;
+    std::shared_ptr<LedgerConsensus<RCLCxConsensus>> mLedgerConsensus;
 
     LedgerMaster& m_ledgerMaster;
     std::shared_ptr<InboundLedger> mAcquiringLedger;
@@ -740,12 +742,12 @@ void NetworkOPsImp::processClusterTimer ()
 
 std::string NetworkOPsImp::strOperatingMode () const
 {
-    if (mMode == omFULL)
+    if (mMode == omFULL && mLedgerConsensus->haveCorrectLCL())
     {
-        if (mConsensus.isProposing ())
+        if (mLedgerConsensus->proposing ())
             return "proposing";
 
-        if (mConsensus.isValidating ())
+        if (mLedgerConsensus->validating ())
             return "validating";
     }
 

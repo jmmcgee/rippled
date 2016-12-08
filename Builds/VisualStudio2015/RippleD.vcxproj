@@ -789,15 +789,7 @@
     </ClCompile>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxConsensus.h">
     </ClInclude>
-    <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxCalls.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
-    </ClCompile>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxCalls.h">
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxLedger.h">
-    </ClInclude>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxTraits.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxTx.h">
     </ClInclude>

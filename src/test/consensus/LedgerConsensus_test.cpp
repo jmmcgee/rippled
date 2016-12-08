@@ -311,22 +311,6 @@ public:
 
     struct Peer;
 
-    // Collect the set of concrete consensus types in a Traits class.
-    struct Traits
-    {
-
-        using Callbacks_t = Peer;
-        // For testing, network and internal time of the consensus process
-        // are the same.  In the RCL, the internal time and network time differ.
-        using NetTime_t = Time;
-        using Ledger_t = Ledger;
-        using Proposal_t = Proposal;
-        using TxSet_t = TxSet;
-        using MissingTxException_t = MissingTx;
-    };
-
-    using Consensus = LedgerConsensus<Traits>;
-
     using Network = BasicNetwork<Peer*>;
 
     // Represents a single node participating in the consensus process
@@ -334,6 +318,15 @@ public:
     // owns/drives the Consensus instance.
     struct Peer
     {
+
+        // For testing, network and internal time of the consensus process
+        // are the same.  In the RCL, the internal time and network time differ.
+        using NetTime_t = Time;
+        using Ledger_t = Ledger;
+        using Proposal_t = Proposal;
+        using TxSet_t = TxSet;
+        using MissingTxException_t = MissingTx;
+
         // Our unique ID
         NodeID id;
         // Journal needed for consensus debugging
@@ -358,6 +351,7 @@ public:
         bc::flat_set<Txn::ID> seenTxs;
 
         // Instance of Consensus
+        using Consensus = LedgerConsensus<Peer>;
         std::shared_ptr<Consensus> consensus;
 
         int completedRounds = 0;
@@ -383,10 +377,10 @@ public:
         // @return whether we are validating,proposing
         // TODO: Bit akward that this is in callbacks, would be nice to extract
         std::pair<bool, bool>
-        getMode(const bool correctLCL)
+        getMode()
         {
-            if (!correctLCL)
-                return{ false, false };
+            // in RCL this hits NetworkOps to decide whether we are proposing
+            // validating
             return{ true, true };
         }
 

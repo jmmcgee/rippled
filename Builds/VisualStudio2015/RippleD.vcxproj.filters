@@ -1317,16 +1317,13 @@
     <ClInclude Include="..\..\src\protobuf\vsprojects\config.h">
       <Filter>protobuf\vsprojects</Filter>
     </ClInclude>
-    <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxCalls.cpp">
+    <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxConsensus.cpp">
       <Filter>ripple\app\consensus</Filter>
     </ClCompile>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxCalls.h">
+    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxConsensus.h">
       <Filter>ripple\app\consensus</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxLedger.h">
-      <Filter>ripple\app\consensus</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxTraits.h">
       <Filter>ripple\app\consensus</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxTx.h">
@@ -5732,14 +5729,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\websocketpp_02\src\websocket_frame.hpp">
       <Filter>websocketpp_02\src</Filter>
-    </ClInclude>
-    <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxConsensus.cpp">
-      <Filter>ripple\app\consensus</Filter>
-    </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxConsensus.h">
-      <Filter>ripple\app\consensus</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>
