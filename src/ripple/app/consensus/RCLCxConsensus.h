@@ -46,19 +46,6 @@ public:
     isValidating () const;
 
     void
-    setLastCloseTime(NetClock::time_point t)
-    {
-        callbacks_->setLastCloseTime(t);
-    }
-
-    NetClock::time_point
-    getLastCloseTime() const
-    {
-        return callbacks_->getLastCloseTime();
-    }
-
-
-    void
     storeProposal (
         LedgerProposal::ref proposal,
         NodeID const& nodeID);

@@ -50,18 +50,6 @@ public:
         InboundTransactions &,
         beast::Journal);
 
-    void
-    setLastCloseTime(NetClock::time_point t)
-    {
-        lastCloseTime_ = t;
-    }
-
-    NetClock::time_point
-    getLastCloseTime() const
-    {
-        return lastCloseTime_;
-    }
-
     uint256
     getLCL (
         uint256 const& currentLedger,
@@ -244,9 +232,6 @@ private:
     PublicKey valPublic_;
     SecretKey valSecret_;
     LedgerHash acquiringLedger_;
-
-    // The last close time
-    NetClock::time_point lastCloseTime_;
 
 
 };

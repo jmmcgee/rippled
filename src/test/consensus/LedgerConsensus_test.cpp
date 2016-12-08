@@ -461,18 +461,6 @@ public:
             return res;
         }
 
-        Time
-        getLastCloseTime() const
-        {
-            return lastCloseTime;
-        }
-
-        void
-        setLastCloseTime(Time tp)
-        {
-            lastCloseTime = tp;
-        }
-
         void
         statusChange(ConsensusChange c, Ledger const & prevLedger,
             bool haveCorrectLCL)

@@ -280,7 +280,7 @@ private:
     bool haveCorrectLCL_ = false;
     bool consensusFail_ = false;
     bool haveCloseTimeConsensus_ = false;
-
+    bool firstRound_ = true;
     //-------------------------------------------------------------------------
     // Internal time measurements of consensus progress
     clock_type const & clock_;
@@ -745,14 +745,14 @@ void LedgerConsensus<Traits>::statePreClose ()
             && (previousLedger_.closeTime() !=
                 (previousLedger_.parentCloseTime() + 1s));
 
-        auto closeTime = previousCloseCorrect
+        auto lastCloseTime = previousCloseCorrect
             ? previousLedger_.closeTime() // use consensus timing
-            : callbacks_.getLastCloseTime(); // use the time we saw
+            : closeTime_; // use the time we saw internally
 
-        if (now_ >= closeTime)
-            sinceClose = duration_cast<milliseconds>( now_ - closeTime );
+        if (now_ >= lastCloseTime )
+            sinceClose = duration_cast<milliseconds>(now_ - lastCloseTime);
         else
-            sinceClose = -duration_cast<milliseconds>(closeTime - now_);
+            sinceClose = -duration_cast<milliseconds>(lastCloseTime  - now_);
     }
 
     auto const idleInterval = std::max<seconds>(LEDGER_IDLE_INTERVAL,
@@ -1349,7 +1349,6 @@ void LedgerConsensus<Traits>::closeLedger ()
     state_ = State::establish;
     consensusStartTime_ = clock_.now ();
     closeTime_ = now_;
-    callbacks_.setLastCloseTime(closeTime_);
 
     callbacks_.statusChange (
         ConsensusChange::Closing,
@@ -1399,6 +1398,13 @@ void LedgerConsensus<Traits>::startRound (
     {
         // We can't start a new round while we're processing
         return;
+    }
+
+    if (firstRound_)
+    {
+        // take our initial view of closeTime_ from the seed ledger
+        closeTime_ = prevLedger.closeTime();
+        firstRound_ = false;
     }
 
     state_ = State::open;
