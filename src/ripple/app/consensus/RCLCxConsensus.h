@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_CONSENSUS_RCLCONSENSUS_H_INCLUDED
-#define RIPPLE_APP_CONSENSUS_RCLCONSENSUS_H_INCLUDED
+#ifndef RIPPLE_APP_CONSENSUS_RCLCxConsensus_H_INCLUDED
+#define RIPPLE_APP_CONSENSUS_RCLCxConsensus_H_INCLUDED
 
 #include <BeastConfig.h>
 #include <ripple/basics/Log.h>
@@ -33,7 +33,7 @@ namespace ripple {
 
 
 /** Implements the consensus process and provides inter-round state. */
-class RCLConsensus
+class RCLCxConsensus
 {
 public:
 
@@ -75,7 +75,7 @@ public:
 
    friend std::shared_ptr<LedgerConsensus<RCLCxTraits>>
     makeLedgerConsensus (
-        RCLConsensus& ,
+        RCLCxConsensus& ,
         beast::Journal journal_,
         std::unique_ptr<FeeVote> &&,
         Application& ,
@@ -102,7 +102,7 @@ private:
 
 std::shared_ptr<LedgerConsensus<RCLCxTraits>>
 makeLedgerConsensus (
-    RCLConsensus& consensus,
+    RCLCxConsensus& consensus,
     beast::Journal journal_,
     std::unique_ptr<FeeVote> && feeVote,
     Application& app,

@@ -783,11 +783,11 @@
     </ClInclude>
     <ClInclude Include="..\..\src\protobuf\vsprojects\config.h">
     </ClInclude>
-    <ClCompile Include="..\..\src\ripple\app\consensus\RCLConsensus.cpp">
+    <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxConsensus.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLConsensus.h">
+    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxConsensus.h">
     </ClInclude>
     <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxCalls.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>

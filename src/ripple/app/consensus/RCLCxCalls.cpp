@@ -20,7 +20,7 @@
 #include <ripple/app/consensus/RCLCxCalls.h>
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/ledger/LedgerProposal.h>
-#include <ripple/app/consensus/RCLConsensus.h>
+#include <ripple/app/consensus/RCLCxConsensus.h>
 
 #include <ripple/app/ledger/InboundTransactions.h>
 #include <ripple/app/misc/AmendmentTable.h>
@@ -42,7 +42,7 @@ namespace ripple {
 
 RCLCxCalls::RCLCxCalls (
     Application& app,
-    RCLConsensus & consensus,
+    RCLCxConsensus & consensus,
     std::unique_ptr<FeeVote> && feeVote,
     LedgerMaster& ledgerMaster,
     LocalTxs & localTxs,

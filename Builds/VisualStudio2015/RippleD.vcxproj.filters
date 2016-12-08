@@ -1317,12 +1317,6 @@
     <ClInclude Include="..\..\src\protobuf\vsprojects\config.h">
       <Filter>protobuf\vsprojects</Filter>
     </ClInclude>
-    <ClCompile Include="..\..\src\ripple\app\consensus\RCLConsensus.cpp">
-      <Filter>ripple\app\consensus</Filter>
-    </ClCompile>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLConsensus.h">
-      <Filter>ripple\app\consensus</Filter>
-    </ClInclude>
     <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxCalls.cpp">
       <Filter>ripple\app\consensus</Filter>
     </ClCompile>
@@ -5738,6 +5732,14 @@
     </ClInclude>
     <ClInclude Include="..\..\src\websocketpp_02\src\websocket_frame.hpp">
       <Filter>websocketpp_02\src</Filter>
+    </ClInclude>
+    <ClCompile Include="..\..\src\ripple\app\consensus\RCLCxConsensus.cpp">
+      <Filter>ripple\app\consensus</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxConsensus.h">
+      <Filter>ripple\app\consensus</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

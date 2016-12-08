@@ -19,4 +19,4 @@
 #include <BeastConfig.h>
 
 #include <ripple/app/consensus/RCLCxCalls.cpp>
-#include <ripple/app/consensus/RCLConsensus.cpp>
+#include <ripple/app/consensus/RCLCxConsensus.cpp>
