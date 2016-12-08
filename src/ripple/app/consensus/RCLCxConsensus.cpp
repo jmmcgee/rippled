@@ -42,16 +42,6 @@ RCLCxConsensus::setProposing (bool p, bool v)
     validating_ = v;
 }
 
-NetClock::time_point
-RCLCxConsensus::validationTimestamp (NetClock::time_point vt)
-{
-    if (vt <= lastValidationTimestamp_)
-        vt = lastValidationTimestamp_ + 1s;
-
-    lastValidationTimestamp_ = vt;
-    return vt;
-}
-
 void
 RCLCxConsensus::storeProposal (
     LedgerProposal::ref proposal,

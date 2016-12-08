@@ -53,10 +53,6 @@ public:
     void
     setProposing (bool p, bool v);
 
-    NetClock::time_point
-    validationTimestamp (NetClock::time_point vt);
-
-
     std::vector <LedgerProposal>
     getStoredProposals (uint256 const& previousLedger);
 
@@ -76,10 +72,6 @@ private:
 
     bool proposing_ = false;
     bool validating_ = false;
-
-    // The timestamp of the last validation we used, in network time. This is
-    // only used for our own validations.
-    NetClock::time_point lastValidationTimestamp_;
 
     Proposals storedProposals_;
 

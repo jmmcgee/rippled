@@ -574,10 +574,14 @@ void RCLCxCalls::validate(
     NetClock::time_point now,
     bool proposing)
 {
+    auto validationTime = now;
+    if (validationTime <= lastValidationTime_)
+        validationTime = lastValidationTime_ + 1s;
+    lastValidationTime_ = validationTime;
+
     // Build validation
     auto v = std::make_shared<STValidation> (ledger.id(),
-        consensus_.validationTimestamp(now),
-        valPublic_, proposing);
+        validationTime, valPublic_, proposing);
     v->setFieldU32 (sfLedgerSequence, ledger.seq());
 
     // Add our load fee to the validation
