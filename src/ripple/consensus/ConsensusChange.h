@@ -16,8 +16,8 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
-#ifndef RIPPLE_CONSENSUS_LEDGERTYPES_H_INCLUDED
-#define RIPPLE_CONSENSUS_LEDGERTYPES_H_INCLUDED
+#ifndef RIPPLE_CONSENSUS_CHANGE_H_INCLUDED
+#define RIPPLE_CONSENSUS_CHANGE_H_INCLUDED
 namespace ripple
 {
    enum class ConsensusChange {StartRound, Closing, Accepted};

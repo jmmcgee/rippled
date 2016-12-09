@@ -17,10 +17,10 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_CONSENSUS_LEDGERCONSENSUS_H_INCLUDED
-#define RIPPLE_CONSENSUS_LEDGERCONSENSUS_H_INCLUDED
+#ifndef RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
+#define RIPPLE_CONSENSUS_CONSENSUS_H_INCLUDED
 
-#include <ripple/consensus/ConsensusTypes.h>
+#include <ripple/consensus/ConsensusChange.h>
 #include <ripple/consensus/DisputedTx.h>
 #include <ripple/basics/CountedObject.h>
 #include <ripple/consensus/LedgerTiming.h>
@@ -35,18 +35,18 @@
 namespace ripple {
 
 /**
-  Provides the implementation for LedgerConsensus.
+  Generic implementation of consensus algorithm.
 
   Achieves consensus on the next ledger.
 
   Two things need consensus:
-    1.  The set of transactions.
+    1.  The set of transactions included in the ledger.
     2.  The close time for the ledger.
 */
-template <class Callbacks>
-class LedgerConsensus
-    : public std::enable_shared_from_this <LedgerConsensus<Callbacks>>
-    , public CountedObject <LedgerConsensus<Callbacks>>
+template <class Impl>
+class Consensus
+    : public std::enable_shared_from_this <Consensus<Impl>>
+    , public CountedObject <Consensus<Impl>>
 {
 private:
     enum class State
@@ -69,28 +69,28 @@ private:
 public:
     using clock_type = beast::abstract_clock <std::chrono::steady_clock>;
 
-    using NetTime_t = typename Callbacks::NetTime_t;
-    using Ledger_t = typename Callbacks::Ledger_t;
-    using Proposal_t = typename Callbacks::Proposal_t;
-    using TxSet_t = typename Callbacks::TxSet_t;
+    using NetTime_t = typename Impl::NetTime_t;
+    using Ledger_t = typename Impl::Ledger_t;
+    using Proposal_t = typename Impl::Proposal_t;
+    using TxSet_t = typename Impl::TxSet_t;
     using Tx_t = typename TxSet_t::Tx;
     using NodeID_t = typename Proposal_t::NodeID;
     using Dispute_t = DisputedTx<Tx_t, NodeID_t>;
 
-    static char const* getCountedObjectName () { return "LedgerConsensus"; }
+    static char const* getCountedObjectName () { return "Consensus"; }
 
-    LedgerConsensus(LedgerConsensus const&) = delete;
-    LedgerConsensus& operator=(LedgerConsensus const&) = delete;
+    Consensus(Consensus const&) = delete;
+    Consensus& operator=(Consensus const&) = delete;
 
-    ~LedgerConsensus () = default;
+    ~Consensus () = default;
 
 
     /**
         @param callbacks implementation specific hooks back into surrouding app
         @param id identifier for this node to use in consensus process
     */
-    LedgerConsensus (
-        Callbacks& callbacks,
+    Consensus (
+        Impl& callbacks,
         clock_type const & clock);
 
     /**
@@ -290,7 +290,7 @@ private:
 
 private:
     mutable std::recursive_mutex lock_;
-    Callbacks& callbacks_;
+    Impl& impl_;
 
     //-------------------------------------------------------------------------
     // Consensus state variables
@@ -361,21 +361,21 @@ private:
 
 };
 
-template <class Callbacks>
-LedgerConsensus<Callbacks>::LedgerConsensus (
-        Callbacks& callbacks,
+template <class Impl>
+Consensus<Impl>::Consensus (
+        Impl& callbacks,
         clock_type const & clock)
-    : callbacks_ (callbacks)
+    : impl_ (callbacks)
     , state_ (State::open)
     , clock_(clock)
     , consensusStartTime_ (clock_.now ())
-    , j_ (callbacks.journal ("LedgerConsensus"))
+    , j_ (callbacks.journal ("Consensus"))
 {
     JLOG (j_.debug()) << "Creating consensus object";
 }
 
-template <class Callbacks>
-Json::Value LedgerConsensus<Callbacks>::getJson (bool full) const
+template <class Impl>
+Json::Value Consensus<Impl>::getJson (bool full) const
 {
     using std::to_string;
     using Int = Json::Value::Int;
@@ -496,9 +496,9 @@ Json::Value LedgerConsensus<Callbacks>::getJson (bool full) const
 // We store it, notify peers that we have it,
 // and update our tracking if any validators currently
 // propose it
-template <class Callbacks>
+template <class Impl>
 void
-LedgerConsensus<Callbacks>::mapCompleteInternal (
+Consensus<Impl>::mapCompleteInternal (
     TxSet_t const& map,
     bool acquired)
 {
@@ -519,7 +519,7 @@ LedgerConsensus<Callbacks>::mapCompleteInternal (
         // If we generated this locally,
         // put the map where others can get it
         // If we acquired it, it's already shared
-        callbacks_.share (map);
+        impl_.share (map);
     }
 
     if (! ourPosition_)
@@ -567,8 +567,8 @@ LedgerConsensus<Callbacks>::mapCompleteInternal (
     acquired_.emplace (hash, map);
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::gotMap (
+template <class Impl>
+void Consensus<Impl>::gotMap (
     NetTime_t const& now,
     TxSet_t const& map)
 {
@@ -580,7 +580,7 @@ void LedgerConsensus<Callbacks>::gotMap (
     {
         mapCompleteInternal (map, true);
     }
-    catch (typename Callbacks::MissingTxException_t const& mn)
+    catch (typename Impl::MissingTxException_t const& mn)
     {
         // This should never happen
         leaveConsensus();
@@ -590,10 +590,10 @@ void LedgerConsensus<Callbacks>::gotMap (
     }
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::checkLCL ()
+template <class Impl>
+void Consensus<Impl>::checkLCL ()
 {
-    auto netLgr = callbacks_.getLCL (
+    auto netLgr = impl_.getLCL (
         prevLedgerHash_,
         haveCorrectLCL_ ? previousLedger_.parentID() : typename Ledger_t::ID{},
         haveCorrectLCL_);
@@ -641,8 +641,8 @@ void LedgerConsensus<Callbacks>::checkLCL ()
 }
 
 // Handle a change in the LCL during a consensus round
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::handleLCL (typename Ledger_t::ID const& lclHash)
+template <class Impl>
+void Consensus<Impl>::handleLCL (typename Ledger_t::ID const& lclHash)
 {
     assert (lclHash != prevLedgerHash_ ||
             previousLedger_.id() != lclHash);
@@ -673,7 +673,7 @@ void LedgerConsensus<Callbacks>::handleLCL (typename Ledger_t::ID const& lclHash
         return;
 
     // we need to switch the ledger we're working from
-    if (auto buildLCL = callbacks_.acquireLedger(prevLedgerHash_))
+    if (auto buildLCL = impl_.acquireLedger(prevLedgerHash_))
     {
         JLOG (j_.info()) <<
         "Have the consensus ledger " << prevLedgerHash_;
@@ -691,8 +691,8 @@ void LedgerConsensus<Callbacks>::handleLCL (typename Ledger_t::ID const& lclHash
 
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::timerEntry (NetTime_t const& now)
+template <class Impl>
+void Consensus<Impl>::timerEntry (NetTime_t const& now)
 {
     std::lock_guard<std::recursive_mutex> _(lock_);
 
@@ -738,7 +738,7 @@ void LedgerConsensus<Callbacks>::timerEntry (NetTime_t const& now)
 
         assert (false);
     }
-    catch (typename Callbacks::MissingTxException_t const& mn)
+    catch (typename Impl::MissingTxException_t const& mn)
     {
         // This should never happen
         leaveConsensus ();
@@ -748,13 +748,13 @@ void LedgerConsensus<Callbacks>::timerEntry (NetTime_t const& now)
     }
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::statePreClose ()
+template <class Impl>
+void Consensus<Impl>::statePreClose ()
 {
     // it is shortly before ledger close time
-    bool anyTransactions = callbacks_.hasOpenTransactions();
+    bool anyTransactions = impl_.hasOpenTransactions();
     int proposersClosed = peerProposals_.size ();
-    int proposersValidated = callbacks_.numProposersValidated(prevLedgerHash_);
+    int proposersValidated = impl_.numProposersValidated(prevLedgerHash_);
 
     // This computes how long since last ledger's close time
     using namespace std::chrono;
@@ -782,14 +782,14 @@ void LedgerConsensus<Callbacks>::statePreClose ()
     if (shouldCloseLedger (anyTransactions
         , previousProposers_, proposersClosed, proposersValidated
         , previousRoundTime_, sinceClose, roundTime_
-        , idleInterval, callbacks_.journal ("LedgerTiming")))
+        , idleInterval, impl_.journal ("LedgerTiming")))
     {
         closeLedger ();
     }
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::stateEstablish ()
+template <class Impl>
+void Consensus<Impl>::stateEstablish ()
 {
     // Give everyone a chance to take an initial position
     if (roundTime_ < LEDGER_MIN_CONSENSUS)
@@ -814,8 +814,8 @@ void LedgerConsensus<Callbacks>::stateEstablish ()
     beginAccept (false);
 }
 
-template <class Callbacks>
-bool LedgerConsensus<Callbacks>::haveConsensus ()
+template <class Impl>
+bool Consensus<Impl>::haveConsensus ()
 {
     // CHECKME: should possibly count unacquired TX sets as disagreeing
     int agree = 0, disagree = 0;
@@ -854,7 +854,7 @@ bool LedgerConsensus<Callbacks>::haveConsensus ()
             }
         }
     }
-    int currentFinished = callbacks_.numProposersFinished(prevLedgerHash_);
+    int currentFinished = impl_.numProposersFinished(prevLedgerHash_);
 
     JLOG (j_.debug())
         << "Checking for TX consensus: agree=" << agree
@@ -863,7 +863,7 @@ bool LedgerConsensus<Callbacks>::haveConsensus ()
     // Determine if we actually have consensus or not
     auto ret = checkConsensus (previousProposers_, agree + disagree, agree,
         currentFinished, previousRoundTime_, roundTime_, proposing_,
-        callbacks_.journal ("LedgerTiming"));
+        impl_.journal ("LedgerTiming"));
 
     if (ret == ConsensusState::No)
         return false;
@@ -881,8 +881,8 @@ bool LedgerConsensus<Callbacks>::haveConsensus ()
     return true;
 }
 
-template <class Callbacks>
-bool LedgerConsensus<Callbacks>::peerProposal (
+template <class Impl>
+bool Consensus<Impl>::peerProposal (
     NetTime_t const& now,
     Proposal_t const& newPosition)
 {
@@ -960,7 +960,7 @@ bool LedgerConsensus<Callbacks>::peerProposal (
         auto ait = acquired_.find (newPosition.getPosition());
         if (ait == acquired_.end())
         {
-            if (auto set = callbacks_.acquireTxSet(newPosition))
+            if (auto set = impl_.acquireTxSet(newPosition))
             {
                 ait = acquired_.emplace (newPosition.getPosition(),
                     std::move(*set)).first;
@@ -984,8 +984,8 @@ bool LedgerConsensus<Callbacks>::peerProposal (
     return true;
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::simulate (
+template <class Impl>
+void Consensus<Impl>::simulate (
     NetTime_t const& now,
     boost::optional<std::chrono::milliseconds> consensusDelay)
 {
@@ -999,11 +999,11 @@ void LedgerConsensus<Callbacks>::simulate (
     JLOG (j_.info()) << "Simulation complete";
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::accept (TxSet_t const& set)
+template <class Impl>
+void Consensus<Impl>::accept (TxSet_t const& set)
 {
 
-    callbacks_.accept(set,
+    impl_.accept(set,
         ourPosition_->getCloseTime(),
         proposing_,
         validating_,
@@ -1029,11 +1029,11 @@ void LedgerConsensus<Callbacks>::accept (TxSet_t const& set)
         correct = haveCorrectLCL_;
     }
 
-    callbacks_.endConsensus (correct);
+    impl_.endConsensus (correct);
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::createDisputes (
+template <class Impl>
+void Consensus<Impl>::createDisputes (
     TxSet_t const& m1,
     TxSet_t const& m2)
 {
@@ -1062,8 +1062,8 @@ void LedgerConsensus<Callbacks>::createDisputes (
     JLOG (j_.debug()) << dc << " differences found";
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::addDisputedTransaction (
+template <class Impl>
+void Consensus<Impl>::addDisputedTransaction (
     Tx_t const& tx)
 {
     auto txID = tx.id();
@@ -1092,13 +1092,13 @@ void LedgerConsensus<Callbacks>::addDisputedTransaction (
                 cit->second.exists (txID));
     }
 
-    callbacks_.relay(dtx);
+    impl_.relay(dtx);
 
     disputes_.emplace (txID, std::move (dtx));
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::adjustCount (TxSet_t const& map,
+template <class Impl>
+void Consensus<Impl>::adjustCount (TxSet_t const& map,
     std::vector<NodeID_t> const& peers)
 {
     for (auto& it : disputes_)
@@ -1109,21 +1109,21 @@ void LedgerConsensus<Callbacks>::adjustCount (TxSet_t const& map,
     }
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::leaveConsensus ()
+template <class Impl>
+void Consensus<Impl>::leaveConsensus ()
 {
     if (ourPosition_ && ! ourPosition_->isBowOut ())
     {
         ourPosition_->bowOut(now_);
-        callbacks_.propose(*ourPosition_);
+        impl_.propose(*ourPosition_);
     }
     proposing_ = false;
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::takeInitialPosition()
+template <class Impl>
+void Consensus<Impl>::takeInitialPosition()
 {
-    auto pair = callbacks_.makeInitialPosition(previousLedger_, proposing_,
+    auto pair = impl_.makeInitialPosition(previousLedger_, proposing_,
        haveCorrectLCL_,  closeTime_, now_ );
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
@@ -1155,7 +1155,7 @@ void LedgerConsensus<Callbacks>::takeInitialPosition()
     mapCompleteInternal (initialSet, false);
 
     if (proposing_)
-        callbacks_.propose (*ourPosition_);
+        impl_.propose (*ourPosition_);
 }
 
 /** How many of the participants must agree to reach a given threshold?
@@ -1178,8 +1178,8 @@ participantsNeeded (int participants, int percent)
     return (result == 0) ? 1 : result;
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::updateOurPositions ()
+template <class Impl>
+void Consensus<Impl>::updateOurPositions ()
 {
     // Compute a cutoff time
     auto peerCutoff = now_ - PROPOSE_FRESHNESS;
@@ -1346,31 +1346,31 @@ void LedgerConsensus<Callbacks>::updateOurPositions ()
             newHash, closeTime, now_))
         {
             if (proposing_)
-                callbacks_.propose (*ourPosition_);
+                impl_.propose (*ourPosition_);
 
             mapCompleteInternal (*ourNewSet, false);
         }
     }
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::playbackProposals ()
+template <class Impl>
+void Consensus<Impl>::playbackProposals ()
 {
-    for (auto const & p : callbacks_.proposals(prevLedgerHash_))
+    for (auto const & p : impl_.proposals(prevLedgerHash_))
     {
         if(peerProposal(now_, p))
-            callbacks_.relay(p);
+            impl_.relay(p);
     }
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::closeLedger ()
+template <class Impl>
+void Consensus<Impl>::closeLedger ()
 {
     state_ = State::establish;
     consensusStartTime_ = clock_.now ();
     closeTime_ = now_;
 
-    callbacks_.statusChange (
+    impl_.statusChange (
         ConsensusChange::Closing,
         previousLedger_,
         haveCorrectLCL_);
@@ -1378,8 +1378,8 @@ void LedgerConsensus<Callbacks>::closeLedger ()
     takeInitialPosition ();
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::beginAccept (bool synchronous)
+template <class Impl>
+void Consensus<Impl>::beginAccept (bool synchronous)
 {
     if (! ourPosition_ || ! ourSet_)
     {
@@ -1396,7 +1396,7 @@ void LedgerConsensus<Callbacks>::beginAccept (bool synchronous)
         accept (*ourSet_);
     else
     {
-        callbacks_.dispatchAccept(
+        impl_.dispatchAccept(
             [that = this->shared_from_this(),
             consensusSet = *ourSet_]
             (auto &)
@@ -1406,8 +1406,8 @@ void LedgerConsensus<Callbacks>::beginAccept (bool synchronous)
     }
 }
 
-template <class Callbacks>
-void LedgerConsensus<Callbacks>::startRound (
+template <class Impl>
+void Consensus<Impl>::startRound (
     NetTime_t const& now,
     typename Ledger_t::ID const& prevLCLHash,
     Ledger_t const & prevLedger)
@@ -1441,7 +1441,7 @@ void LedgerConsensus<Callbacks>::startRound (
     consensusStartTime_ = clock_.now();
     haveCorrectLCL_ = (previousLedger_.id() == prevLedgerHash_);
 
-    callbacks_.statusChange(ConsensusChange::StartRound, previousLedger_, haveCorrectLCL_);
+    impl_.statusChange(ConsensusChange::StartRound, previousLedger_, haveCorrectLCL_);
 
     peerProposals_.clear();
     acquired_.clear();
@@ -1460,7 +1460,7 @@ void LedgerConsensus<Callbacks>::startRound (
 
     // We should not be proposing but not validating
     // Okay to validate but not propose
-    std::tie(proposing_, validating_) = callbacks_.getMode();
+    std::tie(proposing_, validating_) = impl_.getMode();
     assert (! proposing_ || validating_);
 
     if (validating_)

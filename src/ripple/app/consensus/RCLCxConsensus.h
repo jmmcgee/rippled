@@ -22,12 +22,13 @@
 
 #include <BeastConfig.h>
 #include <ripple/basics/Log.h>
-#include <ripple/consensus/LedgerConsensus.h>
 #include <ripple/protocol/STValidation.h>
 #include <ripple/shamap/SHAMap.h>
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/app/misc/FeeVote.h>
 #include <ripple/protocol/RippleLedgerHash.h>
+#include <ripple/consensus/ConsensusChange.h>
+#include <ripple/consensus/DisputedTx.h>
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/consensus/RCLCxTx.h>
 #include <ripple/app/ledger/LedgerProposal.h>

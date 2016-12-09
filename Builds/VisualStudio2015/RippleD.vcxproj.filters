@@ -2436,16 +2436,16 @@
     <ClInclude Include="..\..\src\ripple\conditions\RsaSha256.h">
       <Filter>ripple\conditions</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\Consensus.h">
+      <Filter>ripple\consensus</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusChange.h">
+      <Filter>ripple\consensus</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
       <Filter>ripple\consensus</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
-      <Filter>ripple\consensus</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
-      <Filter>ripple\consensus</Filter>
-    </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\LedgerConsensus.h">
       <Filter>ripple\consensus</Filter>
     </ClInclude>
     <ClCompile Include="..\..\src\ripple\consensus\LedgerTiming.cpp">

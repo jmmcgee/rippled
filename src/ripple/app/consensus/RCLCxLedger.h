@@ -34,7 +34,7 @@ class RCLCxLedger
 public:
     using ID = LedgerHash;
 
-    // Do we need this or can we force LedgerConsens to start with some ledger?
+    // Do we need this or can we force LedgerConsenus to construct with a ledger
     RCLCxLedger() = default;
 
     RCLCxLedger(std::shared_ptr<Ledger const> const & l) : ledger_{ l } {}
@@ -87,10 +87,8 @@ public:
         return ripple::getJson(*ledger_);
     }
 
-
-
     // TODO: Make this shared_ptr<ReadView const> .. requires ability to create
-    // a new ledger from a readview?
+    // a new ledger from a readView?
     std::shared_ptr<Ledger const> ledger_;
 
 };

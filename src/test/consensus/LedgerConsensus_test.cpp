@@ -18,7 +18,7 @@
 //==============================================================================
 #include <BeastConfig.h>
 #include <ripple/beast/unit_test.h>
-#include <ripple/consensus/LedgerConsensus.h>
+#include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/ConsensusProposal.h>
 #include <ripple/test/BasicNetwork.h>
 #include <ripple/beast/clock/manual_clock.h>
@@ -351,8 +351,7 @@ public:
         bc::flat_set<Txn::ID> seenTxs;
 
         // Instance of Consensus
-        using Consensus = LedgerConsensus<Peer>;
-        std::shared_ptr<Consensus> consensus;
+        std::shared_ptr<Consensus<Peer>> consensus;
 
         int completedRounds = 0;
         int targetRounds = std::numeric_limits<int>::max();
@@ -361,7 +360,7 @@ public:
         // All peers start from the default constructed ledger
         Peer(NodeID i, Network & n) : id{i}, net{n}
         {
-            consensus = std::make_shared<Consensus>(*this, net.clock());
+            consensus = std::make_shared<Consensus<Peer>>(*this, net.clock());
             ledgers[lastClosedLedger.id()] = lastClosedLedger;
             lastCloseTime = lastClosedLedger.closeTime();
             net.timer(timerFreq, [&]() { timerEntry(); });
@@ -495,7 +494,7 @@ public:
         }
 
         void
-        relay(Consensus::Dispute_t const & dispute)
+        relay(Consensus<Peer>::Dispute_t const & dispute)
         {
             relay(dispute.tx());
         }

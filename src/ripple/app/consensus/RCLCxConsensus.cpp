@@ -22,7 +22,7 @@
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/app/consensus/RCLCxLedger.h>
 #include <ripple/app/ledger/LedgerProposal.h>
-
+#include <ripple/beast/core/LexicalCast.h>
 #include <ripple/app/ledger/InboundTransactions.h>
 #include <ripple/app/misc/AmendmentTable.h>
 #include <ripple/app/ledger/OpenLedger.h>

@@ -21,7 +21,7 @@
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/protocol/Quality.h>
 #include <ripple/core/DatabaseCon.h>
-#include <ripple/consensus/LedgerConsensus.h>
+#include <ripple/consensus/Consensus.h>
 #include <ripple/app/main/Application.h>
 #include <ripple/app/consensus/RCLCxConsensus.h>
 #include <ripple/app/ledger/AcceptedLedger.h>
@@ -204,7 +204,7 @@ public:
             *m_localTX,
             app.getInboundTransactions(),
             app_.logs().journal("Consensus"))
-        , mLedgerConsensus(std::make_shared<LedgerConsensus<RCLCxConsensus>>(mConsensus, stopwatch()))
+        , mLedgerConsensus(std::make_shared<Consensus<RCLCxConsensus>>(mConsensus, stopwatch()))
         , m_ledgerMaster (ledgerMaster)
         , mLastLoadBase (256)
         , mLastLoadFactor (256)
@@ -530,7 +530,7 @@ private:
     DeadlineTimer m_clusterTimer;
 
     RCLCxConsensus mConsensus;
-    std::shared_ptr<LedgerConsensus<RCLCxConsensus>> mLedgerConsensus;
+    std::shared_ptr<Consensus<RCLCxConsensus>> mLedgerConsensus;
 
     LedgerMaster& m_ledgerMaster;
     std::shared_ptr<InboundLedger> mAcquiringLedger;
@@ -2678,7 +2678,7 @@ std::uint32_t NetworkOPsImp::acceptLedger (
         Throw<std::runtime_error> ("Operation only possible in STANDALONE mode.");
 
     // FIXME Could we improve on this and remove the need for a specialized
-    // API in LedgerConsensus?
+    // API in Consensus?
     beginConsensus (m_ledgerMaster.getClosedLedger()->info().hash);
     mLedgerConsensus->simulate (
         app_.timeKeeper().closeTime(),

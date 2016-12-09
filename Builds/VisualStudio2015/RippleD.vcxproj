@@ -1792,13 +1792,13 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\conditions\RsaSha256.h">
     </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\Consensus.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusChange.h">
+    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
-    </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\LedgerConsensus.h">
     </ClInclude>
     <ClCompile Include="..\..\src\ripple\consensus\LedgerTiming.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
