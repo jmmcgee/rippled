@@ -24,6 +24,7 @@
 #include <test/app/DeliverMin_test.cpp>
 #include <test/app/Discrepancy_test.cpp>
 #include <test/app/Flow_test.cpp>
+#include <test/app/Freeze_test.cpp>
 #include <test/app/HashRouter_test.cpp>
 #include <test/app/LoadFeeTrack_test.cpp>
 #include <test/app/Manifest_test.cpp>
