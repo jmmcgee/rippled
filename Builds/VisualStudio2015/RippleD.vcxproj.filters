@@ -2439,9 +2439,6 @@
     <ClInclude Include="..\..\src\ripple\consensus\Consensus.h">
       <Filter>ripple\consensus</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusChange.h">
-      <Filter>ripple\consensus</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
       <Filter>ripple\consensus</Filter>
     </ClInclude>

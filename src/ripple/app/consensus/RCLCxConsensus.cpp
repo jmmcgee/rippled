@@ -49,8 +49,10 @@ RCLCxConsensus::RCLCxConsensus (
    LedgerMaster& ledgerMaster,
    LocalTxs& localTxs,
    InboundTransactions& inboundTransactions,
+   typename Base::clock_type const & clock,
    beast::Journal journal)
-        : app_ (app)
+        : Base(clock, journal)
+	    , app_ (app)
         , feeVote_ (std::move(feeVote))
         , ledgerMaster_ (ledgerMaster)
         , localTxs_(localTxs)
@@ -64,12 +66,13 @@ RCLCxConsensus::RCLCxConsensus (
 }
 
 
-uint256 RCLCxConsensus::getLCL (
+uint256
+RCLCxConsensus::getLCL (
     uint256 const& currentLedger,
     uint256 const& priorLedger,
     bool believedCorrect)
 {
-    // Get validators that are on our ledger, or  "close" to being on
+    // Get validators that are on our ledger, or "close" to being on
     // our ledger.
     auto vals =
         app_.getValidations().getCurrentValidations(
@@ -90,28 +93,21 @@ uint256 RCLCxConsensus::getLCL (
 
     if (believedCorrect && (netLgr != currentLedger))
     {
-#if 0 // FIXME
-        if (auto stream = j_.debug())
-        {
-            for (auto& it : vals)
-                stream
-                    << "V: " << it.first << ", " << it.second.first;
-        }
-#endif
-
         app_.getOPs().consensusViewChange();
     }
 
     return netLgr;
 }
 
-void RCLCxConsensus::share (RCLTxSet const& set)
+void
+RCLCxConsensus::share (RCLTxSet const& set)
 {
     app_.getInboundTransactions().giveSet (set.id(),
         set.map_, false);
 }
 
-void RCLCxConsensus::propose (LedgerProposal const& position)
+void
+RCLCxConsensus::propose (LedgerProposal const& position)
 {
     JLOG (j_.trace()) << "We propose: " <<
         (position.isBowOut () ?  std::string ("bowOut") :
@@ -160,7 +156,8 @@ RCLCxConsensus::proposals (LedgerHash const& prevLedger)
     return ret;
 }
 
-void RCLCxConsensus::relay(LedgerProposal const & proposal)
+void
+RCLCxConsensus::relay(LedgerProposal const & proposal)
 {
     protocol::TMProposeSet prop;
 
@@ -186,7 +183,8 @@ void RCLCxConsensus::relay(LedgerProposal const & proposal)
 
 // First bool is whether or not we can propose
 // Second bool is whether or not we can validate
-std::pair <bool, bool> RCLCxConsensus::getMode ()
+std::pair <bool, bool>
+RCLCxConsensus::getMode ()
 {
     bool propose = false;
     bool validate = false;
@@ -308,36 +306,19 @@ RCLCxConsensus::acquireLedger(LedgerHash const & ledgerHash)
     return RCLCxLedger(buildLCL);
 }
 
-void RCLCxConsensus::statusChange(
-    ConsensusChange c,
+void
+RCLCxConsensus::notify(
+    protocol::NodeEvent ne,
     RCLCxLedger const & ledger,
     bool haveCorrectLCL)
 {
-    if (c == ConsensusChange::StartRound)
-    {
-        inboundTransactions_.newRound (ledger.seq());
-        return;
-    }
 
     protocol::TMStatusChange s;
 
     if (!haveCorrectLCL)
         s.set_newevent (protocol::neLOST_SYNC);
     else
-    {
-        switch (c)
-        {
-        case ConsensusChange::Closing:
-            s.set_newevent (protocol::neCLOSING_LEDGER);
-            break;
-        case ConsensusChange::Accepted:
-            s.set_newevent (protocol::neACCEPTED_LEDGER);
-            break;
-        case ConsensusChange::StartRound:
-            return; // TODO: this is a sign of poor design
-            break;
-        }
-    }
+    	s.set_newevent(ne);
 
     s.set_ledgerseq (ledger.seq());
     s.set_networktime (app_.timeKeeper().now().time_since_epoch().count());
@@ -578,7 +559,8 @@ RCLCxConsensus::accept(
 }
 
 
-void RCLCxConsensus::validate(
+void
+RCLCxConsensus::validate(
     RCLCxLedger const & ledger,
     NetClock::time_point now,
     bool proposing)
@@ -623,7 +605,8 @@ void RCLCxConsensus::validate(
 }
 
 
-void RCLCxConsensus::createOpenLedger(
+void
+RCLCxConsensus::createOpenLedger(
     RCLCxLedger const & closedLedger,
     CanonicalTXSet & retriableTxs,
     bool anyDisputes)
@@ -653,31 +636,32 @@ void RCLCxConsensus::createOpenLedger(
 }
 
 
-void RCLCxConsensus::endConsensus(bool correctLCL)
+void
+RCLCxConsensus::endConsensus(bool correctLCL)
 {
     app_.getOPs ().endConsensus (correctLCL);
 }
-beast::Journal RCLCxConsensus::journal(std::string const & s) const
-{
-    return app_.journal(s);
-}
 
-bool RCLCxConsensus::hasOpenTransactions() const
+bool
+RCLCxConsensus::hasOpenTransactions() const
 {
     return ! app_.openLedger().empty();
 }
 
-int RCLCxConsensus::numProposersValidated(LedgerHash const & h) const
+int
+RCLCxConsensus::numProposersValidated(LedgerHash const & h) const
 {
     return app_.getValidations().getTrustedValidationCount(h);
 }
 
-int RCLCxConsensus::numProposersFinished(LedgerHash const & h) const
+int
+RCLCxConsensus::numProposersFinished(LedgerHash const & h) const
 {
     return app_.getValidations().getNodesAfter(h);
 }
 
-void RCLCxConsensus::relay(DisputedTx <RCLCxTx, NodeID> const & dispute)
+void
+RCLCxConsensus::relay(DisputedTx <RCLCxTx, NodeID> const & dispute)
 {
      // If we didn't relay this transaction recently, relay it to all peers
     auto const & tx = dispute.tx();
@@ -696,9 +680,16 @@ void RCLCxConsensus::relay(DisputedTx <RCLCxTx, NodeID> const & dispute)
     }
 }
 
-void RCLCxConsensus::dispatchAccept(JobQueue::JobFunction const & f)
+void
+RCLCxConsensus::dispatchAccept(RCLTxSet const & txSet)
 {
-    app_.getJobQueue().addJob(jtACCEPT, "acceptLedger", f);
+    app_.getJobQueue().addJob(jtACCEPT, "acceptLedger",
+		[that = this->shared_from_this(),
+		consensusSet = txSet]
+		(auto &)
+		{
+			that->accept(consensusSet);
+		});
 }
 
 boost::optional<RCLTxSet>
@@ -711,11 +702,24 @@ RCLCxConsensus::acquireTxSet(LedgerProposal const & position)
     return boost::none;
 }
 
-void RCLCxConsensus::accept(
+void
+RCLCxConsensus::onClose(RCLCxLedger const & ledger, bool haveCorrectLCL)
+{
+	notify(protocol::neCLOSING_LEDGER, ledger, haveCorrectLCL);
+}
+
+void
+RCLCxConsensus::onStartRound(RCLCxLedger const & ledger)
+{
+	inboundTransactions_.newRound(ledger.seq());
+}
+
+bool
+RCLCxConsensus::accept(
     RCLTxSet const& set,
     NetClock::time_point consensusCloseTime,
     bool proposing_,
-    bool & validating_,
+    bool validating_,
     bool haveCorrectLCL_,
     bool consensusFail_,
     LedgerHash const &prevLedgerHash_,
@@ -772,8 +776,7 @@ void RCLCxConsensus::accept(
         << ":" << sharedLCL.seq();
 
     // Tell directly connected peers that we have a new LCL
-    statusChange (ConsensusChange::Accepted,
-        sharedLCL, haveCorrectLCL_);
+    notify (protocol::neACCEPTED_LEDGER, sharedLCL, haveCorrectLCL_);
 
     if (validating_)
         validating_ = ledgerMaster_.isCompatible(*sharedLCL.ledger_,
@@ -880,6 +883,8 @@ void RCLCxConsensus::accept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
+
+	return validating_;
 }
 
 void

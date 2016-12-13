@@ -39,7 +39,8 @@ public:
     using Time = std::chrono::steady_clock::time_point;
     using NodeID = std::int32_t;
 
-    /** Consensus unit test types
+    /**
+	    Consensus unit test types
 
         Peers in the consensus process are trying to agree on a set of transactions
         to include in a ledger.  For unit testing, each transaction is a
@@ -58,7 +59,7 @@ public:
     */
 
 
-    // A single transaction
+    //! A single transaction
     class Txn
     {
     public:
@@ -90,10 +91,10 @@ public:
     };
 
     //!-------------------------------------------------------------------------
-    // All sets of Tx are represented as a flat_set.
+    //! All sets of Tx are represented as a flat_set.
     using TxSetType = bc::flat_set<Txn>;
 
-    // TxSet is a set of transactions to consider including in the ledger
+    //! TxSet is a set of transactions to consider including in the ledger
     class TxSet
     {
     public:
@@ -137,9 +138,11 @@ public:
             return txs_;
         }
 
-        // @return map of Tx::ID that are missing
-        // true means it was in this set and not other
-        // false means it was in the other set and not this
+        /**
+		     @return Map of Tx::ID that are missing. True means
+                     it was in this set and not other. False means
+					 it was in the other set and not this
+	    */
         std::map<Tx::ID, bool>
         diff(TxSet const& other) const
         {
@@ -165,13 +168,15 @@ public:
             return res;
         }
 
-        // The set contains the actual transactions
+        //! The set contains the actual transactions
         TxSetType txs_;
 
     };
 
-    // A ledger is a set of observed transactions and a sequence number
-    // identifying the ledger.
+    /**
+	    A ledger is a set of observed transactions and a sequence number
+        identifying the ledger.
+	*/
     class Ledger
     {
     public:
@@ -249,7 +254,7 @@ public:
         }
 
 
-        // Apply the given transactions to this ledger
+        //! Apply the given transactions to this ledger
         Ledger
         close(TxSetType const & txs,
             typename Time::duration closeTimeResolution,
@@ -270,34 +275,38 @@ public:
 
     private:
 
-        // Unique identifier of ledger is combination of sequence number and id
+        //! Unique identifier of ledger is combination of sequence number and id
         ID id_;
 
-        // Bucket resolution used to determine close time
+        //! Bucket resolution used to determine close time
         typename Time::duration closeTimeResolution_ = ledgerDefaultTimeResolution;
 
-        // When the ledger closed
+        //! When the ledger closed
         Time closeTime_;
 
-        // Whether consenssus agreed on the close time
+        //! Whether consenssus agreed on the close time
         bool closeTimeAgree_ = true;
 
-        // Parent ledger id
+        //! Parent ledger id
         ID parentID_;
 
-        // Parent ledger close time
+        //! Parent ledger close time
         Time parentCloseTime_;
 
     };
 
-    // Position is a peer proposal in the consensus process and is represented
-    // directly from the generic types
+    /**
+	    Position is a peer proposal in the consensus process and is represented
+        directly from the generic types.
+    */
     using Proposal = ConsensusProposal<NodeID, Ledger::ID,
         TxSetType, Time>;
 
-    // The RCL consensus process catches missing node SHAMap error
-    // in several points. This exception is meant to represent a similar
-    // case for the unit test.
+    /**
+	    The RCL consensus process catches missing node SHAMap error
+        in several points. This exception is meant to represent a similar
+        case for the unit test.
+	*/
     class MissingTx : public std::runtime_error
     {
     public:
@@ -313,64 +322,61 @@ public:
 
     using Network = BasicNetwork<Peer*>;
 
-    // Represents a single node participating in the consensus process
-    // It implements the Callbacks required by Consensus and
-    // owns/drives the Consensus instance.
-    struct Peer
+	struct Traits
+	{
+		// For testing, network and internal time of the consensus process
+		// are the same.  In the RCL, the internal time and network time differ.
+		using NetTime_t = Time;
+		using Ledger_t = Ledger;
+		using Proposal_t = Proposal;
+		using TxSet_t = TxSet;
+		using MissingTxException_t = MissingTx;
+	};
+
+    /**
+	    Represents a single node participating in the consensus process.
+        It implements the Callbacks required by Consensus.
+    */
+    struct Peer : public Consensus<Peer, Traits>
     {
+		using Base = Consensus<Peer, Traits>;
 
-        // For testing, network and internal time of the consensus process
-        // are the same.  In the RCL, the internal time and network time differ.
-        using NetTime_t = Time;
-        using Ledger_t = Ledger;
-        using Proposal_t = Proposal;
-        using TxSet_t = TxSet;
-        using MissingTxException_t = MissingTx;
-
-        // Our unique ID
+        //! Our unique ID
         NodeID id;
-        // Journal needed for consensus debugging
-        std::map<std::string, beast::Journal> j;
-        // last time a ledger closed
+
+        //! last time a ledger closed
         Time lastCloseTime;
 
-        // openTxs that haven't been closed in a ledger yet
+        //! openTxs that haven't been closed in a ledger yet
         TxSetType openTxs;
 
-        // last ledger this peer closed
+        //! last ledger this peer closed
         Ledger lastClosedLedger;
-        // Handle to network for sending messages
+
+		//! Handle to network for sending messages
         Network & net;
 
         // The ledgers, proposals, TxSets and Txs this peer has seen
         bc::flat_map<Ledger::ID, Ledger> ledgers;
-        // Map from Ledger::ID to vector of Positions with that ledger
-        // as the prior ledger
+
+		//! Map from Ledger::ID to vector of Positions with that ledger
+        //! as the prior ledger
         bc::flat_map<Ledger::ID, std::vector<Proposal>> proposals_;
         bc::flat_map<TxSet::ID, TxSet> txSets;
-        bc::flat_set<Txn::ID> seenTxs;
-
-        // Instance of Consensus
-        std::shared_ptr<Consensus<Peer>> consensus;
+		bc::flat_set<Txn::ID> seenTxs;
 
         int completedRounds = 0;
         int targetRounds = std::numeric_limits<int>::max();
         const std::chrono::milliseconds timerFreq = 100ms;
 
-        // All peers start from the default constructed ledger
-        Peer(NodeID i, Network & n) : id{i}, net{n}
+        //! All peers start from the default constructed ledger
+        Peer(NodeID i, Network & n, beast::Journal j)
+			: Consensus<Peer, Traits>( n.clock(), j)
+			, id{i}
+			, net{n}
         {
-            consensus = std::make_shared<Consensus<Peer>>(*this, net.clock());
             ledgers[lastClosedLedger.id()] = lastClosedLedger;
             lastCloseTime = lastClosedLedger.closeTime();
-            net.timer(timerFreq, [&]() { timerEntry(); });
-        }
-
-
-        beast::Journal
-        journal(std::string const & s)
-        {
-            return j[s];
         }
 
         // @return whether we are validating,proposing
@@ -454,22 +460,17 @@ public:
             return res;
         }
 
-        void
-        statusChange(ConsensusChange c, Ledger const & prevLedger,
-            bool haveCorrectLCL)
-        {
+		void
+		onStartRound(Ledger const &) {}
 
-        }
-
+		void
+		onClose(Ledger const &, bool ) {}
 
         // don't really offload
-        // TODO: Should not be imposed on clients?
-        template <class F>
         void
-        dispatchAccept(F && f)
+        dispatchAccept(TxSet const & f)
         {
-            int dummy = 1;
-            f(dummy);
+			Base::accept(f);
         }
 
         void
@@ -494,7 +495,7 @@ public:
         }
 
         void
-        relay(Consensus<Peer>::Dispute_t const & dispute)
+        relay(Consensus<Peer, Traits>::Dispute_t const & dispute)
         {
             relay(dispute.tx());
         }
@@ -516,11 +517,11 @@ public:
         // Process the accepted transaction set, generating the newly closed ledger
         // and clearing out hte openTxs that were included.
         // TODO: Kinda nasty it takes so many arguments . . . sign of bad coupling
-        void
+        bool
         accept(TxSet const& set,
             Time consensusCloseTime,
             bool proposing_,
-            bool & validating_,
+            bool validating_,
             bool haveCorrectLCL_,
             bool consensusFail_,
             Ledger::ID const & prevLedgerHash_,
@@ -545,6 +546,7 @@ public:
                     return set.exists(tx.id());
                 });
             openTxs.erase(it, openTxs.end());
+			return validating_;
         }
 
         void
@@ -558,7 +560,7 @@ public:
            // the last requested round completes
            if(completedRounds <= targetRounds)
            {
-             consensus->startRound(net.now(), lastClosedLedger.id(),
+             startRound(net.now(), lastClosedLedger.id(),
                     lastClosedLedger);
            }
         }
@@ -570,7 +572,7 @@ public:
         {
             // filter proposals already seen?
             proposals_[p.getPrevLedgerID()].push_back(p);
-            consensus->peerProposal(net.now(), p);
+            peerProposal(net.now(), p);
 
         }
 
@@ -580,7 +582,7 @@ public:
             // save and map complete?
             auto it = txSets.insert(std::make_pair(txs.id(), txs));
             if(it.second)
-                consensus->gotMap(net.now(), txs);
+                gotTxSet(net.now(), txs);
         }
 
         void
@@ -605,19 +607,17 @@ public:
                     });
         }
 
-        // Receive a locally submitted transaction and
-        // share with peers
+        // Receive a locally submitted transaction
         void
         submit(Txn const & tx)
         {
             receive(tx);
-            relay(tx);
         }
 
         void
         timerEntry()
         {
-            consensus->timerEntry(net.now());
+            Base::timerEntry(net.now());
             // only reschedule if not completed
             if(completedRounds < targetRounds)
                 net.timer(timerFreq, [&]() { timerEntry(); });
@@ -625,15 +625,17 @@ public:
         void
         start()
         {
-            consensus->startRound(net.now(), lastClosedLedger.id(),
+			net.timer(timerFreq, [&]() { timerEntry(); });
+            startRound(net.now(), lastClosedLedger.id(),
                 lastClosedLedger);
         }
     };
+
     void
     testStandalone()
     {
         Network n;
-        Peer p{ 0, n };
+		Peer p{ 0, n, beast::Journal{} };
 
         p.targetRounds = 1;
         p.start();
@@ -642,20 +644,23 @@ public:
         n.step();
 
         // Inspect that the proper ledger was created
-        BEAST_EXPECT(p.consensus->getLCL().seq == 1);
-        BEAST_EXPECT(p.consensus->getLCL() == p.lastClosedLedger.id());
+        BEAST_EXPECT(p.LCL().seq == 1);
+        BEAST_EXPECT(p.LCL() == p.lastClosedLedger.id());
         BEAST_EXPECT(p.lastClosedLedger.id().txs.size() == 1);
         BEAST_EXPECT(p.lastClosedLedger.id().txs.find(Txn{ 1 })
             != p.lastClosedLedger.id().txs.end());
-        BEAST_EXPECT(p.consensus->getLastCloseProposers() == 0);
+        BEAST_EXPECT(p.getLastCloseProposers() == 0);
     }
 
 
     void
-    run_consensus(Network & n, std::vector<Peer> & peers, int rounds)
+    run_consensus(Network & n, std::vector<std::shared_ptr<Peer>> & peers, int rounds)
     {
-        for(auto & p : peers)
-            p.targetRounds = p.completedRounds + rounds;
+		for (auto & p : peers)
+		{
+			p->targetRounds = p->completedRounds + rounds;
+			p->start();
+		}
         n.step();
     }
 
@@ -663,101 +668,106 @@ public:
     testPeersAgree()
     {
         Network n;
-        std::vector<Peer> peers;
-        peers.reserve(5);
-
+        std::vector<std::shared_ptr<Peer>> peers;
         for (int i = 0; i < 5; ++i)
-        {
-            peers.emplace_back(i, n);
-        }
+			peers.push_back(std::make_shared<Peer>(i, n, beast::Journal{}));
 
         // fully connect the graph?
         for (int i = 0; i < peers.size(); ++i )
             for (int j = 0; j < peers.size(); ++j)
             {
                 if (i != j)
-                    n.connect(&peers[i], &peers[j], 20ms * (i + 1));
+                    n.connect(peers[i].get(), peers[j].get(), 20ms * (i + 1));
             }
 
         // everyone submits their own ID as a TX
         for (auto & p : peers)
-        {
-            p.start();
-            p.submit(Txn{ p.id });
-        }
+            p->submit(Txn{ p->id });
 
-        // Let consensus proceed for one round
+
         run_consensus(n, peers, 1);
+		// No transactions make the initial ledger
+		// since each peer only saw its local Tx
+		for (auto & p : peers)
+		{
+			auto const &lgrID = p->LCL();
+			BEAST_EXPECT(lgrID.seq == 1);
+			BEAST_EXPECT(p->getLastCloseProposers() == peers.size() - 1);
+			for (int i = 0; i < peers.size(); ++i)
+				BEAST_EXPECT(lgrID.txs.empty());
+		}
 
-        // Verify all peers have same LCL and it has all the TXs
+		run_consensus(n, peers, 1);
+        // Tx should now be shared, so verify all peers have
+		// same LCL and it has all the TXs
         for (auto & p : peers)
         {
-            auto const &lgrID = p.consensus->getLCL();
-            BEAST_EXPECT(lgrID.seq == 1);
-            BEAST_EXPECT(p.consensus->getLastCloseProposers() == peers.size() - 1);
+            auto const &lgrID = p->LCL();
+            BEAST_EXPECT(lgrID.seq == 2);
+            BEAST_EXPECT(p->getLastCloseProposers() == peers.size() - 1);
             for(int i = 0; i < peers.size(); ++i)
                 BEAST_EXPECT(lgrID.txs.find(Txn{ i }) != lgrID.txs.end());
             // Matches peer 0 ledger
-            BEAST_EXPECT(lgrID.txs == peers[0].consensus->getLCL().txs);
+            BEAST_EXPECT(lgrID.txs == peers[0]->LCL().txs);
         }
-
-
     }
 
     void
     testSlowPeer()
     {
         Network n;
-        std::vector<Peer> peers;
-        peers.reserve(5);
+        std::vector<std::shared_ptr<Peer>> peers;
         for (int i = 0; i < 5; ++i)
-        {
-            peers.emplace_back(i, n);
-        }
+            peers.push_back(std::make_shared<Peer>(i, n, beast::Journal{}));
 
-        // Fully connected, but node 0 has a large delay
+        // Fully connected, but node 0 has a delay to peers
         for (int i = 0; i < peers.size(); ++i )
             for (int j = 0; j < peers.size(); ++j)
             {
-                auto delay = (i == 0 || j == 0) ? 1100ms : 0ms;
-                n.connect(&peers[i], &peers[j], delay);
+				if (i != j)
+				{
+					auto delay = (i == 0 || j == 0) ? 1000ms : 0ms;
+					n.connect(peers[i].get(), peers[j].get(), delay);
+				}
             }
 
-        // everyone submits their own ID as a TX
-        for (auto & p : peers)
-        {
-            p.start();
-            p.submit(Txn{ p.id });
-        }
+        // All but peer 0 submits their own ID as a TX
+		for (auto & p : peers)
+		{
+			if(p->id != 0)
+				p->submit(Txn{ p->id });
+		}
+        // Get initial round out of way
+		run_consensus(n, peers, 1);
 
-        // Let consensus proceed, only 1 round needed
-        // since all but the slow peer have 0 delay
-        run_consensus(n, peers, 1);
+		// Tx to Peer 0 that won't arrive to peers in
+		// time for next round
+		peers[0]->submit(Txn{ 0 });
+
+		run_consensus(n, peers, 1);
 
         // Verify all peers have same LCL but are missing transaction 0 which
         // was not received by all peers before the ledger closed
         for (auto & p : peers)
         {
-            using namespace std::chrono;
-
-            auto const &lgrID = p.consensus->getLCL();
-            BEAST_EXPECT(lgrID.seq == 1);
-            BEAST_EXPECT(p.consensus->getLastCloseProposers() == peers.size() - 1);
+            auto const &lgrID = p->LCL();
+            BEAST_EXPECT(lgrID.seq == 2);
+            BEAST_EXPECT(p->getLastCloseProposers() == peers.size() - 1);
             // Peer 0 closes first because it sees a quorum of agreeing positions
             // from all other peers in one hop (1->0, 2->0, ..)
             // The other peers take an extra timer period before they find that
             // Peer 0 agrees with them ( 1->0->1,  2->0->2, ...)
-            if(p.id != 0)
-                BEAST_EXPECT(p.consensus->getLastCloseDuration()
-                    > peers[0].consensus->getLastCloseDuration());
+            if(p->id != 0)
+                BEAST_EXPECT(p->getLastCloseDuration()
+                    > peers[0]->getLastCloseDuration());
 
             BEAST_EXPECT(lgrID.txs.find(Txn{ 0 }) == lgrID.txs.end());
             for(int i = 1; i < peers.size(); ++i)
                 BEAST_EXPECT(lgrID.txs.find(Txn{ i }) != lgrID.txs.end());
             // Matches peer 0 ledger
-            BEAST_EXPECT(lgrID.txs == peers[0].consensus->getLCL().txs);
+            BEAST_EXPECT(lgrID.txs == peers[0]->LCL().txs);
         }
-        BEAST_EXPECT(peers[0].openTxs.find(Txn{ 0 }) != peers[0].openTxs.end());
+        BEAST_EXPECT(peers[0]->openTxs.find(Txn{ 0 }) != peers[0]->openTxs.end());
     }
 
     void

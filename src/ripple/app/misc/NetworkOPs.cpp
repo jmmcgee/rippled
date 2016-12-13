@@ -197,14 +197,14 @@ public:
         , m_amendmentBlocked (false)
         , m_heartbeatTimer (this)
         , m_clusterTimer (this)
-        , mConsensus (app,
+        , mConsensus (std::make_shared<RCLCxConsensus>(app,
             make_FeeVote(setup_FeeVote (app_.config().section ("voting")),
                                         app_.logs().journal("FeeVote")),
             ledgerMaster,
             *m_localTX,
             app.getInboundTransactions(),
-            app_.logs().journal("Consensus"))
-        , mLedgerConsensus(std::make_shared<Consensus<RCLCxConsensus>>(mConsensus, stopwatch()))
+			stopwatch(),
+            app_.logs().journal("LedgerConsensus")))
         , m_ledgerMaster (ledgerMaster)
         , mLastLoadBase (256)
         , mLastLoadFactor (256)
@@ -529,8 +529,7 @@ private:
     DeadlineTimer m_heartbeatTimer;
     DeadlineTimer m_clusterTimer;
 
-    RCLCxConsensus mConsensus;
-    std::shared_ptr<Consensus<RCLCxConsensus>> mLedgerConsensus;
+    std::shared_ptr<RCLCxConsensus> mConsensus;
 
     LedgerMaster& m_ledgerMaster;
     std::shared_ptr<InboundLedger> mAcquiringLedger;
@@ -688,7 +687,7 @@ void NetworkOPsImp::processHeartbeatTimer ()
 
     }
 
-    mLedgerConsensus->timerEntry (app_.timeKeeper().closeTime());
+    mConsensus->timerEntry (app_.timeKeeper().closeTime());
 
     setHeartbeatTimer ();
 }
@@ -742,12 +741,12 @@ void NetworkOPsImp::processClusterTimer ()
 
 std::string NetworkOPsImp::strOperatingMode () const
 {
-    if (mMode == omFULL && mLedgerConsensus->haveCorrectLCL())
+    if (mMode == omFULL && mConsensus->haveCorrectLCL())
     {
-        if (mLedgerConsensus->proposing ())
+        if (mConsensus->proposing ())
             return "proposing";
 
-        if (mLedgerConsensus->validating ())
+        if (mConsensus->validating ())
             return "validating";
     }
 
@@ -1484,7 +1483,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
     assert (closingInfo.parentHash ==
             m_ledgerMaster.getClosedLedger()->info().hash);
 
-    mLedgerConsensus->startRound (
+    mConsensus->startRound (
         app_.timeKeeper().closeTime(),
         networkClosed,
         prevLedger);
@@ -1495,7 +1494,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
 
 uint256 NetworkOPsImp::getConsensusLCL ()
 {
-    return mLedgerConsensus->getLCL ();
+    return mConsensus->LCL ();
 }
 
 void NetworkOPsImp::processTrustedProposal (
@@ -1503,9 +1502,9 @@ void NetworkOPsImp::processTrustedProposal (
     std::shared_ptr<protocol::TMProposeSet> set,
     NodeID const& node)
 {
-    mConsensus.storeProposal (proposal, node);
+	mConsensus->storeProposal (proposal, node);
 
-    if (mLedgerConsensus->peerProposal (
+    if (mConsensus->peerProposal (
         app_.timeKeeper().closeTime(), *proposal))
         app_.overlay().relay(*set, proposal->getSuppressionID());
     else
@@ -1530,7 +1529,7 @@ NetworkOPsImp::mapComplete (
 
     // We acquired it because consensus asked us to
     if (fromAcquire)
-        mLedgerConsensus->gotMap (
+        mConsensus->gotTxSet (
             app_.timeKeeper().closeTime(),
             RCLTxSet{map});
 }
@@ -2015,7 +2014,7 @@ bool NetworkOPsImp::recvValidation (
 
 Json::Value NetworkOPsImp::getConsensusInfo ()
 {
-    return mLedgerConsensus->getJson (true);
+    return mConsensus->getJson (true);
 }
 
 Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
@@ -2094,23 +2093,23 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
     info[jss::peers] = Json::UInt (app_.overlay ().size ());
 
     Json::Value lastClose = Json::objectValue;
-    lastClose[jss::proposers] = mLedgerConsensus->getLastCloseProposers();
+    lastClose[jss::proposers] = mConsensus->getLastCloseProposers();
 
     if (human)
     {
         lastClose[jss::converge_time_s] =
             std::chrono::duration<double>{
-                mLedgerConsensus->getLastCloseDuration()}.count();
+                mConsensus->getLastCloseDuration()}.count();
     }
     else
     {
         lastClose[jss::converge_time] =
-                Json::Int (mLedgerConsensus->getLastCloseDuration().count());
+                Json::Int (mConsensus->getLastCloseDuration().count());
     }
 
     info[jss::last_close] = lastClose;
 
-    //  info[jss::consensus] = mLedgerConsensus->getJson();
+    //  info[jss::consensus] = mConsensus->getJson();
 
     if (admin)
         info[jss::load] = m_job_queue.getJson ();
@@ -2680,7 +2679,7 @@ std::uint32_t NetworkOPsImp::acceptLedger (
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
     beginConsensus (m_ledgerMaster.getClosedLedger()->info().hash);
-    mLedgerConsensus->simulate (
+    mConsensus->simulate (
         app_.timeKeeper().closeTime(),
         consensusDelay);
     return m_ledgerMaster.getCurrentLedger ()->info().seq;

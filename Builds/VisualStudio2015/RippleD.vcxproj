@@ -1794,8 +1794,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\Consensus.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\consensus\ConsensusChange.h">
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
