@@ -178,12 +178,14 @@ beast_utility_unity.cpp)
 
 prepend(ripple_unity_srcs
 src/ripple/unity/
+app_consensus.cpp
 app_ledger.cpp
 app_main.cpp
 app_misc.cpp
 app_paths.cpp
 app_tx.cpp
 conditions.cpp
+consensus.cpp
 core.cpp
 basics.cpp
 crypto.cpp
@@ -257,6 +259,7 @@ foreach(curdir
         basics
         conditions
         crypto
+        consensus
         json
         ledger
         legacy
