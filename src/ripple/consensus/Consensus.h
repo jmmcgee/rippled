@@ -174,6 +174,16 @@ private:
     void
     handleLCL (typename Ledger_t::ID const& lgrId);
 
+    /** Check if our last closed ledger matches the network's.
+
+        If the last closed ledger differs,  we are no longer in sync with
+        the network. If we enter the consensus round with
+        the wrong ledger, we can leave it with the correct ledger so
+        that we can participate in the next round.
+    */
+    void
+    checkLCL ();
+
     /** If we radically changed our consensus context for some reason,
         we need to replay recent proposals so that they're not lost.
     */
@@ -596,6 +606,68 @@ Consensus<Derived, Traits>::handleLCL (typename Ledger_t::ID const& lgrId)
     else
     {
             haveCorrectLCL_ = false;
+    }
+}
+
+
+template <class Derived, class Traits>
+void Consensus<Derived, Traits>::checkLCL ()
+{
+    auto netLgr = impl().getLCL (
+        prevLedgerHash_,
+        haveCorrectLCL_ ? previousLedger_.parentID() : typename Ledger_t::ID{},
+        haveCorrectLCL_);
+
+    if (netLgr != prevLedgerHash_)
+    {
+        // LCL change
+        const char* status;
+
+        switch (state_)
+        {
+        case State::open:
+            status = "open";
+            break;
+
+        case State::establish:
+            status = "establish";
+            break;
+
+        case State::processing:
+            status = "processing";
+            break;
+
+        case State::accepted:
+            status = "accepted";
+            break;
+
+        default:
+            status = "unknown";
+        }
+
+        JLOG (j_.warn())
+            << "View of consensus changed during " << status
+            << " status=" << status << ", "
+            << (haveCorrectLCL_ ? "CorrectLCL" : "IncorrectLCL");
+        JLOG (j_.warn()) << prevLedgerHash_
+            << " to " << netLgr;
+        JLOG (j_.warn())
+            << previousLedger_.getJson();
+        JLOG (j_.warn())
+            << getJson (true);
+#if 0
+        // This used to print the count of each ledger seen on the network
+        // Can it just go?
+        if (auto stream = j_.debug())
+        {
+            for (auto& it : vals)
+                stream
+                    << "V: " << it.first << ", " << it.second.first;
+            stream << getJson (true);
+        }
+#endif
+
+        handleLCL (netLgr);
     }
 }
 
