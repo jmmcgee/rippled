@@ -829,8 +829,6 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxLedger.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxPos.h">
-    </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxTraits.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\app\consensus\RCLCxTx.h">
@@ -1840,6 +1838,8 @@
     <ClInclude Include="..\..\src\ripple\conditions\RsaSha256.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\Consensus.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
     </ClInclude>
