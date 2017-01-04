@@ -236,7 +236,7 @@ RCLConsensus::propose (RCLCxPeerPos::Proposal const& proposal)
 void
 RCLConsensus::share (RCLTxSet const& set)
 {
-    app_.getInboundTransactions().giveSet (set.id(),
+    inboundTransactions_.giveSet (set.id(),
         set.map_, false);
 }
 
@@ -280,7 +280,7 @@ RCLConsensus::getLCL (
     auto vals =
         app_.getValidations().getCurrentValidations(
             currentLedger, priorLedger,
-            app_.getLedgerMaster().getValidLedgerIndex());
+            ledgerMaster_.getValidLedgerIndex());
 
     uint256 netLgr = currentLedger;
     int netLgrCount = 0;
@@ -316,12 +316,11 @@ RCLConsensus::makeInitialPosition (RCLCxLedger const & prevLedgerT,
         NetClock::time_point closeTime,
         NetClock::time_point now)
 {
-    auto& ledgerMaster = app_.getLedgerMaster();
     auto const &prevLedger = prevLedgerT.ledger_;
     // Tell the ledger master not to acquire the ledger we're probably building
-    ledgerMaster.setBuildingLedger (prevLedger->info().seq + 1);
+    ledgerMaster_.setBuildingLedger (prevLedger->info().seq + 1);
 
-    ledgerMaster.applyHeldTransactions ();
+    ledgerMaster_.applyHeldTransactions ();
     auto initialLedger = app_.openLedger().current();
 
     auto initialSet = std::make_shared <SHAMap> (
@@ -353,7 +352,7 @@ RCLConsensus::makeInitialPosition (RCLCxLedger const & prevLedgerT,
                 return v.second->isTrusted();
             });
 
-        if (count >= ledgerMaster.getMinValidations())
+        if (count >= ledgerMaster_.getMinValidations())
         {
             feeVote_->doVoting (
                 prevLedger,
