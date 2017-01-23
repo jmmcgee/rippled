@@ -1762,7 +1762,8 @@ Consensus<Derived, Traits>::leaveConsensus ()
     if (ourPosition_ && ! ourPosition_->isBowOut ())
     {
         ourPosition_->bowOut(now_);
-        impl().propose(*ourPosition_);
+        if(proposing_)
+            impl().propose(*ourPosition_);
     }
     proposing_ = false;
 }
