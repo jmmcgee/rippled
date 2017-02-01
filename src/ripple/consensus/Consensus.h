@@ -542,7 +542,6 @@ private:
         return *static_cast<Derived*>(this);
     }
 
-
     // TODO: Move this to clients
     mutable std::unique_ptr<std::recursive_mutex> lock_;
 
@@ -1713,7 +1712,6 @@ Consensus<Derived, Traits>::beginAccept (bool synchronous)
         abort ();
     }
 
-
     previousProposers_ = peerProposals_.size();
     previousRoundTime_ = roundTime_;
 
@@ -1744,8 +1742,7 @@ Consensus<Derived, Traits>::accept (TxSet_t const& set)
         roundTime_,
         disputes_,
         closeTimes_,
-        closeTime_,
-        getJson(true)
+        closeTime_
         );
 
     // we have accepted a new ledger
