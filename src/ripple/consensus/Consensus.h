@@ -403,7 +403,7 @@ protected:
     void
     accept(TxSet_t const& set);
 
-private:
+//private:
 
     /** Change our view of the last closed ledger
 
@@ -1728,7 +1728,6 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::accept (TxSet_t const& set)
 {
-
     bool validatingOut = impl().accept(set,
         ourPosition_->closeTime(),
         proposing_,

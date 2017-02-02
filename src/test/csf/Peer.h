@@ -133,6 +133,8 @@ struct Peer : public Consensus<Peer, Traits>
     int completedLedgers = 0;
     int targetLedgers = std::numeric_limits<int>::max();
 
+    BasicNetwork<Peer*>::duration heartbeatFreq{LEDGER_GRANULARITY};
+
     //! All peers start from the default constructed ledger
     Peer(PeerID i, BasicNetwork<Peer*> & n, UNL const & u)
         : Consensus<Peer, Traits>( n.clock(), beast::Journal{})
@@ -272,6 +274,7 @@ struct Peer : public Consensus<Peer, Traits>
         std::map <NetClock::time_point, int> closeTimes_,
         NetClock::time_point const & closeTime)
     {
+
         auto newLedger = previousLedger_.close(set.txs_, closeResolution_,
             closeTime, consensusCloseTime != NetClock::time_point{});
         ledgers[newLedger.id()] = newLedger;
@@ -377,12 +380,12 @@ struct Peer : public Consensus<Peer, Traits>
         Base::timerEntry(now());
         // only reschedule if not completed
         if(completedLedgers < targetLedgers)
-            net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
+            net.timer(heartbeatFreq, [&]() { timerEntry(); });
     }
     void
     start()
     {
-        net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
+        net.timer(heartbeatFreq, [&]() { timerEntry(); });
         startRound(now(), lastClosedLedger.id(),
             lastClosedLedger);
     }

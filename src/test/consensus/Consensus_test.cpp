@@ -180,6 +180,77 @@ public:
 
 
     void
+    simHeartbeatSkew()
+    {
+    #if 0
+        using namespace csf;
+        using namespace std::chrono;
+
+        for( int offset = -10; offset <= 10; offset+= 1)
+        {
+            auto tg = TrustGraph::makeComplete(5);
+
+            Sim sim(tg, topology(tg,[](PeerID i, PeerID j)
+            {
+                return milliseconds{50};
+            }));
+
+            for(auto & peer : sim.peers)
+                peer.heartbeatFreq += milliseconds{offset};
+
+
+            sim.run_for(1000s);
+            auto numLedgers = sim.peers[0].completedLedgers;
+            std::map<int, int> numRoundHist;
+            for(auto & peer : sim.peers)
+            {
+                BEAST_EXPECT(numLedgers == peer.completedLedgers);
+                BEAST_EXPECT(peer.peerPositions_.size() == sim.peers[0].peerPositions_.size());
+
+                for (auto const & pos : sim.peers[0].peerPositions_)
+                {
+                    BEAST_EXPECT(peer.peerPositions_[pos.first].size() == pos.second.size());
+
+                    numRoundHist[pos.second.size()/(sim.peers.size() - 1)]++;
+                }
+
+            }
+
+            std::cout << offset << " " << numLedgers << " " << 1000./numLedgers  << " ";
+            for(auto it : numRoundHist)
+                std::cout << "("<< it.first << " : " << it.second/5 << ")";
+            std::cout << "\n";
+        }
+        #endif
+         using namespace csf;
+        using namespace std::chrono;
+
+        std::cout << "Offset | Ledgers | Seconds/Ledger\n" ;
+        std::cout << "-------|---------|---------------\n";
+        for( int offset = -10; offset <= 10; offset+= 1)
+        {
+            auto tg = TrustGraph::makeComplete(5);
+
+            Sim sim(tg, topology(tg,[](PeerID i, PeerID j)
+            {
+                return milliseconds{50};
+            }));
+
+            for(auto & peer : sim.peers)
+                peer.heartbeatFreq += milliseconds{offset};
+
+
+            sim.run_for(1000s);
+            auto numLedgers = sim.peers[0].completedLedgers;
+
+            std::cout << offset << "|" << numLedgers << "|" << 1000./numLedgers << "\n";
+            //std::cout << offset << " ms " << numLedgers << " ledgers " << 1000./numLedgers  << " s/ledger\n";
+        }
+
+
+    }
+
+    void
     simClockSkew()
     {
         using namespace csf;
@@ -295,6 +366,7 @@ public:
         testPeersAgree();
         testSlowPeer();
         testFork();
+        simHeartbeatSkew();
         simClockSkew();
         simScaleFree();
     }

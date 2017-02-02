@@ -91,6 +91,18 @@ public:
         net.step();
     }
 
+    void
+    run_for(BasicNetwork<Peer*>::duration d)
+    {
+         for (auto & p : peers)
+        {
+            if(p.completedLedgers == 0)
+                p.relay(Validation{p.id, p.LCL(), p.LCL()});
+            p.start();
+        }
+        net.step_for(d);
+    }
+
     std::vector<Peer> peers;
     BasicNetwork<Peer*> net;
 
