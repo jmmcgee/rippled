@@ -201,7 +201,7 @@ namespace ripple {
 
       // Called when time to end current round of consensus.  Client code
       // determines when to call startRound again.
-      void endConsensus(bool correct);
+      void endConsensus();
   };
   @endcode
 
@@ -1760,15 +1760,13 @@ Consensus<Derived, Traits>::accept (TxSet_t const& set)
         );
 
     // we have accepted a new ledger
-    bool correct;
     {
         std::lock_guard<std::recursive_mutex> _(*lock_);
         validating_ = validatingOut;
         state_ = State::accepted;
-        correct = haveCorrectLCL_;
     }
 
-    impl().endConsensus (correct);
+    impl().endConsensus ();
 }
 
 

@@ -355,7 +355,7 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     void
-    endConsensus(bool correct)
+    endConsensus()
     {
         // kick off the next round...
         // in the actual implementation, this passes back through

@@ -285,11 +285,9 @@ private:
 
     /** Signal the end of consensus to the application, which will start the
         next round.
-
-        @param correctLCL Whether we believe we have the correct LCL
     */
     void
-    endConsensus(bool correctLCL);
+    endConsensus();
 
     //!-------------------------------------------------------------------------
     // Additional members (not directly required by Consensus interface)

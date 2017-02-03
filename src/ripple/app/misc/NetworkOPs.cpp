@@ -321,7 +321,7 @@ private:
 
 public:
     bool beginConsensus (uint256 const& networkClosed) override;
-    void endConsensus (bool correctLCL) override;
+    void endConsensus () override;
     void setStandAlone () override
     {
         setMode (omFULL);
@@ -1535,7 +1535,7 @@ NetworkOPsImp::mapComplete (
             RCLTxSet{map});
 }
 
-void NetworkOPsImp::endConsensus (bool correctLCL)
+void NetworkOPsImp::endConsensus ()
 {
     uint256 deadLedger = m_ledgerMaster.getClosedLedger ()->info().parentHash;
 

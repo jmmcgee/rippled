@@ -589,9 +589,9 @@ RCLConsensus::accept(
 }
 
 void
-RCLConsensus::endConsensus(bool correctLCL)
+RCLConsensus::endConsensus()
 {
-    app_.getOPs ().endConsensus (correctLCL);
+    app_.getOPs ().endConsensus ();
 }
 
 
