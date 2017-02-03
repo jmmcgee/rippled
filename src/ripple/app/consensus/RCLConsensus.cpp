@@ -69,23 +69,28 @@ RCLConsensus::onStartRound(RCLCxLedger const & ledger)
     inboundTransactions_.newRound(ledger.seq());
 }
 
-// First bool is whether or not we can propose
-// Second bool is whether or not we can validate
-std::pair <bool, bool>
-RCLConsensus::getMode ()
+bool
+RCLConsensus::shouldPropose()
 {
-    bool propose = false;
-    bool validate = false;
+    // We have a key, and we have some idea what the ledger is
+    validating_ = !app_.getOPs().isNeedNetworkLedger() && (valPublic_.size() != 0);
 
-    if (! app_.getOPs().isNeedNetworkLedger() && (valPublic_.size() != 0))
+    // propose only if we're in sync with the network (and validating)
+    bool res = validating_ && (app_.getOPs().getOperatingMode() == NetworkOPs::omFULL);
+
+    if (validating_)
     {
-        // We have a key, and we have some idea what the ledger is
-        validate = true;
-
-        // propose only if we're in sync with the network
-        propose = app_.getOPs().getOperatingMode() == NetworkOPs::omFULL;
+        JLOG (j_.info())
+            << "Entering consensus process, validating";
     }
-    return { propose, validate };
+    else
+    {
+        // Otherwise we just want to monitor the validation process.
+        JLOG (j_.info())
+            << "Entering consensus process, watching";
+    }
+
+    return res;
 }
 
 boost::optional<RCLCxLedger>
@@ -318,7 +323,6 @@ RCLConsensus::onClose(RCLCxLedger const & ledger, bool haveCorrectLCL)
 
 std::pair <RCLTxSet, typename RCLCxPeerPos::Proposal>
 RCLConsensus::makeInitialPosition (RCLCxLedger const & prevLedgerT,
-        bool proposing,
         bool correctLCL,
         NetClock::time_point closeTime,
         NetClock::time_point now)
@@ -344,7 +348,7 @@ RCLConsensus::makeInitialPosition (RCLCxLedger const & prevLedgerT,
     }
 
     // Add pseudo-transactions to the set
-    if ((app_.config().standalone() || (proposing && correctLCL))
+    if ((app_.config().standalone() || (Base::proposing() && correctLCL))
             && ((prevLedger->info().seq % 256) == 0))
     {
         // previous ledger was flag ledger, add pseudo-transactions
@@ -399,12 +403,10 @@ RCLConsensus::dispatchAccept(RCLTxSet const & txSet)
         });
 }
 
-bool
+void
 RCLConsensus::accept(
     RCLTxSet const& set,
     NetClock::time_point consensusCloseTime,
-    bool proposing_,
-    bool validating_,
     bool haveCorrectLCL_,
     bool consensusFail_,
     LedgerHash const &prevLedgerHash_,
@@ -418,6 +420,8 @@ RCLConsensus::accept(
     )
 {
     bool closeTimeCorrect;
+
+    bool proposing = Base::proposing();
 
     if (consensusCloseTime == NetClock::time_point{})
     {
@@ -434,7 +438,7 @@ RCLConsensus::accept(
     }
 
     JLOG (j_.debug())
-        << "Report: Prop=" << (proposing_ ? "yes" : "no")
+        << "Report: Prop=" << (proposing ? "yes" : "no")
         << " val=" << (validating_ ? "yes" : "no")
         << " corLCL=" << (haveCorrectLCL_ ? "yes" : "no")
         << " fail=" << (consensusFail_ ? "yes" : "no");
@@ -464,7 +468,7 @@ RCLConsensus::accept(
 
     if (validating_ && ! consensusFail_)
     {
-        validate(sharedLCL, now_, proposing_);
+        validate(sharedLCL, now_, proposing);
         JLOG (j_.info())
             << "CNF Val " << newLCLHash;
     }
@@ -585,7 +589,6 @@ RCLConsensus::accept(
         app_.timeKeeper().adjustCloseTime(offset);
     }
 
-    return validating_;
 }
 
 void
@@ -886,6 +889,13 @@ RCLConsensus::validate(
     val.set_validation (&validation[0], validation.size ());
     // Send signed validation to all of our directly connected peers
     app_.overlay().send(val);
+}
+
+Json::Value RCLConsensus::getJson(bool full) const
+{
+    auto ret = Base::getJson(full);
+    ret["validating"] = validating_;
+    return ret;
 }
 
 }

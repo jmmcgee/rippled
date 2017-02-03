@@ -106,7 +106,7 @@ public:
                 return round<milliseconds>(delayFactor* LEDGER_GRANULARITY);
             }));
 
-            sim.peers[0].proposing = sim.peers[0].validating = isParticipant;
+            sim.peers[0].proposing_ = sim.peers[0].validating_ = isParticipant;
 
             // All peers submit their own ID as a transaction and relay it to peers
             for (auto & p : sim.peers)

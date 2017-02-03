@@ -134,9 +134,6 @@ namespace ripple {
 
   class ConsensusImp : public Consensus<ConsensusImp, Traits>
   {
-      // Whether consensus should (proposing,validating).
-      std::pair<bool, bool> getMode();
-
       // Attempt to acquire a specific ledger.
       Ledger const * acquireLedger(Ledger::ID const & ledgerID);
 
@@ -157,7 +154,7 @@ namespace ripple {
       std::size_t proposersFinished(LedgerHash const & h) const;re
 
       // Called when a new round of consensus has started
-      void onStartRound(Ledger const &);
+      void onStartRound(Ledger const &, bool & proposing);
 
       // Called when ledger is closes
       void onClose(Ledger const &, bool haveCorrectLCL);
@@ -189,7 +186,6 @@ namespace ripple {
       std::pair <TxSet, Proposal>
       makeInitialPosition(
             Ledger const & prevLedger,
-            bool isProposing,
             bool isCorrectLCL,
             NetClock::time_point closeTime,
             NetClock::time_point now)
@@ -329,6 +325,13 @@ public:
        return prevLedgerID_;
     }
 
+    //! Whether we are sending proposals during consensus.
+    bool
+    proposing() const
+    {
+        return proposing_;
+    }
+
     //! Get the number of proposing peers that participated in the previous round.
     int
     getLastCloseProposers() const
@@ -347,20 +350,6 @@ public:
     getLastConvergeDuration() const
     {
         return previousRoundTime_;
-    }
-
-    //! Whether we are sending proposals during consensus.
-    bool
-    proposing() const
-    {
-        return proposing_;
-    }
-
-    //! Whether we are validating consensus ledgers.
-    bool
-    validating() const
-    {
-        return validating_;
     }
 
     /** Whether we have the correct last closed ledger.
@@ -383,6 +372,8 @@ public:
     */
     Json::Value
     getJson (bool full) const;
+
+
 
 protected:
     /** Accept a new last closed ledger.
@@ -554,7 +545,6 @@ private:
     // Consensus state variables
     State state_;
     bool proposing_ = false;
-    bool validating_ = false;
     bool haveCorrectLCL_ = false;
     bool consensusFail_ = false;
     bool haveCloseTimeConsensus_ = false;
@@ -664,25 +654,7 @@ Consensus<Derived, Traits>::startRound (
     }
 
 
-    // Can only change proposing/validating state on non-internal startRound
-    // calls
-
-    // We should not be proposing but not validating
-    // Okay to validate but not propose
-    std::tie(proposing_, validating_) = impl().getMode();
-    assert (! proposing_ || validating_);
-
-    if (validating_)
-    {
-        JLOG (j_.info())
-            << "Entering consensus process, validating";
-    }
-    else
-    {
-        // Otherwise we just want to monitor the validation process.
-        JLOG (j_.info())
-            << "Entering consensus process, watching";
-    }
+    proposing_ = impl().shouldPropose();
 
     startRoundInternal(now, prevLCLHash, prevLedger);
 }
@@ -720,7 +692,6 @@ Consensus<Derived, Traits>::startRoundInternal (
         previousLedger_.closeTimeResolution(),
         previousLedger_.closeAgree(),
         previousLedger_.seq() + 1);
-
 
     if (! haveCorrectLCL_)
     {
@@ -959,7 +930,6 @@ Consensus<Derived, Traits>::getJson (bool full) const
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
     ret["proposing"] = proposing_;
-    ret["validating"] = validating_;
     ret["proposers"] = static_cast<int> (peerProposals_.size ());
 
     if (haveCorrectLCL_)
@@ -1076,14 +1046,9 @@ Consensus<Derived, Traits>::handleLCL (typename Ledger_t::ID const& lgrId)
         // first time switching to this ledger
         prevLedgerID_ = lgrId;
 
-        if (haveCorrectLCL_ && proposing_ && ourPosition_)
-        {
-            JLOG (j_.info()) << "Bowing out of consensus";
-            leaveConsensus();
-        }
-
         // Stop proposing because we are out of sync
-        proposing_ = false;
+        leaveConsensus();
+
         peerProposals_.clear ();
         disputes_.clear ();
         compares_.clear ();
@@ -1267,8 +1232,9 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::takeInitialPosition()
 {
-    auto pair = impl().makeInitialPosition(previousLedger_, proposing_,
-       haveCorrectLCL_,  closeTime_, now_ );
+    auto pair = impl().makeInitialPosition(previousLedger_,
+         haveCorrectLCL_,  closeTime_, now_ );
+
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
     assert (initialSet.id() == initialPos.position());
@@ -1299,8 +1265,7 @@ Consensus<Derived, Traits>::takeInitialPosition()
     }
 
     gotTxSetInternal (initialSet, false);
-
-    if (proposing_)
+    if(proposing_)
         impl().propose (*ourPosition_);
 }
 
@@ -1639,9 +1604,8 @@ void Consensus<Derived, Traits>::updateOurPositions ()
         if (ourPosition_->changePosition (
             newHash, closeTime, now_))
         {
-            if (proposing_)
+            if(proposing_)
                 impl().propose (*ourPosition_);
-
             gotTxSetInternal (*ourNewSet, false);
         }
     }
@@ -1743,10 +1707,8 @@ void
 Consensus<Derived, Traits>::accept (TxSet_t const& set)
 {
 
-    bool validatingOut = impl().accept(set,
+    impl().accept(set,
         ourPosition_->closeTime(),
-        proposing_,
-        validating_,
         haveCorrectLCL_,
         consensusFail_,
         prevLedgerID_,
@@ -1762,7 +1724,6 @@ Consensus<Derived, Traits>::accept (TxSet_t const& set)
     // we have accepted a new ledger
     {
         std::lock_guard<std::recursive_mutex> _(*lock_);
-        validating_ = validatingOut;
         state_ = State::accepted;
     }
 
@@ -1775,13 +1736,17 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::leaveConsensus ()
 {
-    if (ourPosition_ && ! ourPosition_->isBowOut ())
+    if(proposing_)
     {
-        ourPosition_->bowOut(now_);
-        if(proposing_)
+        if (haveCorrectLCL_ && ourPosition_ && !ourPosition_->isBowOut())
+        {
+            ourPosition_->bowOut(now_);
             impl().propose(*ourPosition_);
+        }
+
+        proposing_ = false;
+        JLOG (j_.info()) << "Bowing out of consensus";
     }
-    proposing_ = false;
 }
 
 } // ripple

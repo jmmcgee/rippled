@@ -91,6 +91,25 @@ public:
     void
     storeProposal( RCLCxPeerPos::ref peerPos, NodeID const& nodeID);
 
+    //! Whether we are validating consensus ledgers.
+    bool
+    validating() const
+    {
+        return validating_;
+    }
+
+    /** Get the Json state of the consensus process.
+
+        Called by the consensus_info RPC.
+
+        @param full True if verbose response desired.
+        @return     The Json state.
+    */
+    Json::Value
+    getJson(bool full) const;
+
+
+
 private:
     friend class Consensus<RCLConsensus, RCLCxTraits>;
 
@@ -104,9 +123,8 @@ private:
     void
     onStartRound(RCLCxLedger const & ledger);
 
-    //! @return Whether consensus should be (proposing, validating)
-    std::pair <bool, bool>
-    getMode ();
+    bool
+    shouldPropose();
 
     /** Attempt to acquire a specific ledger.
 
@@ -215,7 +233,6 @@ private:
          of consensus.
 
           @param prevLedger The ledger the transactions apply to
-          @param isProposing Whether we are currently proposing
           @param isCorrectLCL Whether we have the correct LCL
           @param closeTime When we believe the ledger closed
           @param now The current network adjusted time
@@ -227,7 +244,6 @@ private:
     std::pair <RCLTxSet, typename RCLCxPeerPos::Proposal>
     makeInitialPosition (
         RCLCxLedger const & prevLedger,
-        bool isProposing,
         bool isCorrectLCL,
         NetClock::time_point closeTime,
         NetClock::time_point now);
@@ -251,8 +267,6 @@ private:
 
         @param set The set of accepted transactions
         @param consensusCloseTime Consensus agreed upon close time
-        @param proposing_ Whether we are proposing
-        @param validating_ Whether we are validating
         @param haveCorrectLCL_ Whether we had the correct last closed ledger
         @param consensusFail_ Whether consensus failed
         @param prevLedgerHash_ The hash/id of the previous ledger
@@ -265,12 +279,10 @@ private:
         @param closeTime Our close time
         @return Whether we should continue validating
      */
-    bool
+    void
     accept(
         RCLTxSet const& set,
         NetClock::time_point consensusCloseTime,
-        bool proposing_,
-        bool validating_,
         bool haveCorrectLCL_,
         bool consensusFail_,
         LedgerHash const &prevLedgerHash_,
@@ -346,6 +358,7 @@ private:
         NetClock::time_point now,
         bool proposing);
 
+
     //!-------------------------------------------------------------------------
     Application& app_;
     std::unique_ptr <FeeVote> feeVote_;
@@ -366,6 +379,9 @@ private:
     using PeerPositions = hash_map <NodeID, std::deque<RCLCxPeerPos::pointer>>;
     PeerPositions peerPositions_;
     std::mutex peerPositionsLock_;
+
+    bool validating_ = false;
+
 };
 
 }
