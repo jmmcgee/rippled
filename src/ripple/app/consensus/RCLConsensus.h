@@ -91,6 +91,24 @@ public:
     void
     storeProposal( RCLCxPeerPos::ref peerPos, NodeID const& nodeID);
 
+    //! Whether we are validating consensus ledgers.
+    bool
+    validating() const
+    {
+        return validating_;
+    }
+
+    /** Get the Json state of the consensus process.
+
+        Called by the consensus_info RPC.
+
+        @param full True if verbose response desired.
+        @return     The Json state.
+    */
+    Json::Value
+    getJson(bool full) const;
+
+
     /** Returns validation public key */
     PublicKey const&
     getValidationPublicKey () const;
@@ -112,9 +130,8 @@ private:
     void
     onStartRound(RCLCxLedger const & ledger);
 
-    //! @return Whether consensus should be (proposing, validating)
-    std::pair <bool, bool>
-    getMode ();
+    bool
+    shouldPropose();
 
     /** Attempt to acquire a specific ledger.
 
@@ -223,7 +240,6 @@ private:
          of consensus.
 
           @param prevLedger The ledger the transactions apply to
-          @param isProposing Whether we are currently proposing
           @param isCorrectLCL Whether we have the correct LCL
           @param closeTime When we believe the ledger closed
           @param now The current network adjusted time
@@ -235,7 +251,6 @@ private:
     std::pair <RCLTxSet, typename RCLCxPeerPos::Proposal>
     makeInitialPosition (
         RCLCxLedger const & prevLedger,
-        bool isProposing,
         bool isCorrectLCL,
         NetClock::time_point closeTime,
         NetClock::time_point now);
@@ -259,8 +274,6 @@ private:
 
         @param set The set of accepted transactions
         @param consensusCloseTime Consensus agreed upon close time
-        @param proposing_ Whether we are proposing
-        @param validating_ Whether we are validating
         @param haveCorrectLCL_ Whether we had the correct last closed ledger
         @param consensusFail_ Whether consensus failed
         @param prevLedgerHash_ The hash/id of the previous ledger
@@ -273,12 +286,10 @@ private:
         @param closeTime Our close time
         @return Whether we should continue validating
      */
-    bool
+    void
     accept(
         RCLTxSet const& set,
         NetClock::time_point consensusCloseTime,
-        bool proposing_,
-        bool validating_,
         bool haveCorrectLCL_,
         bool consensusFail_,
         LedgerHash const &prevLedgerHash_,
@@ -293,11 +304,9 @@ private:
 
     /** Signal the end of consensus to the application, which will start the
         next round.
-
-        @param correctLCL Whether we believe we have the correct LCL
     */
     void
-    endConsensus(bool correctLCL);
+    endConsensus();
 
     //!-------------------------------------------------------------------------
     // Additional members (not directly required by Consensus interface)
@@ -323,7 +332,6 @@ private:
           @param closeTime The the ledger closed
           @param closeTimeCorrect Whether consensus agreed on close time
           @param closeResolution Resolution used to determine consensus close time
-          @param now Current network adjusted time
           @param roundTime Duration of this consensus rorund
           @param retriableTxs Populate with transactions to retry in next round
           @return The newly built ledger
@@ -335,7 +343,6 @@ private:
         NetClock::time_point closeTime,
         bool closeTimeCorrect,
         NetClock::duration closeResolution,
-        NetClock::time_point now,
         std::chrono::milliseconds roundTime,
         CanonicalTXSet & retriableTxs
     );
@@ -343,7 +350,6 @@ private:
     /** Validate the given ledger and share with peers as necessary
 
         @param ledger The ledger to validate
-        @param now Current network adjusted time
         @param proposing Whether we were proposing transactions while generating
                          this ledger.  If we are not proposing, a validation
                          can still be sent to inform peers that we know we
@@ -351,10 +357,8 @@ private:
                          around and trying to catch up.
     */
     void
-    validate(
-        RCLCxLedger const & ledger,
-        NetClock::time_point now,
-        bool proposing);
+    validate(RCLCxLedger const & ledger, bool proposing);
+
 
     //!-------------------------------------------------------------------------
     Application& app_;
@@ -376,6 +380,9 @@ private:
     using PeerPositions = hash_map <NodeID, std::deque<RCLCxPeerPos::pointer>>;
     PeerPositions peerPositions_;
     std::mutex peerPositionsLock_;
+
+    bool validating_ = false;
+
 };
 
 }

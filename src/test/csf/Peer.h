@@ -173,8 +173,8 @@ struct Peer : public Consensus<Peer, Traits>
     //! Delay in acquiring missing ledger from the network
     std::chrono::milliseconds missingLedgerDelay{0};
 
-    bool validating = true;
-    bool proposing = true;
+    bool validating_ = true;
+    bool proposing_ = true;
 
     //! All peers start from the default constructed ledger
     Peer(PeerID i, BasicNetwork<Peer*> & n, UNL const & u)
@@ -184,17 +184,6 @@ struct Peer : public Consensus<Peer, Traits>
         , unl(u)
     {
         ledgers[lastClosedLedger.id()] = lastClosedLedger;
-    }
-
-
-    // @return whether we are proposing,validating
-    // TODO: Bit akward that this is in callbacks, would be nice to extract
-    std::pair<bool, bool>
-    getMode()
-    {
-        // in RCL this hits NetworkOps to decide whether we are proposing
-        // validating
-        return{ proposing, validating };
     }
 
     Ledger const *
@@ -261,7 +250,16 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     void
-    onStartRound(Ledger const &) {}
+    onStartRound(Ledger const &)
+    {
+
+    }
+
+    bool
+    shouldPropose()
+    {
+        return proposing_;
+    }
 
     void
     onClose(Ledger const &, bool ) {}
@@ -293,7 +291,7 @@ struct Peer : public Consensus<Peer, Traits>
     void
     propose(Proposal const & pos)
     {
-        if(proposing)
+        if(proposing_)
             relay(pos);
     }
 
@@ -306,7 +304,6 @@ struct Peer : public Consensus<Peer, Traits>
     std::pair <TxSet, Proposal>
     makeInitialPosition(
             Ledger const & prevLedger,
-            bool isProposing,
             bool isCorrectLCL,
             NetClock::time_point closeTime,
             NetClock::time_point now)
@@ -320,11 +317,9 @@ struct Peer : public Consensus<Peer, Traits>
     // Process the accepted transaction set, generating the newly closed ledger
     // and clearing out the openTxs that were included.
     // TODO: Kinda nasty it takes so many arguments . . . sign of bad coupling
-    bool
+    void
     accept(TxSet const& set,
         NetClock::time_point consensusCloseTime,
-        bool proposing_,
-        bool validating_,
         bool haveCorrectLCL_,
         bool consensusFail_,
         Ledger::ID const & prevLedgerHash_,
@@ -349,13 +344,13 @@ struct Peer : public Consensus<Peer, Traits>
             });
         openTxs.erase(it, openTxs.end());
 
-        if(validating)
+        if(validating_)
             relay(Validation{id, newLedger.id(), newLedger.parentID()});
-        return validating_;
+
     }
 
     void
-    endConsensus(bool correct)
+    endConsensus()
     {
         // kick off the next round...
         // in the actual implementation, this passes back through

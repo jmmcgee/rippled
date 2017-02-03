@@ -134,9 +134,6 @@ namespace ripple {
 
   class ConsensusImp : public Consensus<ConsensusImp, Traits>
   {
-      // Whether consensus should (proposing,validating).
-      std::pair<bool, bool> getMode();
-
       // Attempt to acquire a specific ledger.
       Ledger const * acquireLedger(Ledger::ID const & ledgerID);
 
@@ -157,7 +154,7 @@ namespace ripple {
       std::size_t proposersFinished(LedgerHash const & h) const;re
 
       // Called when a new round of consensus has started
-      void onStartRound(Ledger const &);
+      void onStartRound(Ledger const &, bool & proposing);
 
       // Called when ledger is closes
       void onClose(Ledger const &, bool haveCorrectLCL);
@@ -189,7 +186,6 @@ namespace ripple {
       std::pair <TxSet, Proposal>
       makeInitialPosition(
             Ledger const & prevLedger,
-            bool isProposing,
             bool isCorrectLCL,
             NetClock::time_point closeTime,
             NetClock::time_point now)
@@ -201,7 +197,7 @@ namespace ripple {
 
       // Called when time to end current round of consensus.  Client code
       // determines when to call startRound again.
-      void endConsensus(bool correct);
+      void endConsensus();
   };
   @endcode
 
@@ -323,17 +319,24 @@ public:
         @return ID of last closed ledger.
     */
     typename Ledger_t::ID
-    LCL()
+    LCL() const
     {
        std::lock_guard<std::recursive_mutex> _(*lock_);
        return prevLedgerID_;
     }
 
-    //! Get the number of proposing peers that participated in the previous round.
-    int
-    getLastCloseProposers() const
+    //! Whether we are sending proposals during consensus.
+    bool
+    proposing() const
     {
-        return previousProposers_;
+        return proposing_;
+    }
+
+    //! Get the number of proposing peers that participated in the previous round.
+    std::size_t
+    prevProposers() const
+    {
+        return prevProposers_;
     }
 
     /** Get duration of the previous round.
@@ -344,23 +347,9 @@ public:
         @return Last round duration in milliseconds
     */
     std::chrono::milliseconds
-    getLastConvergeDuration() const
+    prevRoundTime() const
     {
-        return previousRoundTime_;
-    }
-
-    //! Whether we are sending proposals during consensus.
-    bool
-    proposing() const
-    {
-        return proposing_;
-    }
-
-    //! Whether we are validating consensus ledgers.
-    bool
-    validating() const
-    {
-        return validating_;
+        return prevRoundTime_;
     }
 
     /** Whether we have the correct last closed ledger.
@@ -383,6 +372,8 @@ public:
     */
     Json::Value
     getJson (bool full) const;
+
+
 
 protected:
     /** Accept a new last closed ledger.
@@ -481,14 +472,6 @@ private:
     void
     addDisputedTransaction (Tx_t const& tx);
 
-    /** Adjust the votes on all disputed transactions based
-        on the set of peers taking this position
-
-        @param txSet A disputed position
-        @param peers Peers which are taking the position txSet
-    */
-    void adjustCount (TxSet_t const& txSet, std::vector<NodeID_t> const& peers);
-
     /** Adjust our positions to try to agree with other validators.
 
     */
@@ -554,7 +537,6 @@ private:
     // Consensus state variables
     State state_ = State::accepted;
     bool proposing_ = false;
-    bool validating_ = false;
     bool haveCorrectLCL_ = false;
     bool consensusFail_ = false;
     bool haveCloseTimeConsensus_ = false;
@@ -579,7 +561,7 @@ private:
     clock_type::time_point consensusStartTime_;
 
     // Time it took for the last consensus round to converge
-    std::chrono::milliseconds previousRoundTime_ = LEDGER_IDLE_INTERVAL;
+    std::chrono::milliseconds prevRoundTime_ = LEDGER_IDLE_INTERVAL;
 
     //-------------------------------------------------------------------------
     // Network time measurements of consensus progress
@@ -614,7 +596,7 @@ private:
     hash_map<NodeID_t, Proposal_t>  peerProposals_;
 
     // The number of proposers who participated in the last consensus round
-    std::size_t previousProposers_ = 0;
+    std::size_t prevProposers_ = 0;
 
     // Disputed transactions
     hash_map<typename Tx_t::ID, Dispute_t> disputes_;
@@ -664,25 +646,7 @@ Consensus<Derived, Traits>::startRound (
     }
 
 
-    // Can only change proposing/validating state on non-internal startRound
-    // calls
-
-    // We should not be proposing but not validating
-    // Okay to validate but not propose
-    std::tie(proposing_, validating_) = impl().getMode();
-    assert (! proposing_ || validating_);
-
-    if (validating_)
-    {
-        JLOG (j_.info())
-            << "Entering consensus process, validating";
-    }
-    else
-    {
-        // Otherwise we just want to monitor the validation process.
-        JLOG (j_.info())
-            << "Entering consensus process, watching";
-    }
+    proposing_ = impl().shouldPropose();
 
     startRoundInternal(now, prevLCLHash, prevLedger);
 }
@@ -721,7 +685,6 @@ Consensus<Derived, Traits>::startRoundInternal (
         previousLedger_.closeAgree(),
         previousLedger_.seq() + 1);
 
-
     if (! haveCorrectLCL_)
     {
         // If we were not handed the correct LCL, then set our state
@@ -739,7 +702,7 @@ Consensus<Derived, Traits>::startRoundInternal (
     }
 
     playbackProposals ();
-    if (peerProposals_.size() > (previousProposers_ / 2))
+    if (peerProposals_.size() > (prevProposers_ / 2))
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
@@ -962,7 +925,6 @@ Consensus<Derived, Traits>::getJson (bool full) const
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
     ret["proposing"] = proposing_;
-    ret["validating"] = validating_;
     ret["proposers"] = static_cast<int> (peerProposals_.size ());
 
     if (haveCorrectLCL_)
@@ -1007,9 +969,9 @@ Consensus<Derived, Traits>::getJson (bool full) const
         ret["converge_percent"] = convergePercent_;
         ret["close_resolution"] = static_cast<Int>(closeResolution_.count());
         ret["have_time_consensus"] = haveCloseTimeConsensus_;
-        ret["previous_proposers"] = static_cast<Int>(previousProposers_);
+        ret["previous_proposers"] = static_cast<Int>(prevProposers_);
         ret["previous_mseconds"] =
-            static_cast<Int>(previousRoundTime_.count());
+            static_cast<Int>(prevRoundTime_.count());
 
         if (! peerProposals_.empty ())
         {
@@ -1079,14 +1041,9 @@ Consensus<Derived, Traits>::handleLCL (typename Ledger_t::ID const& lgrId)
         // first time switching to this ledger
         prevLedgerID_ = lgrId;
 
-        if (haveCorrectLCL_ && proposing_ && ourPosition_)
-        {
-            JLOG (j_.info()) << "Bowing out of consensus";
-            leaveConsensus();
-        }
-
         // Stop proposing because we are out of sync
-        proposing_ = false;
+        leaveConsensus();
+
         peerProposals_.clear ();
         disputes_.clear ();
         compares_.clear ();
@@ -1209,8 +1166,8 @@ Consensus<Derived, Traits>::statePreClose ()
 
     // Decide if we should close the ledger
     if (shouldCloseLedger (anyTransactions
-        , previousProposers_, proposersClosed, proposersValidated
-        , previousRoundTime_, sinceClose, openTime_
+        , prevProposers_, proposersClosed, proposersValidated
+        , prevRoundTime_, sinceClose, openTime_
         , idleInterval, j_))
     {
         closeLedger ();
@@ -1227,7 +1184,7 @@ Consensus<Derived, Traits>::stateEstablish ()
 
     convergePercent_ = roundTime_ * 100 /
         std::max<milliseconds> (
-            previousRoundTime_, AV_MIN_CONSENSUS_TIME);
+            prevRoundTime_, AV_MIN_CONSENSUS_TIME);
 
     // Give everyone a chance to take an initial position
     if (roundTime_ < LEDGER_MIN_CONSENSUS)
@@ -1270,8 +1227,9 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::takeInitialPosition()
 {
-    auto pair = impl().makeInitialPosition(previousLedger_, proposing_,
-       haveCorrectLCL_,  closeTime_, now_ );
+    auto pair = impl().makeInitialPosition(previousLedger_,
+         haveCorrectLCL_,  closeTime_, now_ );
+
     auto const& initialSet = pair.first;
     auto const& initialPos = pair.second;
     assert (initialSet.id() == initialPos.position());
@@ -1302,8 +1260,7 @@ Consensus<Derived, Traits>::takeInitialPosition()
     }
 
     gotTxSetInternal (initialSet, false);
-
-    if (proposing_)
+    if(proposing_)
         impl().propose (*ourPosition_);
 }
 
@@ -1366,7 +1323,12 @@ Consensus<Derived, Traits>::gotTxSetInternal (
 
     if (!peers.empty ())
     {
-        adjustCount (txSet, peers);
+        for (auto& it : disputes_)
+        {
+            bool setHas = txSet.exists (it.first);
+            for (auto const& pit : peers)
+                it.second.setVote (pit, setHas);
+        }
     }
     else if (acquired)
     {
@@ -1443,18 +1405,6 @@ void Consensus<Derived, Traits>::addDisputedTransaction (
     disputes_.emplace (txID, std::move (dtx));
 }
 
-template <class Derived, class Traits>
-void Consensus<Derived, Traits>::adjustCount (TxSet_t const& txSet,
-    std::vector<NodeID_t> const& peers)
-{
-    for (auto& it : disputes_)
-    {
-        bool setHas = txSet.exists (it.first);
-        for (auto const& pit : peers)
-            it.second.setVote (pit, setHas);
-    }
-}
-
 /** How many of the participants must agree to reach a given threshold?
 
     Note that the number may not precisely yield the requested percentage.
@@ -1483,7 +1433,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
     auto const ourCutoff = now_ - PROPOSE_INTERVAL;
 
     // Verify freshness of peer positions and compute close times
-    std::map<NetClock::time_point, int> closeTimes;
+    std::map<NetClock::time_point, int> effCloseTimes;
     {
         auto it = peerProposals_.begin ();
         while (it != peerProposals_.end ())
@@ -1501,7 +1451,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
             else
             {
                 // proposal is still fresh
-                ++closeTimes[effectiveCloseTime(it->second.closeTime(),
+                ++effCloseTimes[effCloseTime(it->second.closeTime(),
                     closeResolution_, previousLedger_.closeTime())];
                 ++it;
             }
@@ -1552,14 +1502,14 @@ void Consensus<Derived, Traits>::updateOurPositions ()
     else
         neededWeight = AV_STUCK_CONSENSUS_PCT;
 
-    NetClock::time_point closeTime = {};
+    NetClock::time_point consensusCloseTime = {};
     haveCloseTimeConsensus_ = false;
 
     if (peerProposals_.empty ())
     {
         // no other times
         haveCloseTimeConsensus_ = true;
-        closeTime = effectiveCloseTime(ourPosition_->closeTime(),
+        consensusCloseTime = effCloseTime(ourPosition_->closeTime(),
             closeResolution_, previousLedger_.closeTime());
     }
     else
@@ -1567,7 +1517,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
         int participants = peerProposals_.size ();
         if (proposing_)
         {
-            ++closeTimes[effectiveCloseTime(ourPosition_->closeTime(),
+            ++effCloseTimes[effCloseTime(ourPosition_->closeTime(),
                 closeResolution_, previousLedger_.closeTime())];
             ++participants;
         }
@@ -1584,7 +1534,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
             << peerProposals_.size () << " nw:" << neededWeight
             << " thrV:" << threshVote << " thrC:" << threshConsensus;
 
-        for (auto const& it : closeTimes)
+        for (auto const& it : effCloseTimes)
         {
             JLOG (j_.debug()) << "CCTime: seq "
                 << previousLedger_.seq() + 1 << ": "
@@ -1595,7 +1545,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
             if (it.second >= threshVote)
             {
                 // A close time has enough votes for us to try to agree
-                closeTime = it.first;
+                consensusCloseTime = it.first;
                 threshVote = it.second;
 
                 if (threshVote >= threshConsensus)
@@ -1609,16 +1559,14 @@ void Consensus<Derived, Traits>::updateOurPositions ()
                 << " Proposers:" << peerProposals_.size ()
                 << " Proposing:" << (proposing_ ? "yes" : "no")
                 << " Thresh:" << threshConsensus
-                << " Pos:" << closeTime.time_since_epoch().count();
+                << " Pos:" << consensusCloseTime.time_since_epoch().count();
         }
     }
 
-    // Temporarily send a new proposal if there's any change to our
-    // claimed close time. Once the new close time code is deployed
-    // to the full network, this can be relaxed to force a change
-    // only if the rounded close time has changed.
     if (! ourNewSet &&
-            ((closeTime != ourPosition_->closeTime())
+            ((consensusCloseTime !=
+                effCloseTime(ourPosition_->closeTime(),
+                    closeResolution_, previousLedger_.closeTime()))
             || ourPosition_->isStale (ourCutoff)))
     {
         // close time changed or our position is stale
@@ -1636,15 +1584,14 @@ void Consensus<Derived, Traits>::updateOurPositions ()
 
         JLOG (j_.info())
             << "Position change: CTime "
-            << closeTime.time_since_epoch().count()
+            << consensusCloseTime.time_since_epoch().count()
             << ", tx " << newHash;
 
         if (ourPosition_->changePosition (
-            newHash, closeTime, now_))
+            newHash, consensusCloseTime, now_))
         {
-            if (proposing_)
+            if(proposing_)
                 impl().propose (*ourPosition_);
-
             gotTxSetInternal (*ourNewSet, false);
         }
     }
@@ -1698,8 +1645,8 @@ Consensus<Derived, Traits>::haveConsensus ()
         << ", disagree=" << disagree;
 
     // Determine if we actually have consensus or not
-    auto ret = checkConsensus (previousProposers_, agree + disagree, agree,
-        currentFinished, previousRoundTime_, roundTime_, proposing_,
+    auto ret = checkConsensus (prevProposers_, agree + disagree, agree,
+        currentFinished, prevRoundTime_, roundTime_, proposing_,
         j_);
 
     if (ret == ConsensusState::No)
@@ -1729,8 +1676,8 @@ Consensus<Derived, Traits>::beginAccept (bool synchronous)
         abort ();
     }
 
-    previousProposers_ = peerProposals_.size();
-    previousRoundTime_ = roundTime_;
+    prevProposers_ = peerProposals_.size();
+    prevRoundTime_ = roundTime_;
 
     if (synchronous)
         accept (*ourSet_);
@@ -1746,10 +1693,8 @@ void
 Consensus<Derived, Traits>::accept (TxSet_t const& set)
 {
 
-    bool validatingOut = impl().accept(set,
+    impl().accept(set,
         ourPosition_->closeTime(),
-        proposing_,
-        validating_,
         haveCorrectLCL_,
         consensusFail_,
         prevLedgerID_,
@@ -1763,15 +1708,12 @@ Consensus<Derived, Traits>::accept (TxSet_t const& set)
         );
 
     // we have accepted a new ledger
-    bool correct;
     {
         std::lock_guard<std::recursive_mutex> _(*lock_);
-        validating_ = validatingOut;
         state_ = State::accepted;
-        correct = haveCorrectLCL_;
     }
 
-    impl().endConsensus (correct);
+    impl().endConsensus ();
 }
 
 
@@ -1780,13 +1722,17 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::leaveConsensus ()
 {
-    if (ourPosition_ && ! ourPosition_->isBowOut ())
+    if(proposing_)
     {
-        ourPosition_->bowOut(now_);
-        if(proposing_)
+        if (haveCorrectLCL_ && ourPosition_ && !ourPosition_->isBowOut())
+        {
+            ourPosition_->bowOut(now_);
             impl().propose(*ourPosition_);
+        }
+
+        proposing_ = false;
+        JLOG (j_.info()) << "Bowing out of consensus";
     }
-    proposing_ = false;
 }
 
 } // ripple

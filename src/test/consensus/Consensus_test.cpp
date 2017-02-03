@@ -55,7 +55,7 @@ public:
         BEAST_EXPECT(p.lastClosedLedger.id().txs.size() == 1);
         BEAST_EXPECT(p.lastClosedLedger.id().txs.find(Tx{ 1 })
             != p.lastClosedLedger.id().txs.end());
-        BEAST_EXPECT(p.getLastCloseProposers() == 0);
+        BEAST_EXPECT(p.prevProposers() == 0);
     }
 
     void
@@ -78,7 +78,7 @@ public:
         {
             auto const &lgrID = p.LCL();
             BEAST_EXPECT(lgrID.seq == 1);
-            BEAST_EXPECT(p.getLastCloseProposers() == sim.peers.size() - 1);
+            BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
             for(std::uint32_t i = 0; i < sim.peers.size(); ++i)
                 BEAST_EXPECT(lgrID.txs.find(Tx{ i }) != lgrID.txs.end());
             // Matches peer 0 ledger
@@ -106,7 +106,7 @@ public:
                 return round<milliseconds>(delayFactor* LEDGER_GRANULARITY);
             }));
 
-            sim.peers[0].proposing = sim.peers[0].validating = isParticipant;
+            sim.peers[0].proposing_ = sim.peers[0].validating_ = isParticipant;
 
             // All peers submit their own ID as a transaction and relay it to peers
             for (auto & p : sim.peers)
@@ -127,27 +127,27 @@ public:
                 // If peer 0 is participating
                 if(isParticipant)
                 {
-                    BEAST_EXPECT(p.getLastCloseProposers()
+                    BEAST_EXPECT(p.prevProposers()
                         == sim.peers.size() - 1);
                     // Peer 0 closes first because it sees a quorum of agreeing positions
                     // from all other peers in one hop (1->0, 2->0, ..)
                     // The other peers take an extra timer period before they find that
                     // Peer 0 agrees with them ( 1->0->1,  2->0->2, ...)
                     if(p.id != 0)
-                        BEAST_EXPECT(p.getLastConvergeDuration()
-                            > sim.peers[0].getLastConvergeDuration());
+                        BEAST_EXPECT(p.prevRoundTime()
+                            > sim.peers[0].prevRoundTime());
                 }
                 else // peer 0 is not participating
                 {
-                    auto const proposers = p.getLastCloseProposers();
+                    auto const proposers = p.prevProposers();
                     if(p.id == 0)
                         BEAST_EXPECT(proposers == sim.peers.size() - 1);
                     else
                         BEAST_EXPECT(proposers == sim.peers.size() - 2);
 
                     // so all peers should have closed together
-                        BEAST_EXPECT(p.getLastConvergeDuration()
-                            == sim.peers[0].getLastConvergeDuration());
+                        BEAST_EXPECT(p.prevRoundTime()
+                            == sim.peers[0].prevRoundTime());
                 }
 
 
