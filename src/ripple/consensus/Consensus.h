@@ -319,7 +319,7 @@ public:
         @return ID of last closed ledger.
     */
     typename Ledger_t::ID
-    LCL()
+    LCL() const
     {
        std::lock_guard<std::recursive_mutex> _(*lock_);
        return prevLedgerID_;
@@ -471,14 +471,6 @@ private:
     */
     void
     addDisputedTransaction (Tx_t const& tx);
-
-    /** Adjust the votes on all disputed transactions based
-        on the set of peers taking this position
-
-        @param txSet A disputed position
-        @param peers Peers which are taking the position txSet
-    */
-    void adjustCount (TxSet_t const& txSet, std::vector<NodeID_t> const& peers);
 
     /** Adjust our positions to try to agree with other validators.
 
@@ -1328,7 +1320,12 @@ Consensus<Derived, Traits>::gotTxSetInternal (
 
     if (!peers.empty ())
     {
-        adjustCount (txSet, peers);
+        for (auto& it : disputes_)
+        {
+            bool setHas = txSet.exists (it.first);
+            for (auto const& pit : peers)
+                it.second.setVote (pit, setHas);
+        }
     }
     else if (acquired)
     {
@@ -1403,18 +1400,6 @@ void Consensus<Derived, Traits>::addDisputedTransaction (
     impl().relay(dtx);
 
     disputes_.emplace (txID, std::move (dtx));
-}
-
-template <class Derived, class Traits>
-void Consensus<Derived, Traits>::adjustCount (TxSet_t const& txSet,
-    std::vector<NodeID_t> const& peers)
-{
-    for (auto& it : disputes_)
-    {
-        bool setHas = txSet.exists (it.first);
-        for (auto const& pit : peers)
-            it.second.setVote (pit, setHas);
-    }
 }
 
 /** How many of the participants must agree to reach a given threshold?
