@@ -28,7 +28,7 @@ namespace ripple {
 bool
 shouldCloseLedger (
     bool anyTransactions,
-    std::size_t previousProposers,
+    std::size_t prevProposers,
     std::size_t proposersClosed,
     std::size_t proposersValidated,
     std::chrono::milliseconds previousTime,
@@ -44,13 +44,13 @@ shouldCloseLedger (
         // These are unexpected cases, we just close the ledger
         JLOG (j.warn()) <<
             "shouldCloseLedger Trans=" << (anyTransactions ? "yes" : "no") <<
-            " Prop: " << previousProposers << "/" << proposersClosed <<
+            " Prop: " << prevProposers << "/" << proposersClosed <<
             " Secs: " << currentTime.count() << " (last: " <<
             previousTime.count() << ")";
         return true;
     }
 
-    if ((proposersClosed + proposersValidated) > (previousProposers / 2))
+    if ((proposersClosed + proposersValidated) > (prevProposers / 2))
     {
         // If more than half of the network has closed, we close
         JLOG (j.trace()) << "Others have closed";
@@ -108,7 +108,7 @@ checkConsensusReached (
 
 ConsensusState
 checkConsensus (
-    std::size_t previousProposers,
+    std::size_t prevProposers,
     std::size_t currentProposers,
     std::size_t currentAgree,
     std::size_t currentFinished,
@@ -119,14 +119,14 @@ checkConsensus (
 {
     JLOG (j.trace()) <<
         "checkConsensus: prop=" << currentProposers <<
-        "/" << previousProposers <<
+        "/" << prevProposers <<
         " agree=" << currentAgree << " validated=" << currentFinished <<
         " time=" << currentAgreeTime.count() <<  "/" << previousAgreeTime.count();
 
     if (currentAgreeTime <= LEDGER_MIN_CONSENSUS)
         return ConsensusState::No;
 
-    if (currentProposers < (previousProposers * 3 / 4))
+    if (currentProposers < (prevProposers * 3 / 4))
     {
         // Less than 3/4 of the last ledger's proposers are present; don't
         // rush: we may need more time.

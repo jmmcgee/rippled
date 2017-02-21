@@ -2094,18 +2094,18 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
     info[jss::peers] = Json::UInt (app_.overlay ().size ());
 
     Json::Value lastClose = Json::objectValue;
-    lastClose[jss::proposers] = mConsensus->getLastCloseProposers();
+    lastClose[jss::proposers] = Json::UInt(mConsensus->prevProposers());
 
     if (human)
     {
         lastClose[jss::converge_time_s] =
             std::chrono::duration<double>{
-                mConsensus->getLastConvergeDuration()}.count();
+                mConsensus->prevRoundTime()}.count();
     }
     else
     {
         lastClose[jss::converge_time] =
-                Json::Int (mConsensus->getLastConvergeDuration().count());
+                Json::Int (mConsensus->prevRoundTime().count());
     }
 
     info[jss::last_close] = lastClose;

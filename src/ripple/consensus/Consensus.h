@@ -331,10 +331,10 @@ public:
     }
 
     //! Get the number of proposing peers that participated in the previous round.
-    int
-    getLastCloseProposers() const
+    std::size_t
+    prevProposers() const
     {
-        return previousProposers_;
+        return prevProposers_;
     }
 
     /** Get duration of the previous round.
@@ -345,9 +345,9 @@ public:
         @return Last round duration in milliseconds
     */
     std::chrono::milliseconds
-    getLastConvergeDuration() const
+    prevRoundTime() const
     {
-        return previousRoundTime_;
+        return prevRoundTime_;
     }
 
     /** Whether we have the correct last closed ledger.
@@ -538,7 +538,7 @@ protected:
     NetClock::duration closeResolution_ = ledgerDefaultTimeResolution;
 
     // Time it took for the last consensus round to converge
-    std::chrono::milliseconds previousRoundTime_ = LEDGER_IDLE_INTERVAL;
+    std::chrono::milliseconds prevRoundTime_ = LEDGER_IDLE_INTERVAL;
 
     //-------------------------------------------------------------------------
     // Network time measurements of consensus progress
@@ -573,7 +573,7 @@ private:
     hash_map<NodeID_t, Proposal_t>  peerProposals_;
 
     // The number of proposers who participated in the last consensus round
-    std::size_t previousProposers_ = 0;
+    std::size_t prevProposers_ = 0;
 protected:
     // Disputed transactions
     hash_map<typename Tx_t::ID, Dispute_t> disputes_;
@@ -673,7 +673,7 @@ Consensus<Derived, Traits>::startRoundInternal (
     }
 
     playbackProposals ();
-    if (peerProposals_.size() > (previousProposers_ / 2))
+    if (peerProposals_.size() > (prevProposers_ / 2))
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
@@ -926,9 +926,9 @@ Consensus<Derived, Traits>::getJson (bool full) const
         ret["converge_percent"] = convergePercent_;
         ret["close_resolution"] = static_cast<Int>(closeResolution_.count());
         ret["have_time_consensus"] = haveCloseTimeConsensus_;
-        ret["previous_proposers"] = static_cast<Int>(previousProposers_);
+        ret["previous_proposers"] = static_cast<Int>(prevProposers_);
         ret["previous_mseconds"] =
-            static_cast<Int>(previousRoundTime_.count());
+            static_cast<Int>(prevRoundTime_.count());
 
         if (! peerProposals_.empty ())
         {
@@ -1119,8 +1119,8 @@ Consensus<Derived, Traits>::statePreClose ()
 
     // Decide if we should close the ledger
     if (shouldCloseLedger (anyTransactions
-        , previousProposers_, proposersClosed, proposersValidated
-        , previousRoundTime_, sinceClose, openTime_
+        , prevProposers_, proposersClosed, proposersValidated
+        , prevRoundTime_, sinceClose, openTime_
         , idleInterval, j_))
     {
         closeLedger ();
@@ -1137,7 +1137,7 @@ Consensus<Derived, Traits>::stateEstablish ()
 
     convergePercent_ = roundTime_ * 100 /
         std::max<milliseconds> (
-            previousRoundTime_, AV_MIN_CONSENSUS_TIME);
+            prevRoundTime_, AV_MIN_CONSENSUS_TIME);
 
     // Give everyone a chance to take an initial position
     if (roundTime_ < LEDGER_MIN_CONSENSUS)
@@ -1597,8 +1597,8 @@ Consensus<Derived, Traits>::haveConsensus ()
         << ", disagree=" << disagree;
 
     // Determine if we actually have consensus or not
-    auto ret = checkConsensus (previousProposers_, agree + disagree, agree,
-        currentFinished, previousRoundTime_, roundTime_, proposing_,
+    auto ret = checkConsensus (prevProposers_, agree + disagree, agree,
+        currentFinished, prevRoundTime_, roundTime_, proposing_,
         j_);
 
     if (ret == ConsensusState::No)
@@ -1628,8 +1628,8 @@ Consensus<Derived, Traits>::accept()
         abort ();
     }
 
-    previousProposers_ = peerProposals_.size();
-    previousRoundTime_ = roundTime_;
+    prevProposers_ = peerProposals_.size();
+    prevRoundTime_ = roundTime_;
     state_ = State::accepted;
     impl().onAccept(*ourSet_, ourPosition_->closeTime());
 }

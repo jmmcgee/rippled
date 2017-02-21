@@ -255,7 +255,7 @@ time_point effCloseTime(time_point closeTime,
 bool
 shouldCloseLedger (
     bool anyTransactions,
-    std::size_t previousProposers,
+    std::size_t prevProposers,
     std::size_t proposersClosed,
     std::size_t proposersValidated,
     std::chrono::milliseconds previousTime,
@@ -303,7 +303,7 @@ enum class ConsensusState
 */
 ConsensusState
 checkConsensus (
-    std::size_t previousProposers,
+    std::size_t prevProposers,
     std::size_t currentProposers,
     std::size_t currentAgree,
     std::size_t currentFinished,
