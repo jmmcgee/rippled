@@ -223,7 +223,7 @@ roundCloseTime(
     @param priorCloseTime The close time of the prior ledger
 */
 template <class time_point>
-time_point effectiveCloseTime(time_point closeTime,
+time_point effCloseTime(time_point closeTime,
    typename time_point::duration const resolution,
     time_point priorCloseTime)
 {

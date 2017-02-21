@@ -432,7 +432,7 @@ RCLConsensus::accept(
     else
     {
         // We agreed on a close time
-        consensusCloseTime = effectiveCloseTime(consensusCloseTime,
+        consensusCloseTime = effCloseTime(consensusCloseTime,
             closeResolution_, previousLedger_.closeTime());
         closeTimeCorrect = true;
     }

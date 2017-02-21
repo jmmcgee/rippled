@@ -140,7 +140,7 @@ public:
         res.id_ .seq= seq() + 1;
         res.closeTimeResolution_ = closeTimeResolution;
         res.actualCloseTime_ = consensusCloseTime;
-        res.closeTime_ = effectiveCloseTime(consensusCloseTime,
+        res.closeTime_ = effCloseTime(consensusCloseTime,
             closeTimeResolution, parentCloseTime_);
         res.closeTimeAgree_ = closeTimeAgree;
         res.parentCloseTime_ = closeTime();

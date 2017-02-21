@@ -1430,7 +1430,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
     auto const ourCutoff = now_ - PROPOSE_INTERVAL;
 
     // Verify freshness of peer positions and compute close times
-    std::map<NetClock::time_point, int> closeTimes;
+    std::map<NetClock::time_point, int> effCloseTimes;
     {
         auto it = peerProposals_.begin ();
         while (it != peerProposals_.end ())
@@ -1448,7 +1448,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
             else
             {
                 // proposal is still fresh
-                ++closeTimes[effectiveCloseTime(it->second.closeTime(),
+                ++effCloseTimes[effCloseTime(it->second.closeTime(),
                     closeResolution_, previousLedger_.closeTime())];
                 ++it;
             }
@@ -1499,14 +1499,14 @@ void Consensus<Derived, Traits>::updateOurPositions ()
     else
         neededWeight = AV_STUCK_CONSENSUS_PCT;
 
-    NetClock::time_point closeTime = {};
+    NetClock::time_point consensusCloseTime = {};
     haveCloseTimeConsensus_ = false;
 
     if (peerProposals_.empty ())
     {
         // no other times
         haveCloseTimeConsensus_ = true;
-        closeTime = effectiveCloseTime(ourPosition_->closeTime(),
+        consensusCloseTime = effCloseTime(ourPosition_->closeTime(),
             closeResolution_, previousLedger_.closeTime());
     }
     else
@@ -1514,7 +1514,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
         int participants = peerProposals_.size ();
         if (proposing_)
         {
-            ++closeTimes[effectiveCloseTime(ourPosition_->closeTime(),
+            ++effCloseTimes[effCloseTime(ourPosition_->closeTime(),
                 closeResolution_, previousLedger_.closeTime())];
             ++participants;
         }
@@ -1531,7 +1531,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
             << peerProposals_.size () << " nw:" << neededWeight
             << " thrV:" << threshVote << " thrC:" << threshConsensus;
 
-        for (auto const& it : closeTimes)
+        for (auto const& it : effCloseTimes)
         {
             JLOG (j_.debug()) << "CCTime: seq "
                 << previousLedger_.seq() + 1 << ": "
@@ -1542,7 +1542,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
             if (it.second >= threshVote)
             {
                 // A close time has enough votes for us to try to agree
-                closeTime = it.first;
+                consensusCloseTime = it.first;
                 threshVote = it.second;
 
                 if (threshVote >= threshConsensus)
@@ -1556,16 +1556,14 @@ void Consensus<Derived, Traits>::updateOurPositions ()
                 << " Proposers:" << peerProposals_.size ()
                 << " Proposing:" << (proposing_ ? "yes" : "no")
                 << " Thresh:" << threshConsensus
-                << " Pos:" << closeTime.time_since_epoch().count();
+                << " Pos:" << consensusCloseTime.time_since_epoch().count();
         }
     }
 
-    // Temporarily send a new proposal if there's any change to our
-    // claimed close time. Once the new close time code is deployed
-    // to the full network, this can be relaxed to force a change
-    // only if the rounded close time has changed.
     if (! ourNewSet &&
-            ((closeTime != ourPosition_->closeTime())
+            ((consensusCloseTime !=
+                effCloseTime(ourPosition_->closeTime(),
+                    closeResolution_, previousLedger_.closeTime()))
             || ourPosition_->isStale (ourCutoff)))
     {
         // close time changed or our position is stale
@@ -1583,11 +1581,11 @@ void Consensus<Derived, Traits>::updateOurPositions ()
 
         JLOG (j_.info())
             << "Position change: CTime "
-            << closeTime.time_since_epoch().count()
+            << consensusCloseTime.time_since_epoch().count()
             << ", tx " << newHash;
 
         if (ourPosition_->changePosition (
-            newHash, closeTime, now_))
+            newHash, consensusCloseTime, now_))
         {
             if(proposing_)
                 impl().propose (*ourPosition_);
