@@ -392,32 +392,42 @@ RCLConsensus::makeInitialPosition (RCLCxLedger const & prevLedgerT,
 }
 
 void
-RCLConsensus::dispatchAccept(RCLTxSet const & txSet)
+RCLConsensus::simulate(
+    NetClock::time_point const& now,
+    boost::optional<std::chrono::milliseconds> consensusDelay)
 {
-    app_.getJobQueue().addJob(jtACCEPT, "acceptLedger",
-        [that = this->shared_from_this(),
-        consensusSet = txSet]
-        (auto &)
-        {
-            that->accept(consensusSet);
-        });
+    simulating_ = true;
+    Base::simulate(now, consensusDelay);
+    simulating_ = false;
 }
 
 void
-RCLConsensus::accept(
-    RCLTxSet const& set,
-    NetClock::time_point consensusCloseTime,
-    bool haveCorrectLCL_,
-    bool consensusFail_,
-    LedgerHash const &prevLedgerHash_,
-    RCLCxLedger const & previousLedger_,
-    NetClock::duration closeResolution_,
-    NetClock::time_point const & now_,
-    std::chrono::milliseconds const & roundTime_,
-    hash_map<RCLCxTx::ID, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
-    std::map <NetClock::time_point, int> closeTimes_,
-    NetClock::time_point const & closeTime_
-    )
+RCLConsensus::onAccept(RCLTxSet const & txSet,
+    NetClock::time_point const & closeTime)
+{
+    if(!simulating_)
+    {
+        app_.getJobQueue().addJob(jtACCEPT, "acceptLedger",
+            [that = this->shared_from_this(),
+            consensusSet = txSet,
+            consensusCloseTime = closeTime]
+            (auto &)
+            {
+                that->doAccept(consensusSet, consensusCloseTime);
+                that->app_.getOPs ().endConsensus ();
+            });
+    }
+    else
+    {
+       doAccept(txSet, closeTime);
+       // caller is responsible for calling endConsensus when
+       // simulating
+    }
+}
+
+void
+RCLConsensus::doAccept(RCLTxSet const& set,
+    NetClock::time_point consensusCloseTime)
 {
     bool closeTimeCorrect;
 
@@ -443,7 +453,7 @@ RCLConsensus::accept(
         << " corLCL=" << (haveCorrectLCL_ ? "yes" : "no")
         << " fail=" << (consensusFail_ ? "yes" : "no");
     JLOG (j_.debug())
-        << "Report: Prev = " << prevLedgerHash_
+        << "Report: Prev = " << prevLedgerID_
         << ":" << previousLedger_.seq();
 
     //--------------------------------------------------------------------------
@@ -588,15 +598,7 @@ RCLConsensus::accept(
 
         app_.timeKeeper().adjustCloseTime(offset);
     }
-
 }
-
-void
-RCLConsensus::endConsensus()
-{
-    app_.getOPs ().endConsensus ();
-}
-
 
 void
 RCLConsensus::notify(

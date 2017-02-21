@@ -159,9 +159,8 @@ namespace ripple {
       // Called when ledger is closes
       void onClose(Ledger const &, bool haveCorrectLCL);
 
-      // Setup later call to Consensus::accept which will call Derived::accept
-      // Can call Consensus::accept immediately if no interest in offloading
-      void dispatchAccept(TxSet const & );
+      // Notification that the given TxSet was accepted by consensus
+      void onAccept(TxSet const & );
 
       // Share given transaction set with peers
       void share(TxSet const &s);
@@ -216,10 +215,9 @@ class Consensus
         //! Establishing consensus
         establish,
 
-        //! We have closed on a transaction set and are processing the new ledger
-        processing,
-
-        //! We have accepted a new last closed ledger and need to start a new round
+        //! We have accepted a new last closed ledger.  Clients are responsible
+        //! for calling startRound when ready to begin.  Otherwise, no changes
+        //! to consensus state can occur while in this state.
         accepted,
     };
 
@@ -374,22 +372,6 @@ public:
     getJson (bool full) const;
 
 
-
-protected:
-    /** Accept a new last closed ledger.
-
-        We believe the network reached Consensus on a set of transactions. This
-        function accepts those new transactions, creating a new last closed
-        ledger.  The bulk of the work is dispatched to the deriving class' accept
-        method.
-
-        @param set Our consensus transaction set
-
-        @note This is protected so the Derived class can call it from dispatchAccept.
-    */
-    void
-    accept(TxSet_t const& set);
-
 private:
 
     /** Internal version of @ref startRound to allow restarting state when
@@ -508,18 +490,10 @@ private:
 
     /** Initiate acceptance of a the next closed ledger.
 
-        After consensus is complete, beginAccept is called to start
-        accepting the consensus transaction set.  In synchronous mode, this will
-        directly call the accept member function. However, since accepting and
-        generating a new ledger is likely computationally intensive, the
-        asynchronous mode defer to the Derived class dispatchAccept call to
-        schedule the call to accept.
-
-        @param synchronous Do not dispatch to Derived and instead call accept
-                           directly.
+        Updates state and calls impl.onAccept();
     */
     void
-    beginAccept (bool synchronous);
+    accept();
 
 
     /** @return The Derived class that implements the CRTP requirements.
@@ -529,7 +503,7 @@ private:
     {
         return *static_cast<Derived*>(this);
     }
-
+private:
     // TODO: Move this to clients
     std::unique_ptr<std::recursive_mutex> lock_;
 
@@ -537,28 +511,31 @@ private:
     // Consensus state variables
     State state_;
     bool proposing_ = false;
+    bool firstRound_ = true;
+protected:
     bool haveCorrectLCL_ = false;
     bool consensusFail_ = false;
     bool haveCloseTimeConsensus_ = false;
-    bool firstRound_ = true;
 
+private:
     //-------------------------------------------------------------------------
     //! Clock for measuring consensus progress
     clock_type const & clock_;
 
+    // How long the consensus convergence has taken, expressed as
+    // a percentage of the time that we expected it to take.
+    int convergePercent_{0};
+    // When startRound was last called
+    clock_type::time_point openStartTime_;
+    // When consensus started
+    clock_type::time_point consensusStartTime_;
+protected:
     // How much time has elapsed since the round started
     std::chrono::milliseconds roundTime_ = std::chrono::milliseconds{0};
     // How long has this round been open
     std::chrono::milliseconds openTime_ = std::chrono::milliseconds{0};
 
-    // How long the consensus convergence has taken, expressed as
-    // a percentage of the time that we expected it to take.
-    int convergePercent_{0};
     NetClock::duration closeResolution_ = ledgerDefaultTimeResolution;
-    // When startRound was last called
-    clock_type::time_point openStartTime_;
-    // When consensus started
-    clock_type::time_point consensusStartTime_;
 
     // Time it took for the last consensus round to converge
     std::chrono::milliseconds previousRoundTime_ = LEDGER_IDLE_INTERVAL;
@@ -583,7 +560,7 @@ private:
     typename Ledger_t::ID prevLedgerID_;
     // Last validated ledger seen by consensus
     Ledger_t previousLedger_;
-
+private:
     // Transaction Sets, indexed by hash of transaction tree
     hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
 
@@ -597,10 +574,10 @@ private:
 
     // The number of proposers who participated in the last consensus round
     std::size_t previousProposers_ = 0;
-
+protected:
     // Disputed transactions
     hash_map<typename Tx_t::ID, Dispute_t> disputes_;
-
+private:
     // Set of TxSet ids we have already compared/created disputes
     hash_set<typename TxSet_t::ID> compares_;
 
@@ -631,12 +608,6 @@ Consensus<Derived, Traits>::startRound (
     Ledger_t const & prevLedger)
 {
     std::lock_guard<std::recursive_mutex> _(*lock_);
-
-    if (state_ == State::processing)
-    {
-        // We can't start a new round while we're processing
-        return;
-    }
 
     if (firstRound_)
     {
@@ -721,7 +692,7 @@ Consensus<Derived, Traits>::peerProposal (
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
     // Nothing to do if we are currently working on a ledger
-    if ((state_ == State::processing) || (state_ == State::accepted))
+    if (state_ == State::accepted)
         return false;
 
     now_ = now;
@@ -842,15 +813,8 @@ Consensus<Derived, Traits>::timerEntry (NetClock::time_point const& now)
             stateEstablish ();
             break;
 
-        case State::processing:
-            // We are processing the finished ledger
-            // logic of calculating next ledger advances us out of this state
-            // nothing to do
-            break;
-
         case State::accepted:
-            // NetworkOPs needs to setup the next round
-            // nothing to do
+            // Waiting on clients to call startRound
             break;
 
         default:
@@ -876,7 +840,7 @@ Consensus<Derived, Traits>::gotTxSet (
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
     // Nothing to do if we are currently working on a ledger
-    if ((state_ == State::processing) || (state_ == State::accepted))
+    if (state_ == State::accepted)
         return;
 
     now_ = now;
@@ -907,7 +871,7 @@ Consensus<Derived, Traits>::simulate (
     now_ = now;
     closeLedger ();
     roundTime_ = consensusDelay.value_or(100ms);
-    beginAccept (true);
+    accept();
     JLOG (j_.info()) << "Simulation complete";
 }
 
@@ -941,10 +905,6 @@ Consensus<Derived, Traits>::getJson (bool full) const
 
     case State::establish:
         ret["state"] = "consensus";
-        break;
-
-    case State::processing:
-        ret["state"] = "processing";
         break;
 
     case State::accepted:
@@ -1090,10 +1050,6 @@ Consensus<Derived, Traits>::checkLCL ()
             status = "establish";
             break;
 
-        case State::processing:
-            status = "processing";
-            break;
-
         case State::accepted:
             status = "accepted";
             break;
@@ -1202,8 +1158,7 @@ Consensus<Derived, Traits>::stateEstablish ()
 
     JLOG (j_.info()) <<
         "Converge cutoff (" << peerProposals_.size () << " participants)";
-    state_ = State::processing;
-    beginAccept (false);
+    accept();
 }
 
 
@@ -1664,7 +1619,7 @@ Consensus<Derived, Traits>::haveConsensus ()
 
 template <class Derived, class Traits>
 void
-Consensus<Derived, Traits>::beginAccept (bool synchronous)
+Consensus<Derived, Traits>::accept()
 {
     if (! ourPosition_ || ! ourSet_)
     {
@@ -1675,44 +1630,9 @@ Consensus<Derived, Traits>::beginAccept (bool synchronous)
 
     previousProposers_ = peerProposals_.size();
     previousRoundTime_ = roundTime_;
-
-    if (synchronous)
-        accept (*ourSet_);
-    else
-    {
-        impl().dispatchAccept(*ourSet_);
-    }
+    state_ = State::accepted;
+    impl().onAccept(*ourSet_, ourPosition_->closeTime());
 }
-
-
-template <class Derived, class Traits>
-void
-Consensus<Derived, Traits>::accept (TxSet_t const& set)
-{
-
-    impl().accept(set,
-        ourPosition_->closeTime(),
-        haveCorrectLCL_,
-        consensusFail_,
-        prevLedgerID_,
-        previousLedger_,
-        closeResolution_,
-        now_,
-        roundTime_,
-        disputes_,
-        closeTimes_,
-        closeTime_
-        );
-
-    // we have accepted a new ledger
-    {
-        std::lock_guard<std::recursive_mutex> _(*lock_);
-        state_ = State::accepted;
-    }
-
-    impl().endConsensus ();
-}
-
 
 
 template <class Derived, class Traits>

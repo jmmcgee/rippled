@@ -65,7 +65,6 @@ class RCLConsensus : public Consensus<RCLConsensus, RCLCxTraits>
                    , public CountedObject <RCLConsensus>
 {
     using Base = Consensus<RCLConsensus, RCLCxTraits>;
-    using Base::accept;
 public:
 
     //! Constructor
@@ -108,7 +107,23 @@ public:
     Json::Value
     getJson(bool full) const;
 
+    /** Simulate the consensus process without any network traffic.
 
+         The end result, is that consensus begins and completes as if everyone
+         had agreed with whatever we propose.
+
+         This function is only called from the rpc "ledger_accept" path with the
+         server in standalone mode and SHOULD NOT be used during the normal
+         consensus process.
+
+         @param now The current network adjusted time.
+         @param consensusDelay (Optional) duration to delay between closing and
+                                accepting the ledger. Uses 100ms if unspecified.
+    */
+    void
+    simulate(
+        NetClock::time_point const& now,
+        boost::optional<std::chrono::milliseconds> consensusDelay);
 
 private:
     friend class Consensus<RCLConsensus, RCLCxTraits>;
@@ -249,57 +264,18 @@ private:
         NetClock::time_point now);
 
 
-    /** Dispatch a call to Consensus::accept
+    /** Process the accepted ledger.
 
         Accepting a ledger may be expensive, so this function can dispatch
-        that call to another thread if desired and must call the accept
-        method of the generic consensus algorithm.
+        that call to another thread if desired.
 
         @param txSet The transactions to accept.
+        @param closeTime The consensus agreement on close time, may be 0 if no
+            consensus reached.
     */
     void
-    dispatchAccept(RCLTxSet const & txSet);
+    onAccept(RCLTxSet const & txSet, NetClock::time_point const & closeTime);
 
-
-    /** Accept a new ledger based on the given transactions.
-
-        TODO: Too many arguments, need to group related types.
-
-        @param set The set of accepted transactions
-        @param consensusCloseTime Consensus agreed upon close time
-        @param haveCorrectLCL_ Whether we had the correct last closed ledger
-        @param consensusFail_ Whether consensus failed
-        @param prevLedgerHash_ The hash/id of the previous ledger
-        @param previousLedger_ The previous ledger
-        @param closeResolution_ The close time resolution used this round
-        @param now Current network adjsuted time
-        @param roundTime_ Duration of this consensus round
-        @param disputes_ Disputed trarnsactions from this round
-        @param closeTimes_ Histogram of peers close times
-        @param closeTime Our close time
-        @return Whether we should continue validating
-     */
-    void
-    accept(
-        RCLTxSet const& set,
-        NetClock::time_point consensusCloseTime,
-        bool haveCorrectLCL_,
-        bool consensusFail_,
-        LedgerHash const &prevLedgerHash_,
-        RCLCxLedger const & previousLedger_,
-        NetClock::duration closeResolution_,
-        NetClock::time_point const & now,
-        std::chrono::milliseconds const & roundTime_,
-        hash_map<RCLCxTx::ID, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
-        std::map <NetClock::time_point, int> closeTimes_,
-        NetClock::time_point const & closeTime
-    );
-
-    /** Signal the end of consensus to the application, which will start the
-        next round.
-    */
-    void
-    endConsensus();
 
     //!-------------------------------------------------------------------------
     // Additional members (not directly required by Consensus interface)
@@ -311,6 +287,11 @@ private:
     */
     void
     notify(protocol::NodeEvent ne, RCLCxLedger const & ledger, bool haveCorrectLCL);
+
+    /** Accept a new ledger based on the given transactions.
+     */
+    void
+    doAccept(RCLTxSet const& set, NetClock::time_point consensusCloseTime);
 
       /** Build the new last closed ledger.
 
@@ -381,7 +362,7 @@ private:
     std::mutex peerPositionsLock_;
 
     bool validating_ = false;
-
+    bool simulating_ = false;
 };
 
 }

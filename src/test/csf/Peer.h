@@ -264,11 +264,37 @@ struct Peer : public Consensus<Peer, Traits>
     void
     onClose(Ledger const &, bool ) {}
 
-    // don't really offload
     void
-    dispatchAccept(TxSet const & f)
+    onAccept(TxSet const & set, NetClock::time_point consensusCloseTime)
     {
-        Base::accept(f);
+        auto newLedger = previousLedger_.close(set.txs_, closeResolution_,
+            closeTime_, consensusCloseTime != NetClock::time_point{});
+        ledgers[newLedger.id()] = newLedger;
+
+        lastClosedLedger = newLedger;
+
+        auto it = std::remove_if(openTxs.begin(), openTxs.end(),
+            [&](Tx const & tx)
+            {
+                return set.exists(tx.id());
+            });
+        openTxs.erase(it, openTxs.end());
+
+        if(validating_)
+            relay(Validation{id, newLedger.id(), newLedger.parentID()});
+
+        // kick off the next round...
+        // in the actual implementation, this passes back through
+        // network ops
+        ++completedLedgers;
+        // startRound sets the LCL state, so we need to call it once after
+        // the last requested round completes
+        // TODO: reconsider this and instead just save LCL generated here?
+        if(completedLedgers <= targetLedgers)
+        {
+            startRound(now(), lastClosedLedger.id(),
+                lastClosedLedger);
+        }
     }
 
     void
@@ -312,58 +338,6 @@ struct Peer : public Consensus<Peer, Traits>
 
         return { res,
             Proposal{prevLedger.id(), Proposal::seqJoin, res.id(), closeTime, now, id} };
-    }
-
-    // Process the accepted transaction set, generating the newly closed ledger
-    // and clearing out the openTxs that were included.
-    // TODO: Kinda nasty it takes so many arguments . . . sign of bad coupling
-    void
-    accept(TxSet const& set,
-        NetClock::time_point consensusCloseTime,
-        bool haveCorrectLCL_,
-        bool consensusFail_,
-        Ledger::ID const & prevLedgerHash_,
-        Ledger const & previousLedger_,
-        NetClock::duration closeResolution_,
-        NetClock::time_point const & now,
-        std::chrono::milliseconds const & roundTime_,
-        hash_map<Tx::ID, DisputedTx <Tx, PeerID>> const & disputes_,
-        std::map <NetClock::time_point, int> closeTimes_,
-        NetClock::time_point const & closeTime)
-    {
-        auto newLedger = previousLedger_.close(set.txs_, closeResolution_,
-            closeTime, consensusCloseTime != NetClock::time_point{});
-        ledgers[newLedger.id()] = newLedger;
-
-        lastClosedLedger = newLedger;
-
-        auto it = std::remove_if(openTxs.begin(), openTxs.end(),
-            [&](Tx const & tx)
-            {
-                return set.exists(tx.id());
-            });
-        openTxs.erase(it, openTxs.end());
-
-        if(validating_)
-            relay(Validation{id, newLedger.id(), newLedger.parentID()});
-
-    }
-
-    void
-    endConsensus()
-    {
-        // kick off the next round...
-        // in the actual implementation, this passes back through
-        // network ops
-        ++completedLedgers;
-        // startRound sets the LCL state, so we need to call it once after
-        // the last requested round completes
-        // TODO: reconsider this and instead just save LCL generated here?
-        if(completedLedgers <= targetLedgers)
-        {
-            startRound(now(), lastClosedLedger.id(),
-                lastClosedLedger);
-        }
     }
 
     //-------------------------------------------------------------------------
