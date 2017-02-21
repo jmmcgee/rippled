@@ -44,14 +44,8 @@ using namespace std::chrono_literals;
 std::chrono::seconds constexpr ledgerPossibleTimeResolutions[] =
     { 10s, 20s, 30s, 60s, 90s, 120s };
 
-#ifndef _MSC_VER
 //! Initial resolution of ledger close time.
 auto constexpr ledgerDefaultTimeResolution = ledgerPossibleTimeResolutions[2];
-#else
-// HH Remove this workaround of a VS bug when possible
-//! Initial resolution of ledger close time.
-auto constexpr ledgerDefaultTimeResolution = 30s;
-#endif
 
 //! How often we increase the close time resolution (in numbers of ledgers)
 auto constexpr increaseLedgerTimeResolutionEvery = 8;

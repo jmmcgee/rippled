@@ -1,4 +1,4 @@
-
+//------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
     Copyright (c) 2012, 2013 Ripple Labs Inc.
@@ -63,7 +63,6 @@ class RCLConsensus : public Consensus<RCLConsensus, RCLCxTraits>
                    , public CountedObject <RCLConsensus>
 {
     using Base = Consensus<RCLConsensus, RCLCxTraits>;
-    using Base::accept;
 public:
 
     //! Constructor
@@ -106,6 +105,11 @@ public:
     Json::Value
     getJson(bool full) const;
 
+    //! See Consensus::startRound
+    void
+    startRound (NetClock::time_point const& now,
+        RCLCxLedger::ID const& prevLgrId,
+        RCLCxLedger const& prevLgr);
 
     //! See Consensus::timerEntry
     void
@@ -129,16 +133,6 @@ private:
 
     //-------------------------------------------------------------------------
     // Consensus type requirements.
-
-    /** Notification that a new consensus round has begun.
-
-        @param ledger The ledger we are building consensus on
-    */
-    void
-    onStartRound(RCLCxLedger const & ledger);
-
-    bool
-    shouldPropose();
 
     /** Attempt to acquire a specific ledger.
 
@@ -224,96 +218,56 @@ private:
 
         @param currentLedger Current ledger used in consensus
         @param priorLedger Prior ledger used in consensus
-        @param believedCorrect Whether consensus believes currentLedger is LCL
+        @param mode Current mode of consensus
 
         @return The hash of the last closed network
      */
     uint256
-    getLCL (
-        uint256 const& currentLedger,
-        uint256 const& priorLedger,
-        bool believedCorrect);
+    getLCL (uint256 currentLedger, uint256 priorLedger, Mode mode);
 
 
-    /** Notification that the ledger has closed.
+    /** Close the open ledger and return initial consensus position.
 
        @param ledger the ledger we are changing to
-       @param haveCorrectLCL whether we believe this is the correct LCL
+       @param closeTime When consensus closed the ledger
+       @param mode Current consensus mode
+       @return Tentative consensus result
     */
-    void
-    onClose(RCLCxLedger const & ledger, bool haveCorrectLCL);
-
-     /** Create our initial position of transactions to accept in this round
-         of consensus.
-
-          @param prevLedger The ledger the transactions apply to
-          @param isCorrectLCL Whether we have the correct LCL
-          @param closeTime When we believe the ledger closed
-          @param now The current network adjusted time
-
-          @return Pair of (i)  transactions we believe are in the ledger
-                          (ii) the corresponding proposal of those transactions
-                               to send to peers
-     */
-    std::pair <RCLTxSet, typename RCLCxPeerPos::Proposal>
-    makeInitialPosition (
-        RCLCxLedger const & prevLedger,
-        bool isCorrectLCL,
-        NetClock::time_point closeTime,
-        NetClock::time_point now);
+    Result
+    onClose(RCLCxLedger const & ledger, NetClock::time_point const & closeTime,
+        Mode mode);
 
 
-    /** Dispatch a call to Consensus::accept
+    /** Process the accepted ledger.
 
         Accepting a ledger may be expensive, so this function can dispatch
-        that call to another thread if desired and must call the accept
-        method of the generic consensus algorithm.
+        that call to another thread if desired.
 
-        @param txSet The transactions to accept.
+        @param result The result of consensus
+        @param prevLedger The closed ledger consensus worked from
+        @param closeResolution The resolution used in agreeing on an effective
+                               closeTiem
+        @param rawCloseTimes The unrounded closetimes of ourself and our peers
+        @param mode Our participating mode at the time consensus was declared
     */
     void
-    dispatchAccept(RCLTxSet const & txSet);
+    onAccept(Result const & result,
+        RCLCxLedger const & prevLedger,
+        NetClock::duration const & closeResolution,
+        CloseTimes const & rawCloseTimes,
+        Mode const & mode);
 
 
-    /** Accept a new ledger based on the given transactions.
+    /** Process the accepted ledger that was a result of simulation/force accept.
 
-        TODO: Too many arguments, need to group related types.
-
-        @param set The set of accepted transactions
-        @param consensusCloseTime Consensus agreed upon close time
-        @param haveCorrectLCL_ Whether we had the correct last closed ledger
-        @param consensusFail_ Whether consensus failed
-        @param prevLedgerHash_ The hash/id of the previous ledger
-        @param previousLedger_ The previous ledger
-        @param closeResolution_ The close time resolution used this round
-        @param now Current network adjsuted time
-        @param roundTime_ Duration of this consensus round
-        @param disputes_ Disputed trarnsactions from this round
-        @param closeTimes_ Histogram of peers close times
-        @param closeTime Our close time
-        @return Whether we should continue validating
-     */
-    void
-    accept(
-        RCLTxSet const& set,
-        NetClock::time_point consensusCloseTime,
-        bool haveCorrectLCL_,
-        bool consensusFail_,
-        LedgerHash const &prevLedgerHash_,
-        RCLCxLedger const & previousLedger_,
-        NetClock::duration closeResolution_,
-        NetClock::time_point const & now,
-        std::chrono::milliseconds const & roundTime_,
-        hash_map<RCLCxTx::ID, DisputedTx <RCLCxTx, NodeID>> const & disputes_,
-        std::map <NetClock::time_point, int> closeTimes_,
-        NetClock::time_point const & closeTime
-    );
-
-    /** Signal the end of consensus to the application, which will start the
-        next round.
+        @ref onAccept
     */
     void
-    endConsensus();
+    onForceAccept(Result const & result,
+        RCLCxLedger const & prevLedger,
+        NetClock::duration const &closeResolution,
+        CloseTimes const & rawCloseTimes,
+        Mode const & mode);
 
     //!-------------------------------------------------------------------------
     // Additional members (not directly required by Consensus interface)
@@ -325,6 +279,17 @@ private:
     */
     void
     notify(protocol::NodeEvent ne, RCLCxLedger const & ledger, bool haveCorrectLCL);
+
+    /** Accept a new ledger based on the given transactions.
+
+        @ref onAccept
+     */
+    void
+    doAccept(Result const & result,
+        RCLCxLedger const & prevLedger,
+        NetClock::duration closeResolution,
+        CloseTimes const & rawCloseTimes,
+        Mode const & mode);
 
       /** Build the new last closed ledger.
 
@@ -389,7 +354,7 @@ private:
     std::mutex peerPositionsLock_;
 
     bool validating_ = false;
-
+    bool simulating_ = false;
 };
 
 }

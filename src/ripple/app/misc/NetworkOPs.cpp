@@ -2754,9 +2754,7 @@ std::uint32_t NetworkOPsImp::acceptLedger (
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
     beginConsensus (m_ledgerMaster.getClosedLedger()->info().hash);
-    mConsensus->simulate (
-        app_.timeKeeper().closeTime(),
-        consensusDelay);
+    mConsensus->simulate (app_.timeKeeper().closeTime(), consensusDelay);
     return m_ledgerMaster.getCurrentLedger ()->info().seq;
 }
 
