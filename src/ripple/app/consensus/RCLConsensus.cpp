@@ -100,8 +100,6 @@ RCLConsensus::proposals(LedgerHash const& prevLedger)
 {
     std::vector<RCLCxPeerPos> ret;
     {
-        std::lock_guard<std::mutex> _(peerPositionsLock_);
-
         for (auto const& it : peerPositions_)
             for (auto const& pos : it.second)
                 if (pos->proposal().prevLedger() == prevLedger)
@@ -114,8 +112,6 @@ RCLConsensus::proposals(LedgerHash const& prevLedger)
 void
 RCLConsensus::storeProposal(RCLCxPeerPos::ref peerPos, NodeID const& nodeID)
 {
-    std::lock_guard<std::mutex> _(peerPositionsLock_);
-
     auto& props = peerPositions_[nodeID];
 
     if (props.size() >= 10)

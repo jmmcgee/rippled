@@ -57,6 +57,7 @@
 #include <ripple/beast/utility/rngfill.h>
 #include <ripple/basics/make_lock.h>
 #include <beast/core/detail/base64.hpp>
+#include <shared_mutex>
 
 namespace ripple {
 
@@ -318,7 +319,6 @@ private:
         std::shared_ptr<Ledger const> const& newLCL);
     bool checkLastClosedLedger (
         const Overlay::PeerSequence&, uint256& networkClosed);
-    void tryStartConsensus ();
 
 public:
     bool beginConsensus (uint256 const& networkClosed) override;
@@ -543,6 +543,7 @@ private:
     DeadlineTimer m_clusterTimer;
     JobCounter jobCounter_;
 
+    mutable std::shared_timed_mutex mConsensusLock;
     std::shared_ptr<RCLConsensus> mConsensus;
 
     LedgerMaster& m_ledgerMaster;
@@ -707,7 +708,11 @@ void NetworkOPsImp::processHeartbeatTimer ()
 
     }
 
-    mConsensus->timerEntry (app_.timeKeeper().closeTime());
+
+    {
+        std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
+        mConsensus->timerEntry (app_.timeKeeper().closeTime());
+    }
 
     setHeartbeatTimer ();
 }
@@ -762,6 +767,7 @@ void NetworkOPsImp::processClusterTimer ()
 
 std::string NetworkOPsImp::strOperatingMode () const
 {
+    std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
     if (mMode == omFULL && mConsensus->haveCorrectLCL())
     {
         if (mConsensus->proposing ())
@@ -1239,46 +1245,6 @@ public:
     }
 };
 
-void NetworkOPsImp::tryStartConsensus ()
-{
-    uint256 networkClosed;
-    bool ledgerChange = checkLastClosedLedger (
-        app_.overlay ().getActivePeers (), networkClosed);
-
-    if (networkClosed.isZero ())
-        return;
-
-    // WRITEME: Unless we are in omFULL and in the process of doing a consensus,
-    // we must count how many nodes share our LCL, how many nodes disagree with
-    // our LCL, and how many validations our LCL has. We also want to check
-    // timing to make sure there shouldn't be a newer LCL. We need this
-    // information to do the next three tests.
-
-    if (((mMode == omCONNECTED) || (mMode == omSYNCING)) && !ledgerChange)
-    {
-        // Count number of peers that agree with us and UNL nodes whose
-        // validations we have for LCL.  If the ledger is good enough, go to
-        // omTRACKING - TODO
-        if (!mNeedNetworkLedger)
-            setMode (omTRACKING);
-    }
-
-    if (((mMode == omCONNECTED) || (mMode == omTRACKING)) && !ledgerChange)
-    {
-        // check if the ledger is good enough to go to omFULL
-        // Note: Do not go to omFULL if we don't have the previous ledger
-        // check if the ledger is bad enough to go to omCONNECTED -- TODO
-        auto current = m_ledgerMaster.getCurrentLedger();
-        if (app_.timeKeeper().now() <
-            (current->info().parentCloseTime + 2* current->info().closeTimeResolution))
-        {
-            setMode (omFULL);
-        }
-    }
-
-    beginConsensus (networkClosed);
-}
-
 bool NetworkOPsImp::checkLastClosedLedger (
     const Overlay::PeerSequence& peerList, uint256& networkClosed)
 {
@@ -1514,6 +1480,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
     app_.validators().onConsensusStart (
         app_.getValidations().getCurrentPublicKeys ());
 
+    std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
     mConsensus->startRound (
         app_.timeKeeper().closeTime(),
         networkClosed,
@@ -1525,6 +1492,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
 
 uint256 NetworkOPsImp::getConsensusLCL ()
 {
+    std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
     return mConsensus->prevLedgerID ();
 }
 
@@ -1533,6 +1501,7 @@ void NetworkOPsImp::processTrustedProposal (
     std::shared_ptr<protocol::TMProposeSet> set,
     NodeID const& node)
 {
+    std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
     mConsensus->storeProposal (peerPos, node);
 
     if (mConsensus->peerProposal (
@@ -1560,9 +1529,12 @@ NetworkOPsImp::mapComplete (
 
     // We acquired it because consensus asked us to
     if (fromAcquire)
+    {
+        std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
         mConsensus->gotTxSet (
             app_.timeKeeper().closeTime(),
             RCLTxSet{map});
+    }
 }
 
 void NetworkOPsImp::endConsensus ()
@@ -1578,7 +1550,42 @@ void NetworkOPsImp::endConsensus ()
         }
     }
 
-    tryStartConsensus();
+    uint256 networkClosed;
+    bool ledgerChange = checkLastClosedLedger (
+        app_.overlay ().getActivePeers (), networkClosed);
+
+    if (networkClosed.isZero ())
+        return;
+
+    // WRITEME: Unless we are in omFULL and in the process of doing a consensus,
+    // we must count how many nodes share our LCL, how many nodes disagree with
+    // our LCL, and how many validations our LCL has. We also want to check
+    // timing to make sure there shouldn't be a newer LCL. We need this
+    // information to do the next three tests.
+
+    if (((mMode == omCONNECTED) || (mMode == omSYNCING)) && !ledgerChange)
+    {
+        // Count number of peers that agree with us and UNL nodes whose
+        // validations we have for LCL.  If the ledger is good enough, go to
+        // omTRACKING - TODO
+        if (!mNeedNetworkLedger)
+            setMode (omTRACKING);
+    }
+
+    if (((mMode == omCONNECTED) || (mMode == omTRACKING)) && !ledgerChange)
+    {
+        // check if the ledger is good enough to go to omFULL
+        // Note: Do not go to omFULL if we don't have the previous ledger
+        // check if the ledger is bad enough to go to omCONNECTED -- TODO
+        auto current = m_ledgerMaster.getCurrentLedger();
+        if (app_.timeKeeper().now() <
+            (current->info().parentCloseTime + 2* current->info().closeTimeResolution))
+        {
+            setMode (omFULL);
+        }
+    }
+
+    beginConsensus (networkClosed);
 }
 
 void NetworkOPsImp::consensusViewChange ()
@@ -1589,7 +1596,7 @@ void NetworkOPsImp::consensusViewChange ()
 
 void NetworkOPsImp::pubManifest (Manifest const& mo)
 {
-    // VFALCO consider std::shared_mutex
+    // VFALCO consider std::shared_timed_mutex
     ScopedLockType sl (mSubLock);
 
     if (!mSubManifests.empty ())
@@ -1726,7 +1733,7 @@ void NetworkOPsImp::pubServer ()
 
 void NetworkOPsImp::pubValidation (STValidation::ref val)
 {
-    // VFALCO consider std::shared_mutex
+    // VFALCO consider std::shared_timed_mutex
     ScopedLockType sl (mSubLock);
 
     if (!mSubValidations.empty ())
@@ -2108,6 +2115,7 @@ bool NetworkOPsImp::recvValidation (
 
 Json::Value NetworkOPsImp::getConsensusInfo ()
 {
+    std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
     return mConsensus->getJson (true);
 }
 
@@ -2163,24 +2171,29 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
 
     info[jss::peers] = Json::UInt (app_.overlay ().size ());
 
-    Json::Value lastClose = Json::objectValue;
-    lastClose[jss::proposers] = Json::UInt(mConsensus->prevProposers());
-
-    if (human)
     {
-        lastClose[jss::converge_time_s] =
-            std::chrono::duration<double>{
-                mConsensus->prevRoundTime()}.count();
-    }
-    else
-    {
-        lastClose[jss::converge_time] =
-                Json::Int (mConsensus->prevRoundTime().count());
+        std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
+        Json::Value lastClose = Json::objectValue;
+        lastClose[jss::proposers] = Json::UInt(mConsensus->prevProposers());
+
+        if (human)
+        {
+            lastClose[jss::converge_time_s] =
+                std::chrono::duration<double>{
+                    mConsensus->prevRoundTime()}.count();
+        }
+        else
+        {
+            lastClose[jss::converge_time] =
+                    Json::Int (mConsensus->prevRoundTime().count());
+        }
+
+        info[jss::last_close] = lastClose;
     }
 
-    info[jss::last_close] = lastClose;
 
-    //  info[jss::consensus] = mConsensus->getJson();
+
+
 
     if (admin)
         info[jss::load] = m_job_queue.getJson ();
@@ -2754,7 +2767,12 @@ std::uint32_t NetworkOPsImp::acceptLedger (
     // FIXME Could we improve on this and remove the need for a specialized
     // API in Consensus?
     beginConsensus (m_ledgerMaster.getClosedLedger()->info().hash);
-    mConsensus->simulate (app_.timeKeeper().closeTime(), consensusDelay);
+    {
+        std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
+        mConsensus->simulate (app_.timeKeeper().closeTime(), consensusDelay);
+    }
+    // Manually call after lock is released.
+    endConsensus();
     return m_ledgerMaster.getCurrentLedger ()->info().seq;
 }
 

@@ -431,7 +431,6 @@ public:
     typename Ledger_t::ID
     prevLedgerID() const
     {
-        std::lock_guard<std::recursive_mutex> _(*lock_);
         return prevLedgerID_;
     }
 
@@ -560,9 +559,6 @@ private:
     to_string(Mode m);
 
 private:
-    // TODO: Move this to clients
-    std::unique_ptr<std::recursive_mutex> lock_;
-
     Phase phase_ = Phase::accepted;
     Mode mode_ = Mode::observing;
     bool firstRound_ = true;
@@ -622,8 +618,7 @@ template <class Derived, class Traits>
 Consensus<Derived, Traits>::Consensus(
     clock_type const& clock,
     beast::Journal journal)
-    : lock_(std::make_unique<std::recursive_mutex>())
-    , clock_(clock)
+    : clock_(clock)
     , j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
@@ -637,8 +632,6 @@ Consensus<Derived, Traits>::startRound(
     Ledger_t const& prevLedger,
     bool proposing)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     if (firstRound_)
     {
         // take our initial view of closeTime_ from the seed ledger
@@ -712,8 +705,6 @@ Consensus<Derived, Traits>::peerProposal(
     Proposal_t const& newProposal)
 {
     auto const peerID = newProposal.nodeID();
-
-    std::lock_guard<std::recursive_mutex> _(*lock_);
 
     // Nothing to do if we are currently working on a ledger
     if (phase_ == Phase::accepted)
@@ -807,8 +798,6 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::timerEntry(NetClock::time_point const& now)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     // Nothing to do if we are currently working on a ledger
     if (phase_ == Phase::accepted)
         return;
@@ -834,8 +823,6 @@ Consensus<Derived, Traits>::gotTxSet(
     NetClock::time_point const& now,
     TxSet_t const& txSet)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     // Nothing to do if we've finished work on a ledger
     if (phase_ == Phase::accepted)
         return;
@@ -882,7 +869,6 @@ Consensus<Derived, Traits>::simulate(
     NetClock::time_point const& now,
     boost::optional<std::chrono::milliseconds> consensusDelay)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
 
     JLOG(j_.info()) << "Simulating consensus";
     now_ = now;
@@ -904,7 +890,6 @@ Consensus<Derived, Traits>::getJson(bool full) const
     using Int = Json::Value::Int;
 
     Json::Value ret(Json::objectValue);
-    std::lock_guard<std::recursive_mutex> _(*lock_);
 
     ret["proposing"] = (mode_ == Mode::proposing);
     ret["proposers"] = static_cast<int>(peerProposals_.size());

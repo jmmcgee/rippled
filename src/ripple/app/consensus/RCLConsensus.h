@@ -113,13 +113,7 @@ public:
         return mode() == Mode::proposing;
     }
 
-    /** Get the Json state of the consensus process.
-
-        Called by the consensus_info RPC.
-
-        @param full True if verbose response desired.
-        @return     The Json state.
-    */
+    //! See Consensus::getJson
     Json::Value
     getJson(bool full) const;
 
@@ -379,10 +373,8 @@ private:
 
     using PeerPositions = hash_map<NodeID, std::deque<RCLCxPeerPos::pointer>>;
     PeerPositions peerPositions_;
-    std::mutex peerPositionsLock_;
 
     bool validating_ = false;
-    bool simulating_ = false;
 };
 }
 
