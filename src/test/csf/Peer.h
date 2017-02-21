@@ -265,6 +265,12 @@ struct Peer : public Consensus<Peer, Traits>
     onClose(Ledger const &, bool ) {}
 
     void
+    onForceAccept(TxSet const & set, NetClock::time_point consensusCloseTime)
+    {
+        onAccept(set, consensusCloseTime);
+    }
+
+    void
     onAccept(TxSet const & set, NetClock::time_point consensusCloseTime)
     {
         auto newLedger = previousLedger_.close(set.txs_, closeResolution_,

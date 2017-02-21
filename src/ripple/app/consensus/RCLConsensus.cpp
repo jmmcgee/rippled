@@ -134,8 +134,6 @@ RCLConsensus::proposals (LedgerHash const& prevLedger)
 {
     std::vector <RCLCxPeerPos> ret;
     {
-        std::lock_guard <std::mutex> _(peerPositionsLock_);
-
         for (auto const& it : peerPositions_)
             for (auto const& pos : it.second)
                 if (pos->proposal().prevLedger() == prevLedger)
@@ -150,8 +148,6 @@ RCLConsensus::storeProposal (
     RCLCxPeerPos::ref peerPos,
     NodeID const& nodeID)
 {
-    std::lock_guard <std::mutex> _(peerPositionsLock_);
-
     auto& props = peerPositions_[nodeID];
 
     if (props.size () >= 10)
@@ -391,38 +387,31 @@ RCLConsensus::makeInitialPosition (RCLCxLedger const & prevLedgerT,
             nodeID_ });
 }
 
+
+
 void
-RCLConsensus::simulate(
-    NetClock::time_point const& now,
-    boost::optional<std::chrono::milliseconds> consensusDelay)
+RCLConsensus::onForceAccept(RCLTxSet const & txSet,
+    NetClock::time_point const & closeTime)
 {
-    simulating_ = true;
-    Base::simulate(now, consensusDelay);
-    simulating_ = false;
+    doAccept(txSet, closeTime);
 }
 
 void
 RCLConsensus::onAccept(RCLTxSet const & txSet,
     NetClock::time_point const & closeTime)
 {
-    if(!simulating_)
-    {
-        app_.getJobQueue().addJob(jtACCEPT, "acceptLedger",
-            [that = this->shared_from_this(),
-            consensusSet = txSet,
-            consensusCloseTime = closeTime]
-            (auto &)
-            {
-                that->doAccept(consensusSet, consensusCloseTime);
-                that->app_.getOPs ().endConsensus ();
-            });
-    }
-    else
-    {
-       doAccept(txSet, closeTime);
-       // caller is responsible for calling endConsensus when
-       // simulating
-    }
+    app_.getJobQueue().addJob(jtACCEPT, "acceptLedger",
+        [that = this->shared_from_this(),
+        consensusSet = txSet,
+        consensusCloseTime = closeTime]
+        (auto &)
+        {
+            // note that no lock is held inside this thread, which
+            // is fine since once a ledger is accepted, consensus
+            // will not touch any internal state until startRound is called
+            that->doAccept(consensusSet, consensusCloseTime);
+            that->app_.getOPs ().endConsensus ();
+        });
 }
 
 void

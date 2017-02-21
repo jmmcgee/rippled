@@ -97,33 +97,9 @@ public:
         return validating_;
     }
 
-    /** Get the Json state of the consensus process.
-
-        Called by the consensus_info RPC.
-
-        @param full True if verbose response desired.
-        @return     The Json state.
-    */
+    //! See Consensus::getJson
     Json::Value
     getJson(bool full) const;
-
-    /** Simulate the consensus process without any network traffic.
-
-         The end result, is that consensus begins and completes as if everyone
-         had agreed with whatever we propose.
-
-         This function is only called from the rpc "ledger_accept" path with the
-         server in standalone mode and SHOULD NOT be used during the normal
-         consensus process.
-
-         @param now The current network adjusted time.
-         @param consensusDelay (Optional) duration to delay between closing and
-                                accepting the ledger. Uses 100ms if unspecified.
-    */
-    void
-    simulate(
-        NetClock::time_point const& now,
-        boost::optional<std::chrono::milliseconds> consensusDelay);
 
 private:
     friend class Consensus<RCLConsensus, RCLCxTraits>;
@@ -277,6 +253,15 @@ private:
     onAccept(RCLTxSet const & txSet, NetClock::time_point const & closeTime);
 
 
+    /** Process the accepted ledger that was a result of simulation/force accept.
+
+        @param txSet The transactions to accept.
+        @param closeTime The consensus agreement on close time, may be 0 if no
+            consensus reached.
+    */
+    void
+    onForceAccept(RCLTxSet const & txSet, NetClock::time_point const & closeTime);
+
     //!-------------------------------------------------------------------------
     // Additional members (not directly required by Consensus interface)
     /** Notify peers of a consensus state change
@@ -359,10 +344,8 @@ private:
 
     using PeerPositions = hash_map <NodeID, std::deque<RCLCxPeerPos::pointer>>;
     PeerPositions peerPositions_;
-    std::mutex peerPositionsLock_;
 
     bool validating_ = false;
-    bool simulating_ = false;
 };
 
 }
