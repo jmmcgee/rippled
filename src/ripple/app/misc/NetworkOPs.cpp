@@ -529,7 +529,7 @@ private:
     DeadlineTimer m_heartbeatTimer;
     DeadlineTimer m_clusterTimer;
 
-    mutable std::shared_mutex mConsensusLock;
+    mutable std::shared_timed_mutex mConsensusLock;
     std::shared_ptr<RCLConsensus> mConsensus;
 
     LedgerMaster& m_ledgerMaster;
@@ -694,7 +694,7 @@ void NetworkOPsImp::processHeartbeatTimer ()
 
 
     {
-        std::unique_lock<std::shared_mutex> _{mConsensusLock};
+        std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
         mConsensus->timerEntry (app_.timeKeeper().closeTime());
     }
 
@@ -750,7 +750,7 @@ void NetworkOPsImp::processClusterTimer ()
 
 std::string NetworkOPsImp::strOperatingMode () const
 {
-    std::shared_lock<std::shared_mutex> _{mConsensusLock};
+    std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
     if (mMode == omFULL && mConsensus->haveCorrectLCL())
     {
         if (mConsensus->proposing ())
@@ -1450,7 +1450,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
     assert (closingInfo.parentHash ==
             m_ledgerMaster.getClosedLedger()->info().hash);
 
-    std::unique_lock<std::shared_mutex> _{mConsensusLock};
+    std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
 
     mConsensus->startRound (
         app_.timeKeeper().closeTime(),
@@ -1463,7 +1463,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
 
 uint256 NetworkOPsImp::getConsensusLCL ()
 {
-    std::shared_lock<std::shared_mutex> _{mConsensusLock};
+    std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
     return mConsensus->LCL ();
 }
 
@@ -1472,7 +1472,7 @@ void NetworkOPsImp::processTrustedProposal (
     std::shared_ptr<protocol::TMProposeSet> set,
     NodeID const& node)
 {
-    std::unique_lock<std::shared_mutex> _{mConsensusLock};
+    std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
     mConsensus->storeProposal (peerPos, node);
 
     if (mConsensus->peerProposal (
@@ -1501,7 +1501,7 @@ NetworkOPsImp::mapComplete (
     // We acquired it because consensus asked us to
     if (fromAcquire)
     {
-        std::unique_lock<std::shared_mutex> _{mConsensusLock};
+        std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
         mConsensus->gotTxSet (
             app_.timeKeeper().closeTime(),
             RCLTxSet{map});
@@ -1567,7 +1567,7 @@ void NetworkOPsImp::consensusViewChange ()
 
 void NetworkOPsImp::pubManifest (Manifest const& mo)
 {
-    // VFALCO consider std::shared_mutex
+    // VFALCO consider std::shared_timed_mutex
     ScopedLockType sl (mSubLock);
 
     if (!mSubManifests.empty ())
@@ -1641,7 +1641,7 @@ void NetworkOPsImp::pubServer ()
 
 void NetworkOPsImp::pubValidation (STValidation::ref val)
 {
-    // VFALCO consider std::shared_mutex
+    // VFALCO consider std::shared_timed_mutex
     ScopedLockType sl (mSubLock);
 
     if (!mSubValidations.empty ())
@@ -2023,7 +2023,7 @@ bool NetworkOPsImp::recvValidation (
 
 Json::Value NetworkOPsImp::getConsensusInfo ()
 {
-    std::shared_lock<std::shared_mutex> _{mConsensusLock};
+    std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
     return mConsensus->getJson (true);
 }
 
@@ -2103,7 +2103,7 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
     info[jss::peers] = Json::UInt (app_.overlay ().size ());
 
     {
-        std::shared_lock<std::shared_mutex> _{mConsensusLock};
+        std::shared_lock<std::shared_timed_mutex> _{mConsensusLock};
         Json::Value lastClose = Json::objectValue;
         lastClose[jss::proposers] = Json::UInt(mConsensus->prevProposers());
 
@@ -2695,7 +2695,7 @@ std::uint32_t NetworkOPsImp::acceptLedger (
     // API in Consensus?
     beginConsensus (m_ledgerMaster.getClosedLedger()->info().hash);
     {
-        std::unique_lock<std::shared_mutex> _{mConsensusLock};
+        std::unique_lock<std::shared_timed_mutex> _{mConsensusLock};
         mConsensus->simulate (app_.timeKeeper().closeTime(), consensusDelay);
     }
     // Manually call after lock is released.
