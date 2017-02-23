@@ -450,7 +450,7 @@ RCLConsensus::doAccept(RCLTxSet const& set,
     CanonicalTXSet retriableTxs{ set.id() };
 
     auto sharedLCL = buildLCL(previousLedger_, set, consensusCloseTime,
-         closeTimeCorrect, closeResolution_, now_, roundTime_, retriableTxs);
+         closeTimeCorrect, closeResolution_, roundTime_, retriableTxs);
 
 
     auto const newLCLHash = sharedLCL.id();
@@ -467,7 +467,7 @@ RCLConsensus::doAccept(RCLTxSet const& set,
 
     if (validating_ && ! consensusFail_)
     {
-        validate(sharedLCL, now_, proposing);
+        validate(sharedLCL, proposing);
         JLOG (j_.info())
             << "CNF Val " << newLCLHash;
     }
@@ -738,7 +738,6 @@ RCLConsensus::buildLCL(
     NetClock::time_point closeTime,
     bool closeTimeCorrect,
     NetClock::duration closeResolution,
-    NetClock::time_point now,
     std::chrono::milliseconds roundTime,
     CanonicalTXSet & retriableTxs)
 {
@@ -757,7 +756,8 @@ RCLConsensus::buildLCL(
 
 
     // Build the new last closed ledger
-    auto buildLCL = std::make_shared<Ledger>(*previousLedger.ledger_, now);
+    auto buildLCL = std::make_shared<Ledger>(*previousLedger.ledger_,
+        closeTime);
 
     auto const v2_enabled = buildLCL->rules().enabled(featureSHAMapV2);
 
@@ -838,12 +838,9 @@ RCLConsensus::buildLCL(
 }
 
 void
-RCLConsensus::validate(
-    RCLCxLedger const & ledger,
-    NetClock::time_point now,
-    bool proposing)
+RCLConsensus::validate(RCLCxLedger const & ledger, bool proposing)
 {
-    auto validationTime = now;
+    auto validationTime = app_.timeKeeper().closeTime();
     if (validationTime <= lastValidationTime_)
         validationTime = lastValidationTime_ + 1s;
     lastValidationTime_ = validationTime;

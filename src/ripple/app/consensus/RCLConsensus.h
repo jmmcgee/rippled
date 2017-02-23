@@ -291,7 +291,6 @@ private:
           @param closeTime The the ledger closed
           @param closeTimeCorrect Whether consensus agreed on close time
           @param closeResolution Resolution used to determine consensus close time
-          @param now Current network adjusted time
           @param roundTime Duration of this consensus rorund
           @param retriableTxs Populate with transactions to retry in next round
           @return The newly built ledger
@@ -303,7 +302,6 @@ private:
         NetClock::time_point closeTime,
         bool closeTimeCorrect,
         NetClock::duration closeResolution,
-        NetClock::time_point now,
         std::chrono::milliseconds roundTime,
         CanonicalTXSet & retriableTxs
     );
@@ -311,7 +309,6 @@ private:
     /** Validate the given ledger and share with peers as necessary
 
         @param ledger The ledger to validate
-        @param now Current network adjusted time
         @param proposing Whether we were proposing transactions while generating
                          this ledger.  If we are not proposing, a validation
                          can still be sent to inform peers that we know we
@@ -319,10 +316,7 @@ private:
                          around and trying to catch up.
     */
     void
-    validate(
-        RCLCxLedger const & ledger,
-        NetClock::time_point now,
-        bool proposing);
+    validate(RCLCxLedger const & ledger, bool proposing);
 
 
     //!-------------------------------------------------------------------------
