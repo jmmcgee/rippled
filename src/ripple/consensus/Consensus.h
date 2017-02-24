@@ -128,8 +128,6 @@ namespace ripple {
     using Ledger_t = Ledger;
     using NodeID_t = std::uint32_t;
     using TxSet_t = TxSet;
-    // To be removed; currently needed to handle missing SHAMap node exception
-    using MissingTxException_t = MissingTx;
   }
 
   class ConsensusImp : public Consensus<ConsensusImp, Traits>
@@ -282,9 +280,7 @@ public:
         @param txSet the transaction set
     */
     void
-    gotTxSet (
-        NetClock::time_point const& now,
-        TxSet_t const& txSet);
+    gotTxSet (NetClock::time_point const& now, TxSet_t const& txSet);
 
     /** Simulate the consensus process without any network traffic.
 
@@ -368,6 +364,12 @@ public:
     Json::Value
     getJson (bool full) const;
 
+protected:
+    /** Revoke our outstanding proposal, if any, and cease proposing
+        until this round ends.
+    */
+    void
+    leaveConsensus ();
 
 private:
 
@@ -461,12 +463,6 @@ private:
     */
     bool
     haveConsensus ();
-
-    /** Revoke our outstanding proposal, if any, and cease proposing at least
-        until this round ends.
-    */
-    void
-    leaveConsensus ();
 
     /** Process complete transaction set.
 
@@ -776,37 +772,24 @@ Consensus<Derived, Traits>::timerEntry (NetClock::time_point const& now)
 {
     now_ = now;
 
-    try
+    switch (state_)
     {
-        using namespace std::chrono;
+    case State::open:
+        checkLCL ();
+        statePreClose ();
+        break;
 
-        switch (state_)
-        {
-        case State::open:
-            checkLCL ();
-            statePreClose ();
-            break;
+    case State::establish:
+        checkLCL ();
+        stateEstablish ();
+        break;
 
-        case State::establish:
-            checkLCL ();
-            stateEstablish ();
-            break;
+    case State::accepted:
+        // Waiting on clients to call startRound
+        break;
 
-        case State::accepted:
-            // Waiting on clients to call startRound
-            break;
-
-        default:
-            assert (false);
-        }
-    }
-    catch (typename Traits::MissingTxException_t const& mn)
-    {
-        // This should never happen
-        leaveConsensus ();
-        JLOG (j_.error()) <<
-           "Missing node during consensus process " << mn;
-        Rethrow();
+    default:
+        assert (false);
     }
 }
 
@@ -822,18 +805,7 @@ Consensus<Derived, Traits>::gotTxSet (
 
     now_ = now;
 
-    try
-    {
-        gotTxSetInternal (txSet, true);
-    }
-    catch (typename Traits::MissingTxException_t const& mn)
-    {
-        // This should never happen
-        leaveConsensus();
-        JLOG (j_.error()) <<
-            "Missing node processing complete map " << mn;
-        Rethrow();
-    }
+    gotTxSetInternal (txSet, true);
 }
 
 template <class Derived, class Traits>

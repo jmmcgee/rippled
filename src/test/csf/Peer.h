@@ -122,7 +122,6 @@ struct Traits
     using Ledger_t = Ledger;
     using NodeID_t = PeerID;
     using TxSet_t = TxSet;
-    using MissingTxException_t = MissingTx;
 };
 
 
