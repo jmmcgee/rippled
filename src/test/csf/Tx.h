@@ -144,19 +144,6 @@ public:
 };
 
 
-/** The RCL consensus process catches missing node SHAMap error
-    in several points. This exception is meant to represent a similar
-    case for the unit test.
-*/
-class MissingTx : public std::runtime_error
-{
-public:
-    MissingTx()
-        : std::runtime_error("MissingTx")
-    {}
-};
-
-
 //------------------------------------------------------------------------------
 // Helper functions for debug printing
 
@@ -206,13 +193,6 @@ hash_append(Hasher& h, Tx const & tx)
     using beast::hash_append;
     hash_append(h, tx.id());
 }
-
-std::ostream&
-operator<<(std::ostream & o, MissingTx const &m)
-{
-    return o << m.what();
-}
-
 
 } // csf
 } // test

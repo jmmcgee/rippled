@@ -50,8 +50,6 @@ struct RCLCxTraits
     using NodeID_t = NodeID;
     //! TxSet type presented to Consensus
     using TxSet_t = RCLTxSet;
-    //! MissingTxException type neede by Consensus
-    using MissingTxException_t = SHAMapMissingNode;
 };
 
 
@@ -107,6 +105,15 @@ public:
     */
     Json::Value
     getJson(bool full) const;
+
+
+    //! See Consensus::timerEntry
+    void
+    timerEntry(NetClock::time_point const & now);
+
+    //! See Consensus::gotTxSet
+    void
+    gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet);
 
 
     /** Returns validation public key */

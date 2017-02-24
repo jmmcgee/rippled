@@ -892,7 +892,8 @@ RCLConsensus::validate(RCLCxLedger const & ledger, bool proposing)
     app_.overlay().send(val);
 }
 
-Json::Value RCLConsensus::getJson(bool full) const
+Json::Value
+RCLConsensus::getJson(bool full) const
 {
     auto ret = Base::getJson(full);
     ret["validating"] = validating_;
@@ -911,6 +912,40 @@ RCLConsensus::setValidationKeys (SecretKey const& valSecret,
 {
     valSecret_ = valSecret;
     valPublic_ = valPublic;
+}
+
+void
+RCLConsensus::timerEntry(NetClock::time_point const & now)
+{
+    try
+    {
+        Base::timerEntry(now);
+    }
+    catch (SHAMapMissingNode const& mn)
+    {
+        // This should never happen
+        leaveConsensus ();
+        JLOG (j_.error()) <<
+           "Missing node during consensus process " << mn;
+        Rethrow();
+    }
+}
+
+void
+RCLConsensus::gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet)
+{
+    try
+    {
+        Base::gotTxSet(now, txSet);
+    }
+    catch (SHAMapMissingNode const& mn)
+    {
+        // This should never happen
+        leaveConsensus ();
+        JLOG (j_.error()) <<
+           "Missing node during consensus process " << mn;
+        Rethrow();
+    }
 }
 
 }

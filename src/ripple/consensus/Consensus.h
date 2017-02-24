@@ -128,8 +128,6 @@ namespace ripple {
     using Ledger_t = Ledger;
     using NodeID_t = std::uint32_t;
     using TxSet_t = TxSet;
-    // To be removed; currently needed to handle missing SHAMap node exception
-    using MissingTxException_t = MissingTx;
   }
 
   class ConsensusImp : public Consensus<ConsensusImp, Traits>
@@ -289,9 +287,7 @@ public:
         @param txSet the transaction set
     */
     void
-    gotTxSet (
-        NetClock::time_point const& now,
-        TxSet_t const& txSet);
+    gotTxSet (NetClock::time_point const& now, TxSet_t const& txSet);
 
     /** Simulate the consensus process without any network traffic.
 
@@ -373,6 +369,12 @@ public:
     Json::Value
     getJson (bool full) const;
 
+protected:
+    /** Revoke our outstanding proposal, if any, and cease proposing
+        until this round ends.
+    */
+    void
+    leaveConsensus ();
 
 
 protected:
@@ -482,12 +484,6 @@ private:
     */
     bool
     haveConsensus ();
-
-    /** Revoke our outstanding proposal, if any, and cease proposing at least
-        until this round ends.
-    */
-    void
-    leaveConsensus ();
 
     /** Process complete transaction set.
 
@@ -824,49 +820,23 @@ Consensus<Derived, Traits>::timerEntry (NetClock::time_point const& now)
 {
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
+
+    // Nothing to do if we are currently working on a ledger
+    if ((state_ == State::processing) || (state_ == State::accepted))
+        return;
+
     now_ = now;
 
-    try
+    checkLCL();
+    
+    if(state_ == State::open)
     {
-        using namespace std::chrono;
-
-        // checkLCL may change state_, so it needs to run prior to the
-        // switch (state_) below
-        if(state_ == State::open || state_ == State::establish)
-            checkLCL ();
-
-        switch (state_)
-        {
-        case State::open:
-            statePreClose ();
-            break;
-
-        case State::establish:
-            stateEstablish ();
-            break;
-
-        case State::processing:
-            // We are processing the finished ledger
-            // logic of calculating next ledger advances us out of this state
-            // nothing to do
-            break;
-
-        case State::accepted:
-            // NetworkOPs needs to setup the next round
-            // nothing to do
-            break;
-
-        default:
-            assert (false);
-        }
+        statePreClose();
+    } 
+    else if (state_ == State::establish)
+    {
+        stateEstablish();
     }
-    catch (typename Traits::MissingTxException_t const& mn)
-    {
-        // This should never happen
-        leaveConsensus ();
-        JLOG (j_.error()) <<
-           "Missing node during consensus process " << mn;
-        Rethrow();
     }
 }
 
@@ -884,18 +854,7 @@ Consensus<Derived, Traits>::gotTxSet (
 
     now_ = now;
 
-    try
-    {
-        gotTxSetInternal (txSet, true);
-    }
-    catch (typename Traits::MissingTxException_t const& mn)
-    {
-        // This should never happen
-        leaveConsensus();
-        JLOG (j_.error()) <<
-            "Missing node processing complete map " << mn;
-        Rethrow();
-    }
+    gotTxSetInternal (txSet, true);
 }
 
 template <class Derived, class Traits>
