@@ -221,6 +221,11 @@ operator()(error_code ec,
         //----------------------------------------------------------------------
 
         case do_nomask_nofrag:
+            BOOST_ASSERT(! d.ws.wr_block_);
+            d.ws.wr_block_ = &d;
+            // [[fallthrough]]
+
+        case do_nomask_nofrag + 1:
         {
             d.fh.fin = d.fin;
             d.fh.len = buffer_size(d.cb);
@@ -229,8 +234,6 @@ operator()(error_code ec,
             d.ws.wr_.cont = ! d.fin;
             // Send frame
             d.state = do_upcall;
-            BOOST_ASSERT(! d.ws.wr_block_);
-            d.ws.wr_block_ = &d;
             boost::asio::async_write(d.ws.stream_,
                 buffer_cat(d.fh_buf.data(), d.cb),
                     std::move(*this));
@@ -240,6 +243,11 @@ operator()(error_code ec,
         //----------------------------------------------------------------------
 
         case do_nomask_frag:
+            BOOST_ASSERT(! d.ws.wr_block_);
+            d.ws.wr_block_ = &d;
+            // [[fallthrough]]
+
+        case do_nomask_frag + 1:
         {
             auto const n = clamp(
                 d.remain, d.ws.wr_.buf_size);
@@ -251,9 +259,7 @@ operator()(error_code ec,
             d.ws.wr_.cont = ! d.fin;
             // Send frame
             d.state = d.remain == 0 ?
-                do_upcall : do_nomask_frag + 1;
-            BOOST_ASSERT(! d.ws.wr_block_);
-            d.ws.wr_block_ = &d;
+                do_upcall : do_nomask_frag + 2;
             boost::asio::async_write(d.ws.stream_,
                 buffer_cat(d.fh_buf.data(),
                     prepare_buffers(n, d.cb)),
@@ -261,14 +267,17 @@ operator()(error_code ec,
             return;
         }
 
-        case do_nomask_frag + 1:
+        case do_nomask_frag + 2:
             d.cb.consume(
                 bytes_transferred - d.fh_buf.size());
             d.fh_buf.reset();
             d.fh.op = opcode::cont;
             if(d.ws.wr_block_ == &d)
                 d.ws.wr_block_ = nullptr;
-            if(d.ws.rd_op_.maybe_invoke())
+            // Allow outgoing control frames to
+            // be sent in between message frames:
+            if(d.ws.rd_op_.maybe_invoke() ||
+                d.ws.ping_op_.maybe_invoke())
             {
                 d.state = do_maybe_suspend;
                 d.ws.get_io_service().post(
@@ -281,6 +290,11 @@ operator()(error_code ec,
         //----------------------------------------------------------------------
 
         case do_mask_nofrag:
+            BOOST_ASSERT(! d.ws.wr_block_);
+            d.ws.wr_block_ = &d;
+            // [[fallthrough]]
+
+        case do_mask_nofrag + 1:
         {
             d.remain = buffer_size(d.cb);
             d.fh.fin = d.fin;
@@ -299,16 +313,14 @@ operator()(error_code ec,
             d.ws.wr_.cont = ! d.fin;
             // Send frame header and partial payload
             d.state = d.remain == 0 ?
-                do_upcall : do_mask_nofrag + 1;
-            BOOST_ASSERT(! d.ws.wr_block_);
-            d.ws.wr_block_ = &d;
+                do_upcall : do_mask_nofrag + 2;
             boost::asio::async_write(d.ws.stream_,
                 buffer_cat(d.fh_buf.data(), b),
                     std::move(*this));
             return;
         }
 
-        case do_mask_nofrag + 1:
+        case do_mask_nofrag + 2:
         {
             d.cb.consume(d.ws.wr_.buf_size);
             auto const n =
@@ -329,6 +341,11 @@ operator()(error_code ec,
         //----------------------------------------------------------------------
 
         case do_mask_frag:
+            BOOST_ASSERT(! d.ws.wr_block_);
+            d.ws.wr_block_ = &d;
+            // [[fallthrough]]
+
+        case do_mask_frag + 1:
         {
             auto const n = clamp(
                 d.remain, d.ws.wr_.buf_size);
@@ -346,23 +363,24 @@ operator()(error_code ec,
             d.ws.wr_.cont = ! d.fin;
             // Send frame
             d.state = d.remain == 0 ?
-                do_upcall : do_mask_frag + 1;
-            BOOST_ASSERT(! d.ws.wr_block_);
-            d.ws.wr_block_ = &d;
+                do_upcall : do_mask_frag + 2;
             boost::asio::async_write(d.ws.stream_,
                 buffer_cat(d.fh_buf.data(), b),
                     std::move(*this));
             return;
         }
 
-        case do_mask_frag + 1:
+        case do_mask_frag + 2:
             d.cb.consume(
                 bytes_transferred - d.fh_buf.size());
             d.fh_buf.reset();
             d.fh.op = opcode::cont;
             BOOST_ASSERT(d.ws.wr_block_ == &d);
             d.ws.wr_block_ = nullptr;
-            if(d.ws.rd_op_.maybe_invoke())
+            // Allow outgoing control frames to
+            // be sent in between message frames:
+            if(d.ws.rd_op_.maybe_invoke() ||
+                d.ws.ping_op_.maybe_invoke())
             {
                 d.state = do_maybe_suspend;
                 d.ws.get_io_service().post(
@@ -375,6 +393,11 @@ operator()(error_code ec,
         //----------------------------------------------------------------------
 
         case do_deflate:
+            BOOST_ASSERT(! d.ws.wr_block_);
+            d.ws.wr_block_ = &d;
+            // [[fallthrough]]
+
+        case do_deflate + 1:
         {
             auto b = buffer(d.ws.wr_.buf.get(),
                 d.ws.wr_.buf_size);
@@ -414,21 +437,22 @@ operator()(error_code ec,
             d.ws.wr_.cont = ! d.fin;
             // Send frame
             d.state = more ?
-                do_deflate + 1 : do_deflate + 2;
-            BOOST_ASSERT(! d.ws.wr_block_);
-            d.ws.wr_block_ = &d;
+                do_deflate + 2 : do_deflate + 3;
             boost::asio::async_write(d.ws.stream_,
                 buffer_cat(fh_buf.data(), b),
                     std::move(*this));
             return;
         }
 
-        case do_deflate + 1:
+        case do_deflate + 2:
             d.fh.op = opcode::cont;
             d.fh.rsv1 = false;
             BOOST_ASSERT(d.ws.wr_block_ == &d);
             d.ws.wr_block_ = nullptr;
-            if(d.ws.rd_op_.maybe_invoke())
+            // Allow outgoing control frames to
+            // be sent in between message frames:
+            if(d.ws.rd_op_.maybe_invoke() ||
+                d.ws.ping_op_.maybe_invoke())
             {
                 d.state = do_maybe_suspend;
                 d.ws.get_io_service().post(
@@ -438,7 +462,7 @@ operator()(error_code ec,
             d.state = d.entry;
             break;
 
-        case do_deflate + 2:
+        case do_deflate + 3:
             if(d.fh.fin && (
                 (d.ws.role_ == detail::role_type::client &&
                     d.ws.pmd_config_.client_no_context_takeover) ||
@@ -473,19 +497,27 @@ operator()(error_code ec,
         }
 
         case do_maybe_suspend + 1:
+            BOOST_ASSERT(! d.ws.wr_block_);
+            d.ws.wr_block_ = &d;
             d.state = do_maybe_suspend + 2;
+            // The current context is safe but might not be
+            // the same as the one for this operation (since
+            // we are being called from a write operation).
+            // Call post to make sure we are invoked the same
+            // way as the final handler for this operation.
             d.ws.get_io_service().post(bind_handler(
                 std::move(*this), ec));
             return;
 
         case do_maybe_suspend + 2:
+            BOOST_ASSERT(d.ws.wr_block_ == &d);
             if(d.ws.failed_ || d.ws.wr_close_)
             {
                 // call handler
                 ec = boost::asio::error::operation_aborted;
                 goto upcall;
             }
-            d.state = d.entry;
+            d.state = d.entry + 1;
             break;
 
         //----------------------------------------------------------------------
@@ -497,7 +529,8 @@ operator()(error_code ec,
 upcall:
     if(d.ws.wr_block_ == &d)
         d.ws.wr_block_ = nullptr;
-    d.ws.rd_op_.maybe_invoke();
+    d.ws.rd_op_.maybe_invoke() ||
+        d.ws.ping_op_.maybe_invoke();
     d_.invoke(ec);
 }
 
