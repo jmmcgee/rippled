@@ -60,6 +60,7 @@ private:
     bool do_close_ = false;
     beast::websocket::close_reason cr_;
     waitable_timer timer_;
+    bool close_on_timer_ = false;
 
 public:
     template<class Body, class Headers>
@@ -135,6 +136,10 @@ protected:
     on_ws_handshake(error_code const& ec);
 
     void
+    on_ping_pong(bool is_pong,
+        beast::websocket::ping_data const& payload);
+
+    void
     do_write();
 
     void
@@ -161,6 +166,9 @@ protected:
 
     void
     cancel_timer();
+
+    void
+    on_ping(error_code const& ec);
 
     void
     on_timer(error_code ec);
@@ -195,7 +203,12 @@ run()
             &BaseWSPeer::run, impl().shared_from_this()));
     impl().ws_.set_option(beast::websocket::decorate(identity{}));
     impl().ws_.set_option(port().pmd_options);
+    impl().ws_.set_option(beast::websocket::ping_callback{
+        std::bind(&BaseWSPeer::on_ping_pong, this,
+            std::placeholders::_1, std::placeholders::_2)});
     using namespace beast::asio;
+    start_timer();
+    close_on_timer_ = true;
     impl().ws_.async_accept(request_, strand_.wrap(std::bind(
         &BaseWSPeer::on_ws_handshake, impl().shared_from_this(),
             placeholders::error)));
@@ -261,6 +274,18 @@ on_ws_handshake(error_code const& ec)
         return fail(ec, "on_ws_handshake");
     do_read();
 }
+template<class Handler, class Impl>
+void
+BaseWSPeer<Handler, Impl>::
+on_ping_pong(bool is_pong,
+    beast::websocket::ping_data const& payload)
+{
+    if(is_pong)
+    {
+        // TODO Check payload
+        close_on_timer_ = false;
+    }
+}
 
 template<class Handler, class Impl>
 void
@@ -278,7 +303,6 @@ void
 BaseWSPeer<Handler, Impl>::
 on_write(error_code const& ec)
 {
-    cancel_timer();
     if(ec)
         return fail(ec, "write");
     auto& w = *wq_.front();
@@ -329,7 +353,6 @@ do_read()
     impl().ws_.async_read(op_, rb_, strand_.wrap(
         std::bind(&BaseWSPeer::on_read,
             impl().shared_from_this(), placeholders::error)));
-    cancel_timer();
 }
 
 template<class Handler, class Impl>
@@ -356,6 +379,7 @@ BaseWSPeer<Handler, Impl>::
 on_close(error_code const& ec)
 {
     // great
+    cancel_timer();
 }
 
 template<class Handler, class Impl>
@@ -387,7 +411,18 @@ cancel_timer()
     timer_.cancel(ec);
 }
 
-// Called when session times out
+template<class Handler, class Impl>
+void
+BaseWSPeer<Handler, Impl>::
+on_ping(error_code const& ec)
+{
+    if(ec == boost::asio::error::operation_aborted)
+        return;
+    if(! ec)
+        return;
+    fail(ec, "on_ping");
+}
+
 template<class Handler, class Impl>
 void
 BaseWSPeer<Handler, Impl>::
@@ -396,10 +431,24 @@ on_timer(error_code ec)
     if(ec == boost::asio::error::operation_aborted)
         return;
     if(! ec)
-        ec = boost::system::errc::make_error_code(
-            boost::system::errc::timed_out);
+    {
+        if(! close_on_timer_)
+        {
+            start_timer();
+            impl().ws_.async_ping({},
+                strand_.wrap(std::bind(
+                    &BaseWSPeer::on_ping, impl().shared_from_this(),
+                        std::placeholders::_1)));
+        }
+        else
+        {
+            ec = boost::system::errc::make_error_code(
+                boost::system::errc::timed_out);
+        }
+    }
     fail(ec, "timer");
 }
+
 } // ripple
 
 #endif
