@@ -250,7 +250,8 @@ void Config::setup (std::string const& strConf, bool bQuiet,
 
         if (ec)
             Throw<std::runtime_error>(
-                boost::str(boost::format("Can not create %s") % dataDir));
+                boost::str(boost::format("Can not create %s, %s") % dataDir
+                           % ec.message()));
 
         legacy("database_path", boost::filesystem::absolute(dataDir).string());
     }
