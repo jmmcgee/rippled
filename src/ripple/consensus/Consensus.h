@@ -478,7 +478,7 @@ private:
       @param acquired true if we have acquired the transaction set.
     */
     void
-    gotTxSetInternal ( TxSet_t const& txSet, bool acquired);
+    gotTxSetInternal ( TxSet_t const& txSet);
 
 
     /** @return The Derived class that implements the CRTP requirements.
@@ -791,21 +791,6 @@ Consensus<Derived, Traits>::timerEntry (NetClock::time_point const& now)
     default:
         assert (false);
     }
-}
-
-template <class Derived, class Traits>
-void
-Consensus<Derived, Traits>::gotTxSet (
-    NetClock::time_point const& now,
-    TxSet_t const& txSet)
-{
-    // Nothing to do if we are currently working on a ledger
-    if (state_ == State::accepted)
-        return;
-
-    now_ = now;
-
-    gotTxSetInternal (txSet, true);
 }
 
 template <class Derived, class Traits>
@@ -1172,17 +1157,101 @@ Consensus<Derived, Traits>::takeInitialPosition()
         }
     }
 
-    gotTxSetInternal (initialSet, false);
+    gotTxSetInternal (initialSet);
     if(proposing_)
         impl().propose (*ourPosition_);
 }
 
 template <class Derived, class Traits>
 void
-Consensus<Derived, Traits>::gotTxSetInternal (
-    TxSet_t const& txSet,
-    bool acquired)
+Consensus<Derived, Traits>::gotTxSet (
+    NetClock::time_point const& now,
+    TxSet_t const& txSet)
 {
+    // Nothing to do if we are currently working on a ledger
+    if (state_ == State::accepted)
+        return;
+
+    now_ = now;
+
+    bool acquired = true;
+    auto const hash = txSet.id();
+
+    if (acquired_.find (hash) != acquired_.end())
+        return;
+
+    if (acquired)
+    {
+        JLOG (j_.trace()) << "We have acquired txs " << hash;
+    }
+
+    // We now have a txSet that we did not have before
+
+    if (! acquired)
+    {
+        // If we generated this locally,
+        // put the txSet where others can get it
+        // If we acquired it, it's already shared
+        impl().share (txSet);
+    }
+
+    if (! ourPosition_)
+    {
+        JLOG (j_.debug())
+            << "Not creating disputes: no position yet.";
+    }
+    else if (ourPosition_->isBowOut ())
+    {
+        JLOG (j_.warn())
+            << "Not creating disputes: not participating.";
+    }
+    else if (hash == ourPosition_->position ())
+    {
+        JLOG (j_.debug())
+            << "Not creating disputes: identical position.";
+    }
+    else
+    {
+        // Our position is not the same as the acquired position
+        // create disputed txs if needed
+        createDisputes (*ourSet_, txSet);
+        compares_.insert(hash);
+    }
+
+    // Adjust tracking for each peer that takes this position
+    std::vector<NodeID_t> peers;
+    for (auto& it : peerProposals_)
+    {
+        if (it.second.position () == hash)
+            peers.push_back (it.second.nodeID ());
+    }
+
+    if (!peers.empty ())
+    {
+        for (auto& it : disputes_)
+        {
+            bool setHas = txSet.exists (it.first);
+            for (auto const& pit : peers)
+                it.second.setVote (pit, setHas);
+        }
+    }
+    else if (acquired)
+    {
+        JLOG (j_.warn())
+            << "By the time we got the map " << hash
+            << " no peers were proposing it";
+    }
+
+    acquired_.emplace (hash, txSet);
+}
+
+template <class Derived, class Traits>
+void
+Consensus<Derived, Traits>::gotTxSetInternal (
+    TxSet_t const& txSet)
+{
+    bool acquired = false;
+
     auto const hash = txSet.id();
 
     if (acquired_.find (hash) != acquired_.end())
@@ -1505,7 +1574,7 @@ void Consensus<Derived, Traits>::updateOurPositions ()
         {
             if(proposing_)
                 impl().propose (*ourPosition_);
-            gotTxSetInternal (*ourNewSet, false);
+            gotTxSetInternal (*ourNewSet);
         }
     }
 }
