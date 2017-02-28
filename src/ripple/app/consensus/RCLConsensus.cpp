@@ -186,10 +186,9 @@ RCLConsensus::relay(RCLCxPeerPos const & peerPos)
 }
 
 void
-RCLConsensus::relay(DisputedTx <RCLCxTx, NodeID> const & dispute)
+RCLConsensus::relay(RCLCxTx const & tx)
 {
      // If we didn't relay this transaction recently, relay it to all peers
-    auto const & tx = dispute.tx();
     if (app_.getHashRouter ().shouldRelay (tx.id()))
     {
         auto const slice = tx.tx_.slice();

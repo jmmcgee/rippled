@@ -178,7 +178,7 @@ namespace ripple {
       void relay(implementation_defined const & pos);
 
       // Relay disputed transaction to peers
-      void relay(DisputedTx<Txn, NodeID> const & dispute);
+      void relay(Txn const & tx);
 
       // Create initial position for current consensus round
       std::pair <TxSet, Proposal>
@@ -281,7 +281,7 @@ public:
     timerEntry (NetClock::time_point const& now);
 
     /**
-        Process a transaction set, typically acquired from the network
+        Process a transaction set acquired from the network
 
         @param now The network adjusted time
         @param txSet the transaction set
@@ -452,11 +452,6 @@ private:
     void
     closeLedger ();
 
-    /** Take an initial position on the consensus set.
-    */
-    void
-    takeInitialPosition ();
-
     /** Compare two proposed transaction sets and create disputed
         transctions structures for any mismatches
 
@@ -484,23 +479,6 @@ private:
     */
     bool
     haveConsensus ();
-
-    /** Process complete transaction set.
-
-        Called when:
-          * We take our initial position
-          * We take a new position
-          * We acquire a position a validator took
-
-       We store it, notify peers that we have it, and update our tracking if
-       any validators currently propose it.
-
-      @param txSet      the transaction set.
-      @param acquired true if we have acquired the transaction set.
-    */
-    void
-    gotTxSetInternal ( TxSet_t const& txSet, bool acquired);
-
 
     /** Initiate acceptance of a the next closed ledger.
 
@@ -800,6 +778,16 @@ Consensus<Derived, Traits>::peerProposal (
 
         if (ait != acquired_.end())
         {
+            // create disputes
+            if (ourPosition_)
+            {
+                if (compares_.count(ait->first) == 0)
+                {
+                    compares_.insert(ait->first);
+                    createDisputes(*ourSet_, ait->second);
+                }
+            }
+
             for (auto& it : disputes_)
                 it.second.setVote (peerID,
                     ait->second.exists (it.first));
@@ -848,13 +836,60 @@ Consensus<Derived, Traits>::gotTxSet (
 {
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
-    // Nothing to do if we are currently working on a ledger
+    // Nothing to do if we've finished work on a ledger
     if ((state_ == State::processing) || (state_ == State::accepted))
         return;
 
     now_ = now;
 
-    gotTxSetInternal (txSet, true);
+    auto id =txSet.id ();
+
+    // If we've already processed this transaction set since requesting
+    // it from the network, there is nothing to do now
+    if (!acquired_.emplace (id, txSet).second)
+        return;
+
+    if (! ourPosition_)
+    {
+        JLOG (j_.debug())
+            << "Not creating disputes: no position yet.";
+    }
+    else
+    {
+        // Our position is added to acquired_ as soon as we create it,
+        // so this txSet must differ
+        assert(id != ourPosition_->position ());
+
+        // Ensure any new transactions in this set not in ours are added
+        // as disputes
+        if(compares_.find(id) == compares_.end())
+            createDisputes (*ourSet_, txSet);
+
+
+        // Adjust tracking for each peer that takes this position
+        std::vector<NodeID_t> peers;
+        for (auto& it : peerProposals_)
+        {
+            if (it.second.position () == id)
+                peers.push_back (it.second.nodeID ());
+        }
+
+        if (!peers.empty ())
+        {
+            for (auto& it : disputes_)
+            {
+                bool setHas = txSet.exists (it.first);
+                for (auto const& pit : peers)
+                    it.second.setVote (pit, setHas);
+            }
+        }
+        else
+        {
+            JLOG (j_.warn())
+                << "By the time we got " << id
+                << " no peers were proposing it";
+        }
+    }
 }
 
 template <class Derived, class Traits>
@@ -1008,8 +1043,11 @@ Consensus<Derived, Traits>::handleLCL (typename Ledger_t::ID const& lgrId)
         compares_.clear ();
         closeTimes_.clear ();
         deadNodes_.clear ();
-        // To get back in sync:
+
+        // Get back in sync, this will also recreate disputes
         playbackProposals ();
+
+
     }
 
     if (previousLedger_.id() == prevLedgerID_)
@@ -1179,13 +1217,6 @@ Consensus<Derived, Traits>::closeLedger ()
 
     impl().onClose (previousLedger_, haveCorrectLCL_);
 
-    takeInitialPosition ();
-}
-
-template <class Derived, class Traits>
-void
-Consensus<Derived, Traits>::takeInitialPosition()
-{
     auto pair = impl().makeInitialPosition(previousLedger_,
          haveCorrectLCL_,  closeTime_, now_ );
 
@@ -1218,85 +1249,13 @@ Consensus<Derived, Traits>::takeInitialPosition()
         }
     }
 
-    gotTxSetInternal (initialSet, false);
+    // Share the newly created transaction set if we haven't already
+    // received it from a peer
+    if(acquired_.emplace(initialSet.id(), initialSet).second)
+        impl().share (initialSet);
+
     if(proposing_)
         impl().propose (*ourPosition_);
-}
-
-template <class Derived, class Traits>
-void
-Consensus<Derived, Traits>::gotTxSetInternal (
-    TxSet_t const& txSet,
-    bool acquired)
-{
-    auto const hash = txSet.id();
-
-    if (acquired_.find (hash) != acquired_.end())
-        return;
-
-    if (acquired)
-    {
-        JLOG (j_.trace()) << "We have acquired txs " << hash;
-    }
-
-    // We now have a txSet that we did not have before
-
-    if (! acquired)
-    {
-        // If we generated this locally,
-        // put the txSet where others can get it
-        // If we acquired it, it's already shared
-        impl().share (txSet);
-    }
-
-    if (! ourPosition_)
-    {
-        JLOG (j_.debug())
-            << "Not creating disputes: no position yet.";
-    }
-    else if (ourPosition_->isBowOut ())
-    {
-        JLOG (j_.warn())
-            << "Not creating disputes: not participating.";
-    }
-    else if (hash == ourPosition_->position ())
-    {
-        JLOG (j_.debug())
-            << "Not creating disputes: identical position.";
-    }
-    else
-    {
-        // Our position is not the same as the acquired position
-        // create disputed txs if needed
-        createDisputes (*ourSet_, txSet);
-        compares_.insert(hash);
-    }
-
-    // Adjust tracking for each peer that takes this position
-    std::vector<NodeID_t> peers;
-    for (auto& it : peerProposals_)
-    {
-        if (it.second.position () == hash)
-            peers.push_back (it.second.nodeID ());
-    }
-
-    if (!peers.empty ())
-    {
-        for (auto& it : disputes_)
-        {
-            bool setHas = txSet.exists (it.first);
-            for (auto const& pit : peers)
-                it.second.setVote (pit, setHas);
-        }
-    }
-    else if (acquired)
-    {
-        JLOG (j_.warn())
-            << "By the time we got the map " << hash
-            << " no peers were proposing it";
-    }
-
-    acquired_.emplace (hash, txSet);
 }
 
 template <class Derived, class Traits>
@@ -1359,7 +1318,7 @@ void Consensus<Derived, Traits>::addDisputedTransaction (
                 cit->second.exists (txID));
     }
 
-    impl().relay(dtx);
+    impl().relay(dtx.tx());
 
     disputes_.emplace (txID, std::move (dtx));
 }
@@ -1536,9 +1495,6 @@ void Consensus<Derived, Traits>::updateOurPositions ()
     {
         auto newHash = ourNewSet->id();
 
-        // Setting ourSet_ here prevents gotTxSetInternal
-        // from checking for new disputes. But we only changed
-        // positions on existing disputes, so no need to.
         ourSet_ = ourNewSet;
 
         JLOG (j_.info())
@@ -1546,12 +1502,17 @@ void Consensus<Derived, Traits>::updateOurPositions ()
             << consensusCloseTime.time_since_epoch().count()
             << ", tx " << newHash;
 
-        if (ourPosition_->changePosition (
-            newHash, consensusCloseTime, now_))
+        ourPosition_->changePosition (newHash, consensusCloseTime, now_) ;
+        if (!ourPosition_->isBowOut())
         {
+            // Share our new transaction set if we haven't already received
+            // it from a peer
+            if(acquired_.emplace(newHash, *ourSet_).second)
+                impl().share (*ourSet_);
+
             if(proposing_)
                 impl().propose (*ourPosition_);
-            gotTxSetInternal (*ourNewSet, false);
+
         }
     }
 }
@@ -1567,9 +1528,6 @@ Consensus<Derived, Traits>::haveConsensus ()
     // Count number of agreements/disagreements with our position
     for (auto& it : peerProposals_)
     {
-        if (it.second.isBowOut ())
-            continue;
-
         if (it.second.position () == ourPosition)
         {
             ++agree;
@@ -1582,19 +1540,6 @@ Consensus<Derived, Traits>::haveConsensus ()
             JLOG (j_.debug()) << to_string (it.first)
                 << " has " << to_string (it.second.position ());
             ++disagree;
-            if (compares_.count(it.second.position()) == 0)
-            { // Make sure we have generated disputes
-                auto hash = it.second.position();
-                JLOG (j_.debug())
-                    << "We have not compared to " << hash;
-                auto it1 = acquired_.find (hash);
-                auto it2 = acquired_.find(ourPosition_->position ());
-                if ((it1 != acquired_.end()) && (it2 != acquired_.end()))
-                {
-                    compares_.insert(hash);
-                    createDisputes(it2->second, it1->second);
-                }
-            }
         }
     }
     auto currentFinished = impl().proposersFinished(prevLedgerID_);

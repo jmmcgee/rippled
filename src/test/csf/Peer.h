@@ -294,12 +294,6 @@ struct Peer : public Consensus<Peer, Traits>
             relay(pos);
     }
 
-    void
-    relay(DisputedTx<Tx, PeerID> const & dispute)
-    {
-        relay(dispute.tx());
-    }
-
     std::pair <TxSet, Proposal>
     makeInitialPosition(
             Ledger const & prevLedger,

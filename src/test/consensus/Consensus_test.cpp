@@ -272,11 +272,23 @@ public:
                     p.openTxs.insert(Tx{1});
             }
 
-            // Run for 2 additional rounds
-            //  - One round to generate different ledgers
-            //  - One round to detect different prior ledgers (but still generate
-            //    wrong ones) and recover
-            sim.run(2);
+            // Run for additional rounds
+            // With no validation delay, only 2 more rounds are needed.
+            //  1. Round to generate different ledgers
+            //  2. Round to detect different prior ledgers (but still generate
+            //    wrong ones) and recover within that round since wrong LCL
+            //    is detected before we close
+            //
+            // With a validation delay of LEDGER_MIN_CLOSE, we need 3 more rounds.
+            //  1. Round to generate different ledgers
+            //  2. Round to detect different prior ledgers (but still generate
+            //     wrong ones) but end up declaring consensus on wrong LCL (but
+            //     with the right transaction set!).  This is because we detect
+            //     the wrong LCL after we have closed the ledger, so we declare
+            //     consensus based solely on our peer proposals. But we haven't
+            //     had time to acquire the right LCL
+            //  3. Round to correct
+            sim.run(3);
 
             bc::flat_map<int, bc::flat_set<Ledger::ID>> ledgers;
             for (auto & p : sim.peers)
@@ -289,8 +301,18 @@ public:
 
             BEAST_EXPECT(ledgers[0].size() == 1);
             BEAST_EXPECT(ledgers[1].size() == 1);
-            BEAST_EXPECT(ledgers[2].size() == 2);
-            BEAST_EXPECT(ledgers[3].size() == 1);
+            if(validationDelay == 0s)
+            {
+                BEAST_EXPECT(ledgers[2].size() == 2);
+                BEAST_EXPECT(ledgers[3].size() == 1);
+                BEAST_EXPECT(ledgers[4].size() == 1);
+            }
+            else
+            {
+                BEAST_EXPECT(ledgers[2].size() == 2);
+                BEAST_EXPECT(ledgers[3].size() == 2);
+                BEAST_EXPECT(ledgers[4].size() == 1);
+            }
 
 
         }

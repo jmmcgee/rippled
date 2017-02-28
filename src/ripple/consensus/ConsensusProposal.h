@@ -163,29 +163,23 @@ public:
     }
 
     /** Update the position during the consensus process. This will increment
-        the proposal's sequence number.
+        the proposal's sequence number if it has not already bowed out.
 
         @param newPosition The new position taken.
         @param newCloseTime The new close time.
-        @param now the time The new position was taken.
-
-        @return `true` if the position was updated or `false` if this node has
-        already left this consensus round.
+        @param now the time The new position was taken
      */
-    bool
+    void
     changePosition(
         Position_t const& newPosition,
         NetClock::time_point newCloseTime,
         NetClock::time_point now)
     {
-         if (proposeSeq_ == seqLeave)
-            return false;
-
         position_    = newPosition;
-        closeTime_      = newCloseTime;
-        time_           = now;
-        ++proposeSeq_;
-        return true;
+        closeTime_   = newCloseTime;
+        time_        = now;
+        if (proposeSeq_ != seqLeave)
+            ++proposeSeq_;
     }
 
     /** Leave consensus

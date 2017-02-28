@@ -168,10 +168,10 @@ private:
 
         Only relay if the provided transaction hasn't been shared recently.
 
-        @param dispute The disputed transaction to relay.
+        @param tx The disputed transaction to relay.
     */
     void
-    relay(DisputedTx <RCLCxTx, NodeID> const & dispute);
+    relay(RCLCxTx const & tx);
 
      /** Acquire the transaction set associated with a proposal.
 
