@@ -1525,7 +1525,7 @@ bool NetworkOPsImp::beginConsensus (uint256 const& networkClosed)
 
 uint256 NetworkOPsImp::getConsensusLCL ()
 {
-    return mConsensus->LCL ();
+    return mConsensus->prevLedgerID ();
 }
 
 void NetworkOPsImp::processTrustedProposal (

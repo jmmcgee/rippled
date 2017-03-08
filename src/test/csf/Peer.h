@@ -22,14 +22,13 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 
-#include <test/csf/Tx.h>
 #include <test/csf/Ledger.h>
+#include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
 
 namespace ripple {
 namespace test {
 namespace csf {
-
 
 /** Store validations reached by peers */
 struct Validation
@@ -45,15 +44,17 @@ class Validations
 {
     //< Ledgers seen by peers, saved in order received (which should be order
     //<  created)
-    bc::flat_map<Ledger::ID, bc::flat_set<PeerID>>  nodesFromLedger;
-    bc::flat_map<Ledger::ID, bc::flat_set<PeerID>>  nodesFromPrevLedger;
-    bc::flat_map<Ledger::ID, bc::flat_map<Ledger::ID, std::size_t>> childLedgers;
+    bc::flat_map<Ledger::ID, bc::flat_set<PeerID>> nodesFromLedger;
+    bc::flat_map<Ledger::ID, bc::flat_set<PeerID>> nodesFromPrevLedger;
+    bc::flat_map<Ledger::ID, bc::flat_map<Ledger::ID, std::size_t>>
+        childLedgers;
+
 public:
     void
-    update(Validation const & v)
+    update(Validation const& v)
     {
         nodesFromLedger[v.ledger].insert(v.id);
-        if(v.ledger.seq > 0)
+        if (v.ledger.seq > 0)
         {
             nodesFromPrevLedger[v.prevLedger].insert(v.id);
             childLedgers[v.prevLedger][v.ledger]++;
@@ -62,10 +63,10 @@ public:
 
     //< The number of peers who have validated this ledger
     std::size_t
-    proposersValidated(Ledger::ID const & prevLedger) const
+    proposersValidated(Ledger::ID const& prevLedger) const
     {
         auto it = nodesFromLedger.find(prevLedger);
-        if(it != nodesFromLedger.end())
+        if (it != nodesFromLedger.end())
             return it->second.size();
         return 0;
     }
@@ -75,35 +76,33 @@ public:
         as an ancestor.
     */
     std::size_t
-    proposersFinished(Ledger::ID const & prevLedger) const
+    proposersFinished(Ledger::ID const& prevLedger) const
     {
         auto it = nodesFromPrevLedger.find(prevLedger);
-        if(it != nodesFromPrevLedger.end())
+        if (it != nodesFromPrevLedger.end())
             return it->second.size();
         return 0;
     }
 
     /** Returns the ledger starting from prevLedger with the most validations.
-    */
+     */
     Ledger::ID
-    getBestLCL(Ledger::ID const & currLedger,
-        Ledger::ID const & prevLedger) const
+    getBestLCL(Ledger::ID const& currLedger, Ledger::ID const& prevLedger) const
     {
         auto it = childLedgers.find(prevLedger);
-        if (it != childLedgers.end() &&
-            ! it->second.empty())
+        if (it != childLedgers.end() && !it->second.empty())
         {
             std::size_t bestCount = 0;
             Ledger::ID bestLedger;
 
-            for (auto const & b : it->second)
+            for (auto const& b : it->second)
             {
                 auto currCount = b.second;
-                if(currLedger == b.first)
+                if (currLedger == b.first)
                     currCount++;
-                if(currCount > bestCount)
+                if (currCount > bestCount)
                     bestLedger = b.first;
-                if(currCount == bestCount && currLedger == b.first)
+                if (currCount == bestCount && currLedger == b.first)
                     bestLedger = b.first;
             }
             return bestLedger;
@@ -124,8 +123,6 @@ struct Traits
     using TxSet_t = TxSet;
 };
 
-
-
 /** Represents a single node participating in the consensus process.
     It implements the Callbacks required by Consensus.
 */
@@ -143,7 +140,7 @@ struct Peer : public Consensus<Peer, Traits>
     Ledger lastClosedLedger;
 
     //! Handle to network for sending messages
-    BasicNetwork<Peer*> & net;
+    BasicNetwork<Peer*>& net;
 
     //! UNL of trusted peers
     UNL unl;
@@ -176,8 +173,8 @@ struct Peer : public Consensus<Peer, Traits>
     bool proposing_ = true;
 
     //! All peers start from the default constructed ledger
-    Peer(PeerID i, BasicNetwork<Peer*> & n, UNL const & u)
-        : Consensus<Peer, Traits>( n.clock(), beast::Journal{})
+    Peer(PeerID i, BasicNetwork<Peer*>& n, UNL const& u)
+        : Consensus<Peer, Traits>(n.clock(), beast::Journal{})
         , id{i}
         , net{n}
         , unl(u)
@@ -185,8 +182,8 @@ struct Peer : public Consensus<Peer, Traits>
         ledgers[lastClosedLedger.id()] = lastClosedLedger;
     }
 
-    Ledger const *
-    acquireLedger(Ledger::ID const & ledgerHash)
+    Ledger const*
+    acquireLedger(Ledger::ID const& ledgerHash)
     {
         auto it = ledgers.find(ledgerHash);
         if (it != ledgers.end())
@@ -196,16 +193,16 @@ struct Peer : public Consensus<Peer, Traits>
 
         for (auto const& link : net.links(this))
         {
-            auto const & p = *link.to;
+            auto const& p = *link.to;
             auto it = p.ledgers.find(ledgerHash);
             if (it != p.ledgers.end())
             {
-                schedule(missingLedgerDelay,
-                    [this, ledgerHash, ledger = it->second]()
-                    {
+                schedule(
+                    missingLedgerDelay,
+                    [ this, ledgerHash, ledger = it->second ]() {
                         ledgers.emplace(ledgerHash, ledger);
                     });
-                if(missingLedgerDelay == 0ms)
+                if (missingLedgerDelay == 0ms)
                     return &ledgers[ledgerHash];
                 break;
             }
@@ -213,22 +210,21 @@ struct Peer : public Consensus<Peer, Traits>
         return nullptr;
     }
 
-    auto const &
-    proposals(Ledger::ID const & ledgerHash)
+    auto const&
+    proposals(Ledger::ID const& ledgerHash)
     {
         return peerPositions_[ledgerHash];
     }
 
-    TxSet const *
-    acquireTxSet(TxSet::ID const & setId)
+    TxSet const*
+    acquireTxSet(TxSet::ID const& setId)
     {
         auto it = txSets.find(setId);
-        if(it != txSets.end())
+        if (it != txSets.end())
             return &(it->second);
         // TODO Get from network/oracle instead!
         return nullptr;
     }
-
 
     bool
     hasOpenTransactions() const
@@ -237,58 +233,66 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     std::size_t
-    proposersValidated(Ledger::ID const & prevLedger)
+    proposersValidated(Ledger::ID const& prevLedger)
     {
         return peerValidations.proposersValidated(prevLedger);
     }
 
     std::size_t
-    proposersFinished(Ledger::ID const & prevLedger)
+    proposersFinished(Ledger::ID const& prevLedger)
     {
         return peerValidations.proposersFinished(prevLedger);
     }
 
-
     Result
-    onClose(Ledger const & prevLedger, NetClock::time_point closeTime, Mode mode)
+    onClose(Ledger const& prevLedger, NetClock::time_point closeTime, Mode mode)
     {
-        TxSet res{ openTxs };
+        TxSet res{openTxs};
 
-        return Result{ TxSet{openTxs},  Proposal{prevLedger.id(),
-            Proposal::seqJoin, res.id(), closeTime, now(), id} };
+        return Result{TxSet{openTxs},
+                      Proposal{prevLedger.id(),
+                               Proposal::seqJoin,
+                               res.id(),
+                               closeTime,
+                               now(),
+                               id}};
     }
 
     void
-    onForceAccept(Result const & result,
-        Ledger const & prevLedger,
+    onForceAccept(
+        Result const& result,
+        Ledger const& prevLedger,
         NetClock::duration const & closeResolution,
-        CloseTimes const & rawCloseTimes,
-        Mode const & mode)
+        CloseTimes const& rawCloseTimes,
+        Mode const& mode)
     {
         onAccept(result, prevLedger, closeResolution, rawCloseTimes, mode);
     }
 
     void
-    onAccept(Result const & result,
-        Ledger const & prevLedger,
+    onAccept(
+        Result const& result,
+        Ledger const& prevLedger,
         NetClock::duration const & closeResolution,
-        CloseTimes const & rawCloseTimes,
-        Mode const & mode)
+        CloseTimes const& rawCloseTimes,
+        Mode const& mode)
     {
-        auto newLedger = prevLedger.close(result.set.txs_, closeResolution,
-            rawCloseTimes.self, result.position. closeTime() != NetClock::time_point{});
+        auto newLedger = prevLedger.close(
+            result.set.txs_,
+            closeResolution,
+            rawCloseTimes.self,
+            result.position.closeTime() != NetClock::time_point{});
         ledgers[newLedger.id()] = newLedger;
 
         lastClosedLedger = newLedger;
 
-        auto it = std::remove_if(openTxs.begin(), openTxs.end(),
-            [&](Tx const & tx)
-            {
+        auto it =
+            std::remove_if(openTxs.begin(), openTxs.end(), [&](Tx const& tx) {
                 return result.set.exists(tx.id());
             });
         openTxs.erase(it, openTxs.end());
 
-        if(validating_)
+        if (validating_)
             relay(Validation{id, newLedger.id(), newLedger.parentID()});
 
         // kick off the next round...
@@ -298,66 +302,61 @@ struct Peer : public Consensus<Peer, Traits>
         // startRound sets the LCL state, so we need to call it once after
         // the last requested round completes
         // TODO: reconsider this and instead just save LCL generated here?
-        if(completedLedgers <= targetLedgers)
+        if (completedLedgers <= targetLedgers)
         {
-            startRound(now(), lastClosedLedger.id(),
-                lastClosedLedger, proposing_);
+            startRound(
+                now(), lastClosedLedger.id(), lastClosedLedger, proposing_);
         }
     }
 
-    void
-    share(TxSet const &s)
-    {
-        relay(s);
-    }
-
     Ledger::ID
-    getLCL(Ledger::ID const & currLedger,
-        Ledger::ID const & priorLedger,
+    getPrevLedger(
+        Ledger::ID const& currLedger,
+        Ledger::ID const& priorLedger,
         Mode mode)
     {
         // TODO: Use generic validation code
-        if(mode != Mode::wrongLCL && currLedger.seq > 0 && priorLedger.seq > 0)
+        if (mode != Mode::wrongLedger && currLedger.seq > 0 &&
+            priorLedger.seq > 0)
             return peerValidations.getBestLCL(currLedger, priorLedger);
         return currLedger;
     }
 
     void
-    propose(Proposal const & pos)
+    propose(Proposal const& pos)
     {
-        if(proposing_)
+        if (proposing_)
             relay(pos);
     }
 
     //-------------------------------------------------------------------------
     // non-callback helpers
     void
-    receive(Proposal const & p)
+    receive(Proposal const& p)
     {
-        if(unl.find(p.nodeID()) == unl.end())
+        if (unl.find(p.nodeID()) == unl.end())
             return;
 
         // TODO: Be sure this is a new proposal!!!!!
-        auto & dest = peerPositions_[p.prevLedger()];
-        if(std::find(dest.begin(), dest.end(), p) != dest.end())
+        auto& dest = peerPositions_[p.prevLedger()];
+        if (std::find(dest.begin(), dest.end(), p) != dest.end())
             return;
 
         dest.push_back(p);
         peerProposal(now(), p);
-
     }
 
     void
-    receive(TxSet const & txs)
+    receive(TxSet const& txs)
     {
         // save and map complete?
         auto it = txSets.insert(std::make_pair(txs.id(), txs));
-        if(it.second)
+        if (it.second)
             gotTxSet(now(), txs);
     }
 
     void
-    receive(Tx const & tx)
+    receive(Tx const& tx)
     {
         if (openTxs.find(tx.id()) == openTxs.end())
         {
@@ -368,33 +367,26 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     void
-    receive(Validation const & v)
+    receive(Validation const& v)
     {
-        if(unl.find(v.id) != unl.end())
+        if (unl.find(v.id) != unl.end())
         {
-            schedule(validationDelay,
-                [&, v]()
-                {
-                    peerValidations.update(v);
-                });
+            schedule(validationDelay, [&, v]() { peerValidations.update(v); });
         }
     }
 
     template <class T>
     void
-    relay(T const & t)
+    relay(T const& t)
     {
-        for(auto const& link : net.links(this))
-            net.send(this, link.to,
-                [msg = t, to = link.to]
-                {
-                    to->receive(msg);
-                });
+        for (auto const& link : net.links(this))
+            net.send(
+                this, link.to, [ msg = t, to = link.to ] { to->receive(msg); });
     }
 
     // Receive and relay locally submitted transaction
     void
-    submit(Tx const & tx)
+    submit(Tx const& tx)
     {
         receive(tx);
         relay(tx);
@@ -405,7 +397,7 @@ struct Peer : public Consensus<Peer, Traits>
     {
         Base::timerEntry(now());
         // only reschedule if not completed
-        if(completedLedgers < targetLedgers)
+        if (completedLedgers < targetLedgers)
             net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
     }
     void
@@ -415,8 +407,8 @@ struct Peer : public Consensus<Peer, Traits>
         // The ID is the one we have seen the most validations for
         // In practice, we might not actually have that ledger itself yet,
         // so there is no gaurantee that bestLCL == lastClosedLedger.id()
-        auto bestLCL = peerValidations.getBestLCL(lastClosedLedger.id(),
-            lastClosedLedger.parentID());
+        auto bestLCL = peerValidations.getBestLCL(
+            lastClosedLedger.id(), lastClosedLedger.parentID());
         startRound(now(), bestLCL, lastClosedLedger, proposing_);
     }
 
@@ -428,23 +420,24 @@ struct Peer : public Consensus<Peer, Traits>
         // any subtractions of two NetClock::time_point in the consensu
         // code are positive. (e.g. PROPOSE_FRESHNESS)
         using namespace std::chrono;
-        return NetClock::time_point(duration_cast<NetClock::duration>
-                (net.now().time_since_epoch()+ 86400s + clockSkew));
+        return NetClock::time_point(duration_cast<NetClock::duration>(
+            net.now().time_since_epoch() + 86400s + clockSkew));
     }
 
     // Schedule the provided callback in `when` duration, but if
     // `when` is 0, call immediately
     template <class T>
-    void schedule(std::chrono::nanoseconds when, T && what)
+    void
+    schedule(std::chrono::nanoseconds when, T&& what)
     {
-        if(when == 0ns)
+        if (when == 0ns)
             what();
         else
             net.timer(when, std::forward<T>(what));
     }
 };
 
-} // csf
-} // test
-} // ripple
+}  // csf
+}  // test
+}  // ripple
 #endif

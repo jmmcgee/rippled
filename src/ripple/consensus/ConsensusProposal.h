@@ -19,13 +19,12 @@
 #ifndef RIPPLE_CONSENSUS_ConsensusProposal_H_INCLUDED
 #define RIPPLE_CONSENSUS_ConsensusProposal_H_INCLUDED
 
-#include <cstdint>
+#include <ripple/basics/chrono.h>
 #include <ripple/json/json_value.h>
 #include <ripple/protocol/JsonFields.h>
-#include <ripple/basics/chrono.h>
+#include <cstdint>
 
-namespace ripple
-{
+namespace ripple {
 /** Represents a proposed position taken during a round of consensus.
 
     During consensus, peers seek agreement on a set of transactions to
@@ -49,10 +48,7 @@ namespace ripple
     @tparam Position_t Type used to represent the position taken on transactions
                        under consideration during this round of consensus
  */
-template <
-    class NodeID_t,
-    class LedgerID_t,
-    class Position_t>
+template <class NodeID_t, class LedgerID_t, class Position_t>
 class ConsensusProposal
 {
 public:
@@ -63,7 +59,6 @@ public:
 
     //< Sequence number when  a peer wants to bow out and leave consensus
     static std::uint32_t const seqLeave = 0xffffffff;
-
 
     /** Constructor
 
@@ -81,33 +76,32 @@ public:
         NetClock::time_point closeTime,
         NetClock::time_point now,
         NodeID_t const& nodeID)
-    : previousLedger_(prevLedger)
-    , position_(position)
-    , closeTime_(closeTime)
-    , time_(now)
-    , proposeSeq_(seq)
-    , nodeID_(nodeID)
+        : previousLedger_(prevLedger)
+        , position_(position)
+        , closeTime_(closeTime)
+        , time_(now)
+        , proposeSeq_(seq)
+        , nodeID_(nodeID)
     {
-
     }
 
     //! Identifying which peer took this position.
     NodeID_t const&
-    nodeID () const
+    nodeID() const
     {
         return nodeID_;
     }
 
     //! Get the proposed position.
     Position_t const&
-    position () const
+    position() const
     {
         return position_;
     }
 
     //! Get the prior accepted ledger this position is based on.
     LedgerID_t const&
-    prevLedger () const
+    prevLedger() const
     {
         return previousLedger_;
     }
@@ -120,21 +114,21 @@ public:
         @return the sequence number
     */
     std::uint32_t
-    proposeSeq () const
+    proposeSeq() const
     {
         return proposeSeq_;
     }
 
     //! The current position on the consensus close time.
-    NetClock::time_point const &
-    closeTime () const
+    NetClock::time_point const&
+    closeTime() const
     {
         return closeTime_;
     }
 
     //! Get when this position was taken.
-    NetClock::time_point const &
-    seenTime () const
+    NetClock::time_point const&
+    seenTime() const
     {
         return time_;
     }
@@ -143,21 +137,21 @@ public:
         consensus round.
     */
     bool
-    isInitial () const
+    isInitial() const
     {
         return proposeSeq_ == seqJoin;
     }
 
     //! Get whether this node left the consensus process
     bool
-    isBowOut () const
+    isBowOut() const
     {
         return proposeSeq_ == seqLeave;
     }
 
     //! Get whether this position is stale relative to the provided cutoff
     bool
-    isStale (NetClock::time_point cutoff) const
+    isStale(NetClock::time_point cutoff) const
     {
         return time_ <= cutoff;
     }
@@ -175,9 +169,9 @@ public:
         NetClock::time_point newCloseTime,
         NetClock::time_point now)
     {
-        position_    = newPosition;
-        closeTime_   = newCloseTime;
-        time_        = now;
+        position_ = newPosition;
+        closeTime_ = newCloseTime;
+        time_ = now;
         if (proposeSeq_ != seqLeave)
             ++proposeSeq_;
     }
@@ -191,32 +185,32 @@ public:
     void
     bowOut(NetClock::time_point now)
     {
-        time_           = now;
-        proposeSeq_     = seqLeave;
+        time_ = now;
+        proposeSeq_ = seqLeave;
     }
 
     //! Get JSON representation for debugging
     Json::Value
-    getJson () const
+    getJson() const
     {
         using std::to_string;
 
         Json::Value ret = Json::objectValue;
-        ret[jss::previous_ledger] = to_string (prevLedger());
+        ret[jss::previous_ledger] = to_string(prevLedger());
 
         if (!isBowOut())
         {
-            ret[jss::transaction_hash] = to_string (position());
+            ret[jss::transaction_hash] = to_string(position());
             ret[jss::propose_seq] = proposeSeq();
         }
 
-        ret[jss::close_time] = to_string(closeTime().time_since_epoch().count());
+        ret[jss::close_time] =
+            to_string(closeTime().time_since_epoch().count());
 
         return ret;
     }
 
 private:
-
     //! Unique identifier of prior ledger this proposal is based on
     LedgerID_t previousLedger_;
 
@@ -234,23 +228,17 @@ private:
 
     //! The identifier of the node taking this position
     NodeID_t nodeID_;
-
 };
 
-template <class NodeID_t,
-    class LedgerID_t,
-    class Position_t>
+template <class NodeID_t, class LedgerID_t, class Position_t>
 bool
-operator==(ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const & a,
-           ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const & b)
+operator==(
+    ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const& a,
+    ConsensusProposal<NodeID_t, LedgerID_t, Position_t> const& b)
 {
-    return a.nodeID() == b.nodeID() &&
-           a.proposeSeq() == b.proposeSeq() &&
-           a.prevLedger() == b.prevLedger() &&
-           a.position() == b.position() &&
-           a.closeTime() == b.closeTime() &&
-           a.seenTime() == b.seenTime();
+    return a.nodeID() == b.nodeID() && a.proposeSeq() == b.proposeSeq() &&
+        a.prevLedger() == b.prevLedger() && a.position() == b.position() &&
+        a.closeTime() == b.closeTime() && a.seenTime() == b.seenTime();
 }
-
 }
 #endif
