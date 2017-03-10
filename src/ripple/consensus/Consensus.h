@@ -118,7 +118,6 @@ namespace ripple {
     auto closeAgree() const;
     auto closeTime() const;
     auto parentCloseTime() const;
-    auto const parentID() const;
     Json::Value getJson() const;
   };
 
@@ -153,8 +152,8 @@ namespace ripple {
 
       // Return the ID of the last closed (and validated) ledger that the
       // application thinks consensus should use as the prior ledger.
-      Ledger::ID getPrevLedger(Ledger::ID const & currLedger,
-                      Ledger::ID const & priorLedger,
+      Ledger::ID getPrevLedger(Ledger::ID const & prevLedgerID,
+                      Ledger const & prevLedger,
                       Mode mode);
 
 
@@ -1044,8 +1043,7 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::checkLedger()
 {
-    auto netLgr =
-        impl().getPrevLedger(prevLedgerID_, previousLedger_.parentID(), mode_);
+    auto netLgr = impl().getPrevLedger(prevLedgerID_, previousLedger_, mode_);
 
     if (netLgr != prevLedgerID_)
     {

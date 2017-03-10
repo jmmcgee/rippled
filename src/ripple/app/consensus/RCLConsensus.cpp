@@ -233,32 +233,36 @@ RCLConsensus::proposersFinished(LedgerHash const& h) const
 }
 
 uint256
-RCLConsensus::getPrevLedger(uint256 currLedger, uint256 priorLedger, Mode mode)
+RCLConsensus::getPrevLedger(
+    uint256 ledgerID,
+    RCLCxLedger const& ledger,
+    Mode mode)
 {
-    // Don't use the priorLedger if Consensus doesn't think it is correct
-    if (mode == Mode::wrongLedger)
-        priorLedger = uint256{};
+    uint256 parentID;
+    // Only set the parent ID if we believe ledger is the right ledger
+    if (mode != Mode::wrongLedger)
+        parentID = ledger.parentID();
 
     // Get validators that are on our ledger, or "close" to being on
     // our ledger.
     auto vals = app_.getValidations().getCurrentValidations(
-        currLedger, priorLedger, ledgerMaster_.getValidLedgerIndex());
+        ledgerID, parentID, ledgerMaster_.getValidLedgerIndex());
 
-    uint256 netLgr = currLedger;
+    uint256 netLgr = ledgerID;
     int netLgrCount = 0;
     for (auto& it : vals)
     {
         // Switch to ledger supported by more peers
         // Or stick with ours on a tie
         if ((it.second.first > netLgrCount) ||
-            ((it.second.first == netLgrCount) && (it.first == currLedger)))
+            ((it.second.first == netLgrCount) && (it.first == ledgerID)))
         {
             netLgr = it.first;
             netLgrCount = it.second.first;
         }
     }
 
-    if (netLgr != currLedger)
+    if (netLgr != ledgerID)
     {
         if (mode != Mode::wrongLedger)
             app_.getOPs().consensusViewChange();

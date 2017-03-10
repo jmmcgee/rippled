@@ -262,7 +262,7 @@ struct Peer : public Consensus<Peer, Traits>
     onForceAccept(
         Result const& result,
         Ledger const& prevLedger,
-        NetClock::duration const & closeResolution,
+        NetClock::duration const& closeResolution,
         CloseTimes const& rawCloseTimes,
         Mode const& mode)
     {
@@ -273,7 +273,7 @@ struct Peer : public Consensus<Peer, Traits>
     onAccept(
         Result const& result,
         Ledger const& prevLedger,
-        NetClock::duration const & closeResolution,
+        NetClock::duration const& closeResolution,
         CloseTimes const& rawCloseTimes,
         Mode const& mode)
     {
@@ -310,16 +310,13 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     Ledger::ID
-    getPrevLedger(
-        Ledger::ID const& currLedger,
-        Ledger::ID const& priorLedger,
-        Mode mode)
+    getPrevLedger(Ledger::ID const& ledgerID, Ledger const& ledger, Mode mode)
     {
         // TODO: Use generic validation code
-        if (mode != Mode::wrongLedger && currLedger.seq > 0 &&
-            priorLedger.seq > 0)
-            return peerValidations.getBestLCL(currLedger, priorLedger);
-        return currLedger;
+        if (mode != Mode::wrongLedger && ledgerID.seq > 0 &&
+            ledger.id().seq > 0)
+            return peerValidations.getBestLCL(ledgerID, ledger.parentID());
+        return ledgerID;
     }
 
     void

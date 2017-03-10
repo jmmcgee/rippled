@@ -233,15 +233,21 @@ private:
     void
     relay(RCLTxSet const& set);
 
-    /** Get the last closed ledger (LCL) seen on the network
+    /** Get the ID of the previous ledger/last closed ledger(LCL) on the network
 
-        @param currLedger Current prev ledger believed by consensus
-        @param priorLedger Prior ledger currLedger (if mode != wrongLCL)
-        @param mode Current mode of consensus.
-        @return The hash of the last closed network
+        @param ledgerID ID of previous ledger used by consensus
+        @param ledger Previous ledger consensus has available
+        @param mode Current consensus mode
+        @return The id of the last closed network
+
+        @node ledgerID may not match ledger.id() if we haven't acquired
+              the ledger matching ledgerID from the network
      */
     uint256
-    getPrevLedger(uint256 currLedger, uint256 priorLedger, Mode mode);
+    getPrevLedger(
+        uint256 ledgerID,
+        RCLCxLedger const& ledger,
+        Mode mode);
 
     /** Close the open ledger and return initial consensus position.
 
