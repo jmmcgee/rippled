@@ -240,7 +240,7 @@ private:
         @param mode Current consensus mode
         @return The id of the last closed network
 
-        @node ledgerID may not match ledger.id() if we haven't acquired
+        @note ledgerID may not match ledger.id() if we haven't acquired
               the ledger matching ledgerID from the network
      */
     uint256

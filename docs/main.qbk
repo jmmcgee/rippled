@@ -30,6 +30,8 @@
 [template indexterm1[term1] '''<indexterm><primary>'''[term1]'''</primary></indexterm>''']
 [template indexterm2[term1 term2] '''<indexterm><primary>'''[term1]'''</primary><secondary>'''[term2]'''</secondary></indexterm>''']
 
+[include consensus.qbk]
+
 [section:ref Reference]
 [include temp/reference.qbk]
 [endsect]
