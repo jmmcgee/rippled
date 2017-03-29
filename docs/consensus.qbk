@@ -231,17 +231,6 @@ that determine this progression
 The following subsections describe each consensus phase in more detail and what
 actions are taken in response to these calls.
 
-[h6 Accept]
-
-The accept phase is the terminal phase of the consensus algorithm.  Calls to
-=timerEntry=, =peerProposal= and =gotTxSet= will not change the internal
-consensus state.  A call to =startRound= will kick off the next consensus round.
-It provides the new prior ledger, prior ledger ID and whether the round should
-begin in the proposing or observing mode.  After setting some initial state, the
-phase transitions to =Open=.  The node will check if the provided prior ledger
-and ID are correct, updating the mode and requesting the proper ledger from the
-network if necessary.
-
 [h6 Open]
 
 The =Open= phase is a quiescent period to allow transactions to build up in the
@@ -379,6 +368,21 @@ and calling =startRound= to begin the next round.  The implementation has total
 freedom on ordering transactions, deciding what to do if consensus moved on,
 determining whether to retry or abandon local transactions that did not make the
 consensus set and updating any internal state based on the consensus progress.
+
+
+[h6 Accept]
+
+The =Accept= phase is the terminal phase of the consensus algorithm.  Calls to
+=timerEntry=, =peerProposal= and =gotTxSet= will not change the internal
+consensus state while in the accept phase.  The expectation is that the
+application specific code is working to generate the new ledger based on the
+consensus outcome. Once complete, that code should make a call to =startRound=
+to kick off the next consensus round. The =startRound= call includes the new
+prior ledger, prior ledger ID and whether the round should begin in the
+proposing or observing mode.  After setting some initial state, the phase
+transitions to =Open=.  The node will also check if the provided prior ledger
+and ID are correct, updating the mode and requesting the proper ledger from the
+network if necessary.
 
 [endsect] [/Consensus Overview]
 

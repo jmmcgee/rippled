@@ -206,9 +206,9 @@ class Consensus
     //!    ^                     "startRound"    |
     //!    |-------------------------------------|
     //!
-    //! The typical transition oges from open to establish to accepted and
-    //! then a call to startRound begins the process a new.
-    //! However, if a wrong prior ledger  is detected and recovered
+    //! The typical transition goes from open to establish to accepted and
+    //! then a call to startRound begins the process anew.
+    //! However, if a wrong prior ledger is detected and recovered
     //! during the establish or accept phase, consensus will internally go back
     //! to open (see handleWrongLedger).
     enum class Phase {

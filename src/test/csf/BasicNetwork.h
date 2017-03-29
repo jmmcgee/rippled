@@ -476,7 +476,8 @@ public:
 //------------------------------------------------------------------------------
 
 template <class Peer>
-BasicNetwork<Peer>::queue_type::queue_type(qalloc const& alloc) : alloc_(alloc)
+BasicNetwork<Peer>::queue_type::queue_type(qalloc const& alloc)
+    : alloc_(alloc)
 {
 }
 

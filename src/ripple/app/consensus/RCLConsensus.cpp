@@ -337,21 +337,22 @@ RCLConsensus::onClose(
     initialSet = initialSet->snapShot(false);
     auto setHash = initialSet->getHash().as_uint256();
 
-    return Result(
+    return Result{
         std::move(initialSet),
-        RCLCxPeerPos::Proposal{initialLedger->info().parentHash,
-                               RCLCxPeerPos::Proposal::seqJoin,
-                               setHash,
-                               closeTime,
-                               app_.timeKeeper().closeTime(),
-                               nodeID_});
+        RCLCxPeerPos::Proposal{
+            initialLedger->info().parentHash,
+            RCLCxPeerPos::Proposal::seqJoin,
+            setHash,
+            closeTime,
+            app_.timeKeeper().closeTime(),
+            nodeID_}};
 }
 
 void
 RCLConsensus::onForceAccept(
     Result const& result,
     RCLCxLedger const& prevLedger,
-    NetClock::duration const & closeResolution,
+    NetClock::duration const& closeResolution,
     CloseTimes const& rawCloseTimes,
     Mode const& mode)
 {
@@ -362,7 +363,7 @@ void
 RCLConsensus::onAccept(
     Result const& result,
     RCLCxLedger const& prevLedger,
-    NetClock::duration const & closeResolution,
+    NetClock::duration const& closeResolution,
     CloseTimes const& rawCloseTimes,
     Mode const& mode)
 {
