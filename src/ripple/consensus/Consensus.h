@@ -514,7 +514,7 @@ private:
         switch to the establish phase and start the consensus process.
     */
     void
-    phasePreClose();
+    phaseOpen();
 
     /** Handle establish phase.
 
@@ -809,7 +809,6 @@ Consensus<Derived, Traits>::timerEntry(NetClock::time_point const& now)
 {
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
-
     // Nothing to do if we are currently working on a ledger
     if (phase_ == Phase::accepted)
         return;
@@ -817,12 +816,12 @@ Consensus<Derived, Traits>::timerEntry(NetClock::time_point const& now)
     now_ = now;
 
     // Check we are on the proper ledger (this may change phase_)
-    checkLCL();
-    
+    checkLedger();
+
     if(phase_ == Phase::open)
     {
-        phasePreClose();
-    } 
+        phaseOpen();
+    }
     else if (phase_ == Phase::establish)
     {
         phaseEstablish();
@@ -1072,7 +1071,7 @@ Consensus<Derived, Traits>::playbackProposals()
 
 template <class Derived, class Traits>
 void
-Consensus<Derived, Traits>::phasePreClose()
+Consensus<Derived, Traits>::phaseOpen()
 {
     using namespace std::chrono;
 

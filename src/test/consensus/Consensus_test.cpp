@@ -354,7 +354,7 @@ public:
 
           // Check all peers recovered
           for (auto &p : sim.peers)
-            BEAST_EXPECT(p.LCL() == sim.peers[0].LCL());
+            BEAST_EXPECT(p.prevLedgerID() == sim.peers[0].prevLedgerID());
         }
     }
 
