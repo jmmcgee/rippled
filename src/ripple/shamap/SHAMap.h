@@ -178,9 +178,10 @@ public:
     const_iterator upper_bound(uint256 const& id) const;
 
     void visitNodes (std::function<bool (SHAMapAbstractNode&)> const&) const;
-    void
-        visitLeaves(
-            std::function<void(std::shared_ptr<SHAMapItem const> const&)> const&) const;
+    void visitDifferences (SHAMap const*
+        have, std::function<bool(SHAMapAbstractNode&)>) const;
+    void visitLeaves (std::function<void(
+        std::shared_ptr<SHAMapItem const> const&)> const&) const;
 
     // comparison/sync functions
 
@@ -246,8 +247,6 @@ private:
         std::stack<std::pair<std::shared_ptr<SHAMapAbstractNode>, SHAMapNodeID>>;
     using DeltaRef = std::pair<std::shared_ptr<SHAMapItem const> const&,
                                std::shared_ptr<SHAMapItem const> const&>;
-
-    void visitDifferences(SHAMap const* have, std::function<bool(SHAMapAbstractNode&)>) const;
 
      // tree node cache operations
     std::shared_ptr<SHAMapAbstractNode> getCache (SHAMapHash const& hash) const;
