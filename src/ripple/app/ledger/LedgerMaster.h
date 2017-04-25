@@ -241,6 +241,8 @@ public:
 
     std::size_t getFetchPackCacheSize () const;
 
+    void fetchForHistory(std::uint32_t missing, bool& progress);
+
 private:
     void setValidLedger(
         std::shared_ptr<Ledger const> const& l);

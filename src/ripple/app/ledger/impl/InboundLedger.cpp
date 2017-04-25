@@ -33,6 +33,7 @@
 #include <ripple/protocol/HashPrefix.h>
 #include <ripple/protocol/JsonFields.h>
 #include <ripple/nodestore/Database.h>
+#include <ripple/nodestore/DatabaseShard.h>
 #include <algorithm>
 
 namespace ripple {
@@ -101,6 +102,8 @@ void InboundLedger::init (ScopedLockType& collectionLock)
 
         if (mReason != fcHISTORY)
             app_.getLedgerMaster ().storeLedger (mLedger);
+        if (auto s = app_.getShardStore())
+            s->store(mLedger);
 
         // Check if this could be a newer fully-validated ledger
         if (mReason == fcVALIDATION ||
@@ -447,6 +450,8 @@ void InboundLedger::done ()
                 self->app().getLedgerMaster().checkAccept(
                     self->getLedger());
                 self->app().getLedgerMaster().tryAdvance();
+                if (auto s = self->app().getShardStore())
+                    s->store(self->getLedger());
             }
             else
                 self->app().getInboundLedgers().logFailure (
