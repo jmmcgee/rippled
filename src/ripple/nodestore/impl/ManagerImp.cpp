@@ -20,6 +20,7 @@
 #include <BeastConfig.h>
 #include <ripple/nodestore/impl/ManagerImp.h>
 #include <ripple/nodestore/impl/DatabaseRotatingImp.h>
+#include <ripple/nodestore/impl/DatabaseShardImp.h>
 
 namespace ripple {
 namespace NodeStore {
@@ -118,6 +119,24 @@ ManagerImp::make_DatabaseRotating (
         parent,
         writableBackend,
         archiveBackend,
+        journal);
+}
+
+std::unique_ptr <DatabaseShard>
+ManagerImp::make_DatabaseShard (
+        NodeStore::Database& nodeStore,
+        Section const& shardConfig,
+        Scheduler& scheduler,
+        boost::filesystem::path dir,
+        std::uint64_t maxDiskSpace,
+        beast::Journal journal)
+{
+    return std::make_unique <DatabaseShardImp> (
+        nodeStore,
+        shardConfig,
+        scheduler,
+        dir,
+        maxDiskSpace,
         journal);
 }
 

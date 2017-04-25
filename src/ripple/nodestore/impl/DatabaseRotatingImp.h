@@ -85,6 +85,7 @@ public:
 
     std::shared_ptr <Backend> rotateBackends (
             std::shared_ptr <Backend> const& newBackend) override;
+
     std::mutex& peekMutex() const override
     {
         return rotateMutex_;
@@ -93,6 +94,11 @@ public:
     std::string getName() const override
     {
         return getWritableBackend()->getName();
+    }
+
+    int fdlimit() const override
+    {
+         return writableBackend_->fdlimit() + archiveBackend_->fdlimit();
     }
 
     std::int32_t getWriteLoad() const override

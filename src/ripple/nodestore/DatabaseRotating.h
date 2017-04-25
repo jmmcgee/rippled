@@ -48,6 +48,9 @@ public:
 
     /** Ensure that node is in writableBackend */
     virtual std::shared_ptr<NodeObject> fetchNode (uint256 const& hash) = 0;
+
+    /** Return the number of files needed */
+    virtual int fdlimit() const = 0;
 };
 
 }

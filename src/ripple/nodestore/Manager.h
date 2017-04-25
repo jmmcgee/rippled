@@ -22,6 +22,7 @@
 
 #include <ripple/nodestore/Factory.h>
 #include <ripple/nodestore/DatabaseRotating.h>
+#include <ripple/nodestore/DatabaseShard.h>
 
 namespace ripple {
 namespace NodeStore {
@@ -96,6 +97,13 @@ public:
                 std::shared_ptr <Backend> writableBackend,
                     std::shared_ptr <Backend> archiveBackend,
                         beast::Journal journal) = 0;
+
+    virtual
+    std::unique_ptr <DatabaseShard>
+    make_DatabaseShard (NodeStore::Database& nodeStore,
+        Section const& shardConfig, Scheduler& scheduler,
+            boost::filesystem::path dir, std::uint64_t maxDiskSpace,
+                beast::Journal journal) = 0;
 };
 
 //------------------------------------------------------------------------------

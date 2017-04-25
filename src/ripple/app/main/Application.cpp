@@ -310,6 +310,7 @@ public:
     // These are Stoppable-related
     std::unique_ptr <JobQueue> m_jobQueue;
     std::unique_ptr <NodeStore::Database> m_nodeStore;
+    std::unique_ptr <NodeStore::DatabaseShard> m_shardStore;
     detail::AppFamily family_;
     // VFALCO TODO Make OrderBookDB abstract
     OrderBookDB m_orderBookDB;
@@ -382,9 +383,8 @@ public:
         , m_nodeStoreScheduler (*this)
 
         , m_shaMapStore (make_SHAMapStore (*this, setup_SHAMapStore (*config_),
-            *this, m_nodeStoreScheduler,
-            logs_->journal ("SHAMapStore"), logs_->journal ("NodeObject"),
-            m_txMaster, *config_))
+            *this, m_nodeStoreScheduler, logs_->journal("SHAMapStore"),
+            logs_->journal("NodeObject"), m_txMaster, *config_))
 
         , accountIDCache_(128000)
 
@@ -411,6 +411,8 @@ public:
         //
         , m_nodeStore (
             m_shaMapStore->makeDatabase ("NodeStore.main", 4, *m_jobQueue))
+
+        , m_shardStore (m_shaMapStore->makeDatabaseShard())
 
         , family_ (*this, *m_nodeStore, *m_collectorManager)
 
@@ -622,6 +624,11 @@ public:
     NodeStore::Database& getNodeStore () override
     {
         return *m_nodeStore;
+    }
+
+    NodeStore::DatabaseShard* getShardStore () override
+    {
+        return m_shardStore.get();
     }
 
     Application::MutexType& getMasterMutex () override

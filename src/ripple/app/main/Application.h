@@ -34,7 +34,7 @@ namespace ripple {
 
 namespace unl { class Manager; }
 namespace Resource { class Manager; }
-namespace NodeStore { class Database; }
+namespace NodeStore { class Database; class DatabaseShard; }
 
 // VFALCO TODO Fix forward declares required for header dependency loops
 class AmendmentTable;
@@ -108,9 +108,13 @@ public:
     // ---
     //
 
-    virtual Logs& logs() = 0;
-    virtual Config& config() = 0;
-    virtual boost::asio::io_service& getIOService () = 0;
+    virtual Logs&                   logs() = 0;
+    virtual Config&                 config() = 0;
+
+    virtual
+    boost::asio::io_service&
+    getIOService () = 0;
+
     virtual CollectorManager&       getCollectorManager () = 0;
     virtual Family&                 family() = 0;
     virtual TimeKeeper&             timeKeeper() = 0;
@@ -130,10 +134,18 @@ public:
     virtual Cluster&                cluster () = 0;
     virtual Validations&            getValidations () = 0;
     virtual NodeStore::Database&    getNodeStore () = 0;
+
+    virtual
+    NodeStore::DatabaseShard*
+    getShardStore() = 0;
+
     virtual InboundLedgers&         getInboundLedgers () = 0;
     virtual InboundTransactions&    getInboundTransactions () = 0;
-    virtual TaggedCache <uint256, AcceptedLedger>&
-                                    getAcceptedLedgerCache () = 0;
+
+    virtual
+    TaggedCache <uint256, AcceptedLedger>&
+    getAcceptedLedgerCache () = 0;
+
     virtual LedgerMaster&           getLedgerMaster () = 0;
     virtual NetworkOPs&             getOPs () = 0;
     virtual OrderBookDB&            getOrderBookDB () = 0;
@@ -150,10 +162,12 @@ public:
     virtual AccountIDCache const&   accountIDCache() const = 0;
     virtual OpenLedger&             openLedger() = 0;
     virtual OpenLedger const&       openLedger() const = 0;
-    virtual DatabaseCon& getTxnDB () = 0;
-    virtual DatabaseCon& getLedgerDB () = 0;
+    virtual DatabaseCon&            getTxnDB () = 0;
+    virtual DatabaseCon&            getLedgerDB () = 0;
 
-    virtual std::chrono::milliseconds getIOLatency () = 0;
+    virtual
+    std::chrono::milliseconds
+    getIOLatency () = 0;
 
     virtual bool serverOkay (std::string& reason) = 0;
 

@@ -77,6 +77,15 @@ public:
         std::shared_ptr <Backend> writableBackend,
         std::shared_ptr <Backend> archiveBackend,
         beast::Journal journal) override;
+
+    std::unique_ptr <DatabaseShard>
+    make_DatabaseShard (
+        NodeStore::Database& nodeStore,
+        Section const& shardConfig,
+        Scheduler& scheduler,
+        boost::filesystem::path dir,
+        std::uint64_t maxDiskSpace,
+        beast::Journal journal) override;
 };
 
 }
