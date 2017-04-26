@@ -479,12 +479,6 @@ protected:
     // Prevent deleting derived instance through base pointer
     ~Consensus() = default;
 
-    /** Revoke our outstanding proposal, if any, and cease proposing
-        until this round ends.
-    */
-    void
-    leaveConsensus();
-
 private:
     void
     startRoundInternal(
@@ -550,6 +544,11 @@ private:
     // Will call createDisputes as needed.
     void
     updateDisputes(NodeID_t const& node, TxSet_t const& other);
+
+    //Revoke our outstanding proposal, if any, and cease proposing
+    // until this round ends.
+    void
+    leaveConsensus();
 
     Derived&
     impl()
