@@ -382,7 +382,6 @@ private:
     std::mutex peerPositionsLock_;
 
     bool validating_ = false;
-    bool simulating_ = false;
 };
 }
 
