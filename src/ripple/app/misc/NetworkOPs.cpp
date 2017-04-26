@@ -318,7 +318,6 @@ private:
         std::shared_ptr<Ledger const> const& newLCL);
     bool checkLastClosedLedger (
         const Overlay::PeerSequence&, uint256& networkClosed);
-    void tryStartConsensus ();
 
 public:
     bool beginConsensus (uint256 const& networkClosed) override;
@@ -1239,46 +1238,6 @@ public:
     }
 };
 
-void NetworkOPsImp::tryStartConsensus ()
-{
-    uint256 networkClosed;
-    bool ledgerChange = checkLastClosedLedger (
-        app_.overlay ().getActivePeers (), networkClosed);
-
-    if (networkClosed.isZero ())
-        return;
-
-    // WRITEME: Unless we are in omFULL and in the process of doing a consensus,
-    // we must count how many nodes share our LCL, how many nodes disagree with
-    // our LCL, and how many validations our LCL has. We also want to check
-    // timing to make sure there shouldn't be a newer LCL. We need this
-    // information to do the next three tests.
-
-    if (((mMode == omCONNECTED) || (mMode == omSYNCING)) && !ledgerChange)
-    {
-        // Count number of peers that agree with us and UNL nodes whose
-        // validations we have for LCL.  If the ledger is good enough, go to
-        // omTRACKING - TODO
-        if (!mNeedNetworkLedger)
-            setMode (omTRACKING);
-    }
-
-    if (((mMode == omCONNECTED) || (mMode == omTRACKING)) && !ledgerChange)
-    {
-        // check if the ledger is good enough to go to omFULL
-        // Note: Do not go to omFULL if we don't have the previous ledger
-        // check if the ledger is bad enough to go to omCONNECTED -- TODO
-        auto current = m_ledgerMaster.getCurrentLedger();
-        if (app_.timeKeeper().now() <
-            (current->info().parentCloseTime + 2* current->info().closeTimeResolution))
-        {
-            setMode (omFULL);
-        }
-    }
-
-    beginConsensus (networkClosed);
-}
-
 bool NetworkOPsImp::checkLastClosedLedger (
     const Overlay::PeerSequence& peerList, uint256& networkClosed)
 {
@@ -1578,7 +1537,42 @@ void NetworkOPsImp::endConsensus ()
         }
     }
 
-    tryStartConsensus();
+    uint256 networkClosed;
+    bool ledgerChange = checkLastClosedLedger (
+        app_.overlay ().getActivePeers (), networkClosed);
+
+    if (networkClosed.isZero ())
+        return;
+
+    // WRITEME: Unless we are in omFULL and in the process of doing a consensus,
+    // we must count how many nodes share our LCL, how many nodes disagree with
+    // our LCL, and how many validations our LCL has. We also want to check
+    // timing to make sure there shouldn't be a newer LCL. We need this
+    // information to do the next three tests.
+
+    if (((mMode == omCONNECTED) || (mMode == omSYNCING)) && !ledgerChange)
+    {
+        // Count number of peers that agree with us and UNL nodes whose
+        // validations we have for LCL.  If the ledger is good enough, go to
+        // omTRACKING - TODO
+        if (!mNeedNetworkLedger)
+            setMode (omTRACKING);
+    }
+
+    if (((mMode == omCONNECTED) || (mMode == omTRACKING)) && !ledgerChange)
+    {
+        // check if the ledger is good enough to go to omFULL
+        // Note: Do not go to omFULL if we don't have the previous ledger
+        // check if the ledger is bad enough to go to omCONNECTED -- TODO
+        auto current = m_ledgerMaster.getCurrentLedger();
+        if (app_.timeKeeper().now() <
+            (current->info().parentCloseTime + 2* current->info().closeTimeResolution))
+        {
+            setMode (omFULL);
+        }
+    }
+
+    beginConsensus (networkClosed);
 }
 
 void NetworkOPsImp::consensusViewChange ()
