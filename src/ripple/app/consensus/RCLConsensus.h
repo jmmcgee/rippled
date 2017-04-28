@@ -50,6 +50,9 @@ struct RCLCxTraits
     using NodeID_t = NodeID;
     //! TxSet type presented to Consensus
     using TxSet_t = RCLTxSet;
+    //! Peer Position type presented to Consensus
+    using PeerPosition_t = RCLCxPeerPos;
+
 };
 
 /** Adapts the generic Consensus algorithm for use by RCL.
@@ -84,15 +87,6 @@ public:
     {
         return "Consensus";
     }
-
-    /** Save the given consensus proposed by a peer with nodeID for later
-        use in consensus.
-
-        @param peerPos Proposed peer position
-        @param nodeID ID of peer
-    */
-    void
-    storeProposal(RCLCxPeerPos::ref peerPos, NodeID const& nodeID);
 
     //! Whether we are validating consensus ledgers.
     bool
@@ -161,13 +155,6 @@ private:
      */
     boost::optional<RCLCxLedger>
     acquireLedger(LedgerHash const& ledger);
-
-    /** Get peers' proposed positions.
-        @param prevLedger The base ledger which proposals are based on
-        @return The set of proposals
-    */
-    std::vector<RCLCxPeerPos>
-    proposals(LedgerHash const& prevLedger);
 
     /** Relay the given proposal to all peers
 
@@ -376,10 +363,6 @@ private:
     // The timestamp of the last validation we used, in network time. This is
     // only used for our own validations.
     NetClock::time_point lastValidationTime_;
-
-    using PeerPositions = hash_map<NodeID, std::deque<RCLCxPeerPos::pointer>>;
-    PeerPositions peerPositions_;
-    std::mutex peerPositionsLock_;
 
     bool validating_ = false;
 };

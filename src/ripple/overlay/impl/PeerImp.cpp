@@ -1283,7 +1283,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMProposeSet> const& m)
     JLOG(p_journal_.trace()) <<
         "Proposal: " << (isTrusted ? "trusted" : "UNTRUSTED");
 
-    auto proposal = std::make_shared<RCLCxPeerPos> (
+    auto proposal = RCLCxPeerPos(
         publicKey, signature, suppression,
         RCLCxPeerPos::Proposal{prevLedger, set.proposeseq (), proposeHash, closeTime,
             app_.timeKeeper().closeTime(),calcNodeID(publicKey)});
@@ -1889,7 +1889,7 @@ PeerImp::checkTransaction (int flags,
 void
 PeerImp::checkPropose (Job& job,
     std::shared_ptr <protocol::TMProposeSet> const& packet,
-        RCLCxPeerPos::pointer peerPos)
+        RCLCxPeerPos peerPos)
 {
     bool isTrusted = (job.getType () == jtPROPOSAL_t);
 
@@ -1899,7 +1899,7 @@ PeerImp::checkPropose (Job& job,
     assert (packet);
     protocol::TMProposeSet& set = *packet;
 
-    if (! cluster() && !peerPos->checkSign ())
+    if (! cluster() && !peerPos.checkSign ())
     {
         JLOG(p_journal_.warn()) <<
             "Proposal fails sig check";
@@ -1914,12 +1914,12 @@ PeerImp::checkPropose (Job& job,
     }
     else
     {
-        if (app_.getOPs().getConsensusLCL() == peerPos->proposal().prevLedger())
+        if (app_.getOPs().getConsensusLCL() == peerPos.proposal().prevLedger())
         {
             // relay untrusted proposal
             JLOG(p_journal_.trace()) <<
                 "relaying UNTRUSTED proposal";
-            overlay_.relay(set, peerPos->getSuppressionID());
+            overlay_.relay(set, peerPos.suppressionID());
         }
         else
         {
