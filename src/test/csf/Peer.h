@@ -115,12 +115,36 @@ public:
     directly from the generic types.
 */
 using Proposal = ConsensusProposal<PeerID, Ledger::ID, TxSetType>;
+class PeerPosition
+{
+public:
+    PeerPosition(Proposal const & p)
+        : proposal_(p)
+    {
+    }
+
+    Proposal const&
+    proposal() const
+    {
+        return proposal_;
+    }
+
+    Json::Value
+    getJson() const
+    {
+        return proposal_.getJson();
+    }
+
+private:
+    Proposal proposal_;
+};
 
 struct Traits
 {
     using Ledger_t = Ledger;
     using NodeID_t = PeerID;
     using TxSet_t = TxSet;
+    using PeerPosition_t = PeerPosition;
 };
 
 /** Represents a single node participating in the consensus process.
@@ -210,12 +234,6 @@ struct Peer : public Consensus<Peer, Traits>
         return nullptr;
     }
 
-    auto const&
-    proposals(Ledger::ID const& ledgerHash)
-    {
-        return peerPositions_[ledgerHash];
-    }
-
     TxSet const*
     acquireTxSet(TxSet::ID const& setId)
     {
@@ -249,13 +267,13 @@ struct Peer : public Consensus<Peer, Traits>
     {
         TxSet res{openTxs};
 
-        return Result{TxSet{openTxs},
-                      Proposal{prevLedger.id(),
+        return Result(TxSet{openTxs},
+                      Proposal(prevLedger.id(),
                                Proposal::seqJoin,
                                res.id(),
                                closeTime,
                                now(),
-                               id}};
+                               id));
     }
 
     void
@@ -323,24 +341,25 @@ struct Peer : public Consensus<Peer, Traits>
     propose(Proposal const& pos)
     {
         if (proposing_)
-            relay(pos);
+            relay(PeerPosition(pos));
     }
 
     //-------------------------------------------------------------------------
     // non-callback helpers
     void
-    receive(Proposal const& p)
+    receive(PeerPosition const& peerPos)
     {
+        Proposal const & p = peerPos.proposal();
         if (unl.find(p.nodeID()) == unl.end())
             return;
 
-        // TODO: Be sure this is a new proposal!!!!!
+        // TODO: Supress repeats more efficiently
         auto& dest = peerPositions_[p.prevLedger()];
         if (std::find(dest.begin(), dest.end(), p) != dest.end())
             return;
 
         dest.push_back(p);
-        peerProposal(now(), p);
+        peerProposal(now(), peerPos);
     }
 
     void
