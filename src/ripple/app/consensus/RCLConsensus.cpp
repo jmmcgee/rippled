@@ -96,34 +96,6 @@ RCLConsensus::acquireLedger(LedgerHash const& ledger)
     return RCLCxLedger(buildLCL);
 }
 
-std::vector<RCLCxPeerPos>
-RCLConsensus::proposals(LedgerHash const& prevLedger)
-{
-    std::vector<RCLCxPeerPos> ret;
-    {
-        std::lock_guard<std::mutex> _(peerPositionsLock_);
-
-        for (auto const& it : peerPositions_)
-            for (auto const& pos : it.second)
-                if (pos->proposal().prevLedger() == prevLedger)
-                    ret.emplace_back(*pos);
-    }
-
-    return ret;
-}
-
-void
-RCLConsensus::storeProposal(RCLCxPeerPos::ref peerPos, NodeID const& nodeID)
-{
-    std::lock_guard<std::mutex> _(peerPositionsLock_);
-
-    auto& props = peerPositions_[nodeID];
-
-    if (props.size() >= 10)
-        props.pop_front();
-
-    props.push_back(peerPos);
-}
 
 void
 RCLConsensus::relay(RCLCxPeerPos const& peerPos)
@@ -140,13 +112,13 @@ RCLConsensus::relay(RCLCxPeerPos const& peerPos)
     prop.set_previousledger(
         proposal.prevLedger().begin(), proposal.position().size());
 
-    auto const pk = peerPos.getPublicKey().slice();
+    auto const pk = peerPos.publicKey().slice();
     prop.set_nodepubkey(pk.data(), pk.size());
 
-    auto const sig = peerPos.getSignature();
+    auto const sig = peerPos.signature();
     prop.set_signature(sig.data(), sig.size());
 
-    app_.overlay().relay(prop, peerPos.getSuppressionID());
+    app_.overlay().relay(prop, peerPos.suppressionID());
 }
 
 void

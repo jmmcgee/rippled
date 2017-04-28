@@ -189,12 +189,26 @@ checkConsensus(
     Json::Value getJson() const;
   };
 
+  // Wraps a peer's ConsensusProposal
+  struct PeerPosition
+  {
+    ConsensusProposal<
+        std::uint32_t, //NodeID,
+        typename Ledger::ID,
+        typename TxSet::ID> const &
+    proposal() const;
+
+  };
+
   struct Traits
   {
     using Ledger_t = Ledger;
     using NodeID_t = std::uint32_t;
     using TxSet_t = TxSet;
+    using PeerPosition_t = PeerPosition;
   }
+
+
 
   class ConsensusImp : public Consensus<ConsensusImp, Traits>
   {
@@ -203,10 +217,6 @@ checkConsensus(
 
       // Acquire the transaction set associated with a proposed position.
       boost::optional<TxSet> acquireTxSet(TxSet::ID const & setID);
-
-      // Get peers' proposed positions. Returns an iterable
-      // with value_type convertable to ConsensusPosition<...>
-      auto const & proposals(Ledger::ID const & ledgerID);
 
       // Whether any transactions are in the open ledger
       bool hasOpenTransactions() const;
@@ -247,16 +257,13 @@ checkConsensus(
       void propose(ConsensusProposal<...> const & pos);
 
       // Relay a received peer proposal on to other peer's.
-      // The argument type should be convertible to ConsensusProposal<...>
-      // but may be a different type.
-      void relay(implementation_defined const & pos);
+      void relay(PeerPosition_t const & prop);
 
       // Relay a disputed transaction to peers
       void relay(Txn const & tx);
 
       // Share given transaction set with peers
       void relay(TxSet const &s);
-
   };
   @endcode
 
@@ -296,6 +303,7 @@ class Consensus
     using TxSet_t = typename Traits::TxSet_t;
     using NodeID_t = typename Traits::NodeID_t;
     using Tx_t = typename TxSet_t::Tx;
+    using PeerPosition_t = typename Traits::PeerPosition_t;
     using Proposal_t = ConsensusProposal<
         NodeID_t,
         typename Ledger_t::ID,
@@ -452,7 +460,7 @@ public:
     bool
     peerProposal(
         NetClock::time_point const& now,
-        Proposal_t const& newProposal);
+        PeerPosition_t const& newProposal);
 
     /** Call periodically to drive consensus forward.
 
@@ -682,10 +690,16 @@ private:
 
     boost::optional<Result> result_;
     CloseTimes rawCloseTimes_;
+
     //-------------------------------------------------------------------------
     // Peer related consensus data
-    // Convergence tracking, trusted peers indexed by hash of public key
-    hash_map<NodeID_t, Proposal_t> peerProposals_;
+
+    // Peer proposed positions for the current round
+    hash_map<NodeID_t, PeerPosition_t> currPeerPositions_;
+
+    // Recently received peer positions, available when transitioning between
+    // ledgers or roundss
+    hash_map<NodeID_t, std::deque<PeerPosition_t>> recentPeerPositions_;
 
     // The number of proposers who participated in the last consensus round
     std::size_t prevProposers_ = 0;
@@ -777,7 +791,7 @@ Consensus<Derived, Traits>::startRoundInternal(
     convergePercent_ = 0;
     haveCloseTimeConsensus_ = false;
     openTime_.reset(clock_.now());
-    peerProposals_.clear();
+    currPeerPositions_.clear();
     acquired_.clear();
     rawCloseTimes_.peers.clear();
     rawCloseTimes_.self = {};
@@ -789,7 +803,7 @@ Consensus<Derived, Traits>::startRoundInternal(
         previousLedger_.seq() + 1);
 
     playbackProposals();
-    if (peerProposals_.size() > (prevProposers_ / 2))
+    if (currPeerPositions_.size() > (prevProposers_ / 2))
     {
         // We may be falling behind, don't wait for the timer
         // consider closing the ledger immediately
@@ -801,21 +815,33 @@ template <class Derived, class Traits>
 bool
 Consensus<Derived, Traits>::peerProposal(
     NetClock::time_point const& now,
-    Proposal_t const& newProposal)
+    PeerPosition_t const& newPeerPos)
 {
-    auto const peerID = newProposal.nodeID();
+    NodeID_t const & peerID = newPeerPos.proposal().nodeID();
 
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
-    // Nothing to do if we are currently working on a ledger
+    // Always need to store recent positions
+    {
+        auto& props = recentPeerPositions_[peerID];
+
+        if (props.size() >= 10)
+            props.pop_front();
+
+        props.push_back(newPeerPos);
+    }
+
+    // Nothing to do for now if we are currently working on a ledger
     if (phase_ == Phase::accepted)
         return false;
 
     now_ = now;
 
-    if (newProposal.prevLedger() != prevLedgerID_)
+    Proposal_t const & newPeerProp = newPeerPos.proposal();
+
+    if (newPeerProp.prevLedger() != prevLedgerID_)
     {
-        JLOG(j_.debug()) << "Got proposal for " << newProposal.prevLedger()
+        JLOG(j_.debug()) << "Got proposal for " << newPeerProp.prevLedger()
                          << " but we are on " << prevLedgerID_;
         return false;
     }
@@ -829,18 +855,18 @@ Consensus<Derived, Traits>::peerProposal(
 
     {
         // update current position
-        auto currentPosition = peerProposals_.find(peerID);
+        auto peerPosIt = currPeerPositions_.find(peerID);
 
-        if (currentPosition != peerProposals_.end())
+        if (peerPosIt != currPeerPositions_.end())
         {
-            if (newProposal.proposeSeq() <=
-                currentPosition->second.proposeSeq())
+            if (newPeerProp.proposeSeq() <=
+                peerPosIt->second.proposal().proposeSeq())
             {
                 return false;
             }
         }
 
-        if (newProposal.isBowOut())
+        if (newPeerProp.isBowOut())
         {
             using std::to_string;
 
@@ -850,45 +876,45 @@ Consensus<Derived, Traits>::peerProposal(
                 for (auto& it : result_->disputes)
                     it.second.unVote(peerID);
             }
-            if (currentPosition != peerProposals_.end())
-                peerProposals_.erase(peerID);
+            if (peerPosIt != currPeerPositions_.end())
+                currPeerPositions_.erase(peerID);
             deadNodes_.insert(peerID);
 
             return true;
         }
 
-        if (currentPosition != peerProposals_.end())
-            currentPosition->second = newProposal;
+        if (peerPosIt != currPeerPositions_.end())
+            peerPosIt->second = newPeerPos;
         else
-            peerProposals_.emplace(peerID, newProposal);
+            currPeerPositions_.emplace(peerID, newPeerPos);
     }
 
-    if (newProposal.isInitial())
+    if (newPeerProp.isInitial())
     {
         // Record the close time estimate
         JLOG(j_.trace()) << "Peer reports close time as "
-                         << newProposal.closeTime().time_since_epoch().count();
-        ++rawCloseTimes_.peers[newProposal.closeTime()];
+                         << newPeerProp.closeTime().time_since_epoch().count();
+        ++rawCloseTimes_.peers[newPeerProp.closeTime()];
     }
 
-    JLOG(j_.trace()) << "Processing peer proposal " << newProposal.proposeSeq()
-                     << "/" << newProposal.position();
+    JLOG(j_.trace()) << "Processing peer proposal " << newPeerProp.proposeSeq()
+                     << "/" << newPeerProp.position();
 
     {
-        auto ait = acquired_.find(newProposal.position());
+        auto const ait = acquired_.find(newPeerProp.position());
         if (ait == acquired_.end())
         {
             // acquireTxSet will return the set if it is available, or
             // spawn a request for it and return none/nullptr.  It will call
             // gotTxSet once it arrives
-            if (auto set = impl().acquireTxSet(newProposal.position()))
+            if (auto set = impl().acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
                 JLOG(j_.debug()) << "Don't have tx set for peer";
         }
         else if (result_)
         {
-            updateDisputes(newProposal.nodeID(), ait->second);
+            updateDisputes(newPeerProp.nodeID(), ait->second);
         }
     }
 
@@ -951,11 +977,11 @@ Consensus<Derived, Traits>::gotTxSet(
         // so this txSet must differ
         assert(id != result_->position.position());
         bool any = false;
-        for (auto const& p : peerProposals_)
+        for (auto const& it : currPeerPositions_)
         {
-            if (p.second.position() == id)
+            if (it.second.proposal().position() == id)
             {
-                updateDisputes(p.first, txSet);
+                updateDisputes(it.first, txSet);
                 any = true;
             }
         }
@@ -980,7 +1006,7 @@ Consensus<Derived, Traits>::simulate(
     now_ = now;
     closeLedger();
     result_->roundTime.tick(consensusDelay.value_or(100ms));
-    prevProposers_ = peerProposals_.size();
+    prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = Phase::accepted;
     impl().onForceAccept(
@@ -999,7 +1025,7 @@ Consensus<Derived, Traits>::getJson(bool full) const
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
     ret["proposing"] = (mode_ == Mode::proposing);
-    ret["proposers"] = static_cast<int>(peerProposals_.size());
+    ret["proposers"] = static_cast<int>(currPeerPositions_.size());
 
     if (mode_ != Mode::wrongLedger)
     {
@@ -1029,11 +1055,11 @@ Consensus<Derived, Traits>::getJson(bool full) const
         ret["previous_proposers"] = static_cast<Int>(prevProposers_);
         ret["previous_mseconds"] = static_cast<Int>(prevRoundTime_.count());
 
-        if (!peerProposals_.empty())
+        if (!currPeerPositions_.empty())
         {
             Json::Value ppj(Json::objectValue);
 
-            for (auto& pp : peerProposals_)
+            for (auto const & pp : currPeerPositions_)
             {
                 ppj[to_string(pp.first)] = pp.second.getJson();
             }
@@ -1043,7 +1069,7 @@ Consensus<Derived, Traits>::getJson(bool full) const
         if (!acquired_.empty())
         {
             Json::Value acq(Json::arrayValue);
-            for (auto& at : acquired_)
+            for (auto const & at : acquired_)
             {
                 acq.append(to_string(at.first));
             }
@@ -1053,7 +1079,7 @@ Consensus<Derived, Traits>::getJson(bool full) const
         if (result_ && !result_->disputes.empty())
         {
             Json::Value dsj(Json::objectValue);
-            for (auto& dt : result_->disputes)
+            for (auto const & dt : result_->disputes)
             {
                 dsj[to_string(dt.first)] = dt.second.getJson();
             }
@@ -1063,7 +1089,7 @@ Consensus<Derived, Traits>::getJson(bool full) const
         if (!rawCloseTimes_.peers.empty())
         {
             Json::Value ctj(Json::objectValue);
-            for (auto& ct : rawCloseTimes_.peers)
+            for (auto const & ct : rawCloseTimes_.peers)
             {
                 ctj[std::to_string(ct.first.time_since_epoch().count())] =
                     ct.second;
@@ -1108,7 +1134,7 @@ Consensus<Derived, Traits>::handleWrongLedger(
             result_->compares.clear();
         }
 
-        peerProposals_.clear();
+        currPeerPositions_.clear();
         rawCloseTimes_.peers.clear();
         deadNodes_.clear();
 
@@ -1155,10 +1181,16 @@ template <class Derived, class Traits>
 void
 Consensus<Derived, Traits>::playbackProposals()
 {
-    for (auto const& p : impl().proposals(prevLedgerID_))
+    for (auto const& it : recentPeerPositions_)
     {
-        if (peerProposal(now_, p))
-            impl().relay(p);
+        for (auto const& pos : it.second)
+        {
+            if (pos.proposal().prevLedger() == prevLedgerID_)
+            {
+                if (peerProposal(now_, pos))
+                    impl().relay(pos);
+            }
+        }
     }
 }
 
@@ -1170,7 +1202,7 @@ Consensus<Derived, Traits>::phaseOpen()
 
     // it is shortly before ledger close time
     bool anyTransactions = impl().hasOpenTransactions();
-    auto proposersClosed = peerProposals_.size();
+    auto proposersClosed = currPeerPositions_.size();
     auto proposersValidated = impl().proposersValidated(prevLedgerID_);
 
     openTime_.tick(clock_.now());
@@ -1243,9 +1275,9 @@ Consensus<Derived, Traits>::phaseEstablish()
         return;
     }
 
-    JLOG(j_.info()) << "Converge cutoff (" << peerProposals_.size()
+    JLOG(j_.info()) << "Converge cutoff (" << currPeerPositions_.size()
                     << " participants)";
-    prevProposers_ = peerProposals_.size();
+    prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = Phase::accepted;
     impl().onAccept(
@@ -1273,10 +1305,10 @@ Consensus<Derived, Traits>::closeLedger()
         impl().propose(result_->position);
 
     // Create disputes with any peer positions we have transactions for
-    for (auto const& p : peerProposals_)
+    for (auto const& pit : currPeerPositions_)
     {
-        auto pos = p.second.position();
-        auto it = acquired_.find(pos);
+        auto const & pos = pit.second.proposal().position();
+        auto const it = acquired_.find(pos);
         if (it != acquired_.end())
         {
             createDisputes(it->second);
@@ -1318,23 +1350,24 @@ Consensus<Derived, Traits>::updateOurPositions()
     // Verify freshness of peer positions and compute close times
     std::map<NetClock::time_point, int> effCloseTimes;
     {
-        auto it = peerProposals_.begin();
-        while (it != peerProposals_.end())
+        auto it = currPeerPositions_.begin();
+        while (it != currPeerPositions_.end())
         {
-            if (it->second.isStale(peerCutoff))
+            Proposal_t const & peerProp = it->second.proposal();
+            if (peerProp.isStale(peerCutoff))
             {
                 // peer's proposal is stale, so remove it
-                auto const& peerID = it->second.nodeID();
+                NodeID_t const& peerID = peerProp.nodeID();
                 JLOG(j_.warn()) << "Removing stale proposal from " << peerID;
                 for (auto& dt : result_->disputes)
                     dt.second.unVote(peerID);
-                it = peerProposals_.erase(it);
+                it = currPeerPositions_.erase(it);
             }
             else
             {
                 // proposal is still fresh
                 ++effCloseTimes[effCloseTime(
-                    it->second.closeTime(),
+                    peerProp.closeTime(),
                     closeResolution_,
                     previousLedger_.closeTime())];
                 ++it;
@@ -1378,7 +1411,7 @@ Consensus<Derived, Traits>::updateOurPositions()
     NetClock::time_point consensusCloseTime = {};
     haveCloseTimeConsensus_ = false;
 
-    if (peerProposals_.empty())
+    if (currPeerPositions_.empty())
     {
         // no other times
         haveCloseTimeConsensus_ = true;
@@ -1400,7 +1433,7 @@ Consensus<Derived, Traits>::updateOurPositions()
         else
             neededWeight = parms_.avSTUCK_CONSENSUS_PCT;
 
-        int participants = peerProposals_.size();
+        int participants = currPeerPositions_.size();
         if (mode_ == Mode::proposing)
         {
             ++effCloseTimes[effCloseTime(
@@ -1417,7 +1450,7 @@ Consensus<Derived, Traits>::updateOurPositions()
         int const threshConsensus =
             participantsNeeded(participants, parms_.avCT_CONSENSUS_PCT);
 
-        JLOG(j_.info()) << "Proposers:" << peerProposals_.size()
+        JLOG(j_.info()) << "Proposers:" << currPeerPositions_.size()
                         << " nw:" << neededWeight << " thrV:" << threshVote
                         << " thrC:" << threshConsensus;
 
@@ -1443,7 +1476,7 @@ Consensus<Derived, Traits>::updateOurPositions()
         {
             JLOG(j_.debug())
                 << "No CT consensus:"
-                << " Proposers:" << peerProposals_.size()
+                << " Proposers:" << currPeerPositions_.size()
                 << " Mode:" << to_string(mode_) << " Thresh:" << threshConsensus
                 << " Pos:" << consensusCloseTime.time_since_epoch().count();
         }
@@ -1508,9 +1541,10 @@ Consensus<Derived, Traits>::haveConsensus()
     auto ourPosition = result_->position.position();
 
     // Count number of agreements/disagreements with our position
-    for (auto& it : peerProposals_)
+    for (auto const & it : currPeerPositions_)
     {
-        if (it.second.position() == ourPosition)
+        Proposal_t const & peerProp = it.second.proposal();
+        if (peerProp.position() == ourPosition)
         {
             ++agree;
         }
@@ -1519,7 +1553,7 @@ Consensus<Derived, Traits>::haveConsensus()
             using std::to_string;
 
             JLOG(j_.debug()) << to_string(it.first) << " has "
-                             << to_string(it.second.position());
+                             << to_string(peerProp.position());
             ++disagree;
         }
     }
@@ -1612,10 +1646,10 @@ Consensus<Derived, Traits>::createDisputes(TxSet_t const& o)
         typename Result::Dispute_t dtx{tx, result_->set.exists(txID), j_};
 
         // Update all of the available peer's votes on the disputed transaction
-        for (auto& pit : peerProposals_)
+        for (auto const & pit : currPeerPositions_)
         {
-            auto cit(acquired_.find(pit.second.position()));
-
+            Proposal_t const & peerProp = pit.second.proposal();
+            auto const cit = acquired_.find(peerProp.position());
             if (cit != acquired_.end())
                 dtx.setVote(pit.first, cit->second.exists(txID));
         }
