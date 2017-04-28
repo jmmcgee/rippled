@@ -452,7 +452,7 @@ private:
     void
     checkPropose (Job& job,
         std::shared_ptr<protocol::TMProposeSet> const& packet,
-            RCLCxPeerPos::pointer peerPos);
+            RCLCxPeerPos const & peerPos);
 
     void
     checkValidation (STValidation::pointer val,

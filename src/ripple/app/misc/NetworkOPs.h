@@ -150,7 +150,7 @@ public:
     //--------------------------------------------------------------------------
 
     // ledger proposal/close functions
-    virtual void processTrustedProposal (RCLCxPeerPos::pointer peerPos,
+    virtual void processTrustedProposal (RCLCxPeerPos const & peerPos,
         std::shared_ptr<protocol::TMProposeSet> set,
             NodeID const& node) = 0;
 
