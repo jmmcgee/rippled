@@ -61,8 +61,7 @@ struct RCLCxTraits
     create a shared instance of RCLConsensus for use in the accept logic..
 */
 class RCLConsensus final : public Consensus<RCLConsensus, RCLCxTraits>,
-                           public std::enable_shared_from_this<RCLConsensus>,
-                           public CountedObject<RCLConsensus>
+                           public std::enable_shared_from_this<RCLConsensus>
 {
     using Base = Consensus<RCLConsensus, RCLCxTraits>;
 
@@ -81,12 +80,6 @@ public:
 
     RCLConsensus&
     operator=(RCLConsensus const&) = delete;
-
-    static char const*
-    getCountedObjectName()
-    {
-        return "Consensus";
-    }
 
     //! Whether we are validating consensus ledgers.
     bool
