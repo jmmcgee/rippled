@@ -25,6 +25,7 @@
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/consensus/ConsensusProposal.h>
 #include <ripple/consensus/DisputedTx.h>
+#include <ripple/consensus/ConsensusTypes.h>
 #include <ripple/json/json_writer.h>
 
 namespace ripple {
@@ -41,7 +42,8 @@ namespace ripple {
   The basic flow:
 
     1. A call to `startRound` places the node in the `Open` phase.  In this
-       phase, the node is waiting for transactions to include in its open ledger.
+       phase, the node is waiting for transactions to include in its open
+       ledger.
     2. Successive calls to `timerEntry` check if the node can close the ledger.
        Once the node `Close`s the open ledger, it transitions to the
        `Establish` phase.  In this phase, the node shares/receives peer
@@ -54,13 +56,17 @@ namespace ripple {
        ledger with the network, does some book-keeping, then makes a call to
        `startRound` to start the cycle again.
 
-  This class uses CRTP to allow adapting Consensus for specific applications.
+  This class uses a generic interface to allow adapting Consensus for specific
+  applications. The Adaptor template implements a set of helper functions that
+  plug the consensus algorithm into a specific application.  It also identifies
+  the types that play important roles in Consensus (transactions, ledgers, ...).
+  The code stubs below outline the interface and type requirements.  The traits
+  types must be copy constructible and assignable.
 
-  The Derived template argument is used to embed consensus within the
-  larger application framework. The Traits template identifies types that
-  play important roles in Consensus (transactions, ledgers, etc.) and which must
-  conform to the generic interface outlined below. The Traits types must be copy
-  constructible and assignable.
+  @warning The generic implementation is not thread safe and the public methods
+  are not intended to be run concurrently.  When in a concurrent environment,
+  the application is responsible for ensuring thread-safety.  Simply locking
+  whenever touching the Consensus instance is one option.
 
   @code
   // A single transaction
@@ -132,18 +138,19 @@ namespace ripple {
 
   };
 
-  struct Traits
+
+  class Adaptor
   {
-    using Ledger_t = Ledger;
-    using NodeID_t = std::uint32_t;
-    using TxSet_t = TxSet;
-    using PeerPosition_t = PeerPosition;
-  }
+  public:
+      //-----------------------------------------------------------------------
+      // Define consensus types
+      using Ledger_t = Ledger;
+      using NodeID_t = std::uint32_t;
+      using TxSet_t = TxSet;
+      using PeerPosition_t = PeerPosition;
 
-
-
-  class ConsensusImp : public Consensus<ConsensusImp, Traits>
-  {
+      //-----------------------------------------------------------------------
+      //
       // Attempt to acquire a specific ledger.
       boost::optional<Ledger> acquireLedger(Ledger::ID const & ledgerID);
 
@@ -199,156 +206,24 @@ namespace ripple {
   };
   @endcode
 
-  @tparam Derived The deriving class which adapts the Consensus algorithm.
-  @tparam Traits Provides definitions of types used in Consensus.
+  @tparam Adaptor Defines types and provides helper functions needed to adapt
+                  Consensus to the larger application.
 */
-template <class Derived, class Traits>
+template <class Adaptor>
 class Consensus
 {
-    //! Phases of consensensus:
-    //!        "close"             "accept"
-    //!   open ------- > establish ---------> accepted
-    //!     ^               |                    |
-    //!     |---------------|                    |
-    //!     ^                     "startRound"   |
-    //!     |------------------------------------|
-    //!
-    //! The typical transition goes from open to establish to accepted and
-    //! then a call to startRound begins the process anew.
-    //! However, if a wrong prior ledger is detected and recovered
-    //! during the establish or accept phase, consensus will internally go back
-    //! to open (see handleWrongLedger).
-    enum class Phase {
-        //! We haven't closed our ledger yet, but others might have
-        open,
-
-        //! Establishing consensus by exchanging proposals with our peers
-        establish,
-
-        //! We have accepted a new last closed ledger and are waiting on a call
-        //! to startRound to begin the next consensus round.  No changes
-        //! to consensus phase occur while in this phase.
-        accepted,
-    };
-
-    using Ledger_t = typename Traits::Ledger_t;
-    using TxSet_t = typename Traits::TxSet_t;
-    using NodeID_t = typename Traits::NodeID_t;
+    using Ledger_t = typename Adaptor::Ledger_t;
+    using TxSet_t = typename Adaptor::TxSet_t;
+    using NodeID_t = typename Adaptor::NodeID_t;
     using Tx_t = typename TxSet_t::Tx;
-    using PeerPosition_t = typename Traits::PeerPosition_t;
+    using PeerPosition_t = typename Adaptor::PeerPosition_t;
     using Proposal_t = ConsensusProposal<
         NodeID_t,
         typename Ledger_t::ID,
         typename TxSet_t::ID>;
 
-protected:
-    //! How we participating in Consensus
-    //!    proposing               observing
-    //!       \                       /
-    //|        \---> wrongLedger <---/
-    //!                   ^
-    //!                   |
-    //!                   |
-    //!                   v
-    //!              switchedLedger
-    //! We enter the round proposing or observing. If we detect we
-    //! are working on the wrong prior ledger, we go to
-    //! wrongLedger and attempt to acquire the right one (ref
-    //! handleWrongLedger). Once we acquire the right one, we go to
-    //! switchedLedger.  If we again detect the wrongLedger before this round
-    //! ends, we go back to wrongLedger until we acquire the right one.
-    enum class Mode {
-        //! We a normal participant in consensus and propose our position
-        proposing,
-        //! We are observing peer positions, but not proposing our position
-        observing,
-        //! We have the wrong ledger and are attempting to acquire it
-        wrongLedger,
-        //! We switched ledger since we started this consensus round but are now
-        //! running on what we believe is the correct ledger.  This mode is as
-        //! if we entered the round observing, but is used to indicate we did
-        //! have the wrongLedger at some point.
-        switchedLedger
-    };
+    using Result = ConsensusResult<Adaptor>;
 
-    //! Measure duration of phases of consensus
-    class Stopwatch
-    {
-        using time_point = std::chrono::steady_clock::time_point;
-        time_point start_;
-        std::chrono::milliseconds dur_;
-
-    public:
-        std::chrono::milliseconds
-        read() const
-        {
-            return dur_;
-        }
-
-        void
-        tick(std::chrono::milliseconds fixed)
-        {
-            dur_ += fixed;
-        }
-
-        void
-        reset(time_point tp)
-        {
-            start_ = tp;
-            dur_ = std::chrono::milliseconds{0};
-        }
-
-        void
-        tick(time_point tp)
-        {
-            using namespace std::chrono;
-            dur_ = duration_cast<milliseconds>(tp - start_);
-        }
-    };
-
-    //! Initial ledger close times, not rounded by closeTimeResolution
-    struct CloseTimes
-    {
-        // Close time estimates, keep ordered for predictable traverse
-        std::map<NetClock::time_point, int> peers;
-        NetClock::time_point self;
-    };
-
-    /** Enacpsulates the result of consensus.
-
-        While in the establish phase, represents our work in progress consensus
-        result.  In the accept phase, represents our final consensus result
-        for this round.
-    */
-    struct Result
-    {
-        using Dispute_t = DisputedTx<Tx_t, NodeID_t>;
-
-        Result(TxSet_t&& s, Proposal_t&& p)
-            : set{std::move(s)}, position{std::move(p)}
-        {
-            assert(set.id() == position.position());
-        }
-
-        //! The set of transactions consensus agrees go in the ledger
-        TxSet_t set;
-
-        //! Our proposed position on transactions/close time
-        Proposal_t position;
-
-        //! Transactions which are under dispute with our peers
-        hash_map<typename Tx_t::ID, Dispute_t> disputes;
-
-        // Set of TxSet ids we have already compared/created disputes
-        hash_set<typename TxSet_t::ID> compares;
-
-        // Measures the duration of the establish phase for this consensus round
-        Stopwatch roundTime;
-
-        // Indicates state in which consensus ended.  Once in the accept phase
-        // will be either Yes or MovedOn
-        ConsensusState state = ConsensusState::No;
-    };
 
 public:
     //! Clock type for measuring time within the consensus code
@@ -359,9 +234,10 @@ public:
     /** Constructor.
 
         @param clock The clock used to internally sample consensus progress
+        @param adaptor The instance of the adaptor class
         @param j The journal to log debug output
     */
-    Consensus(clock_type const& clock, beast::Journal j);
+    Consensus(clock_type const& clock, Adaptor & adaptor, beast::Journal j);
 
     /** Kick-off the next round of consensus.
 
@@ -464,14 +340,6 @@ public:
         return prevRoundTime_;
     }
 
-    /** Get the current consensus mode.
-     */
-    Mode
-    mode() const
-    {
-        return mode_;
-    }
-
     /** Get the Json state of the consensus process.
 
         Called by the consensus_info RPC.
@@ -482,10 +350,11 @@ public:
     Json::Value
     getJson(bool full) const;
 
-protected:
-
-    // Prevent deleting derived instance through base pointer
-    ~Consensus() = default;
+    ConsensusMode
+    mode() const
+    {
+        return mode_;
+    }
 
 private:
     void
@@ -493,7 +362,7 @@ private:
         NetClock::time_point const& now,
         typename Ledger_t::ID const& prevLedgerID,
         Ledger_t const& prevLedger,
-        Mode mode);
+        ConsensusMode mode);
 
     // Change our view of the previous ledger
     void
@@ -558,24 +427,13 @@ private:
     void
     leaveConsensus();
 
-    Derived&
-    impl()
-    {
-        return *static_cast<Derived*>(this);
-    }
-
-    static std::string
-    to_string(Phase p);
-
-    static std::string
-    to_string(Mode m);
-
 private:
     // TODO: Move this to clients
     std::unique_ptr<std::recursive_mutex> lock_;
+    Adaptor & adaptor_;
 
-    Phase phase_ = Phase::accepted;
-    Mode mode_ = Mode::observing;
+    ConsensusPhase phase_ = ConsensusPhase::accepted;
+    ConsensusMode mode_ = ConsensusMode::observing;
     bool firstRound_ = true;
     bool haveCloseTimeConsensus_ = false;
 
@@ -586,7 +444,7 @@ private:
     int convergePercent_{0};
 
     // How long has this round been open
-    Stopwatch openTime_;
+    ConsensusTimer openTime_;
 
     NetClock::duration closeResolution_ = ledgerDefaultTimeResolution;
 
@@ -613,7 +471,7 @@ private:
     hash_map<typename TxSet_t::ID, const TxSet_t> acquired_;
 
     boost::optional<Result> result_;
-    CloseTimes rawCloseTimes_;
+    ConsensusCloseTimes rawCloseTimes_;
 
     //-------------------------------------------------------------------------
     // Peer related consensus data
@@ -635,20 +493,22 @@ private:
     beast::Journal j_;
 };
 
-template <class Derived, class Traits>
-Consensus<Derived, Traits>::Consensus(
+template <class Adaptor>
+Consensus<Adaptor>::Consensus(
     clock_type const& clock,
+    Adaptor & adaptor,
     beast::Journal journal)
     : lock_(std::make_unique<std::recursive_mutex>())
+    , adaptor_(adaptor)
     , clock_(clock)
     , j_{journal}
 {
     JLOG(j_.debug()) << "Creating consensus object";
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::startRound(
+Consensus<Adaptor>::startRound(
     NetClock::time_point const& now,
     typename Ledger_t::ID const& prevLedgerID,
     Ledger_t const& prevLedger,
@@ -670,17 +530,17 @@ Consensus<Derived, Traits>::startRound(
         now,
         prevLedgerID,
         prevLedger,
-        proposing ? Mode::proposing : Mode::observing);
+        proposing ? ConsensusMode::proposing : ConsensusMode::observing);
 }
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::startRoundInternal(
+Consensus<Adaptor>::startRoundInternal(
     NetClock::time_point const& now,
     typename Ledger_t::ID const& prevLedgerID,
     Ledger_t const& prevLedger,
-    Mode mode)
+    ConsensusMode mode)
 {
-    phase_ = Phase::open;
+    phase_ = ConsensusPhase::open;
     mode_ = mode;
     now_ = now;
     prevLedgerID_ = prevLedgerID;
@@ -705,7 +565,7 @@ Consensus<Derived, Traits>::startRoundInternal(
         handleWrongLedger(prevLedgerID_);
 
         // Unable to acquire the correct ledger
-        if (mode_ == Mode::wrongLedger)
+        if (mode_ == ConsensusMode::wrongLedger)
         {
             JLOG(j_.info())
                 << "Entering consensus with: " << previousLedger_.id();
@@ -722,9 +582,9 @@ Consensus<Derived, Traits>::startRoundInternal(
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 bool
-Consensus<Derived, Traits>::peerProposal(
+Consensus<Adaptor>::peerProposal(
     NetClock::time_point const& now,
     PeerPosition_t const& newPeerPos)
 {
@@ -743,7 +603,7 @@ Consensus<Derived, Traits>::peerProposal(
     }
 
     // Nothing to do for now if we are currently working on a ledger
-    if (phase_ == Phase::accepted)
+    if (phase_ == ConsensusPhase::accepted)
         return false;
 
     now_ = now;
@@ -818,7 +678,7 @@ Consensus<Derived, Traits>::peerProposal(
             // acquireTxSet will return the set if it is available, or
             // spawn a request for it and return none/nullptr.  It will call
             // gotTxSet once it arrives
-            if (auto set = impl().acquireTxSet(newPeerProp.position()))
+            if (auto set = adaptor_.acquireTxSet(newPeerProp.position()))
                 gotTxSet(now_, *set);
             else
                 JLOG(j_.debug()) << "Don't have tx set for peer";
@@ -832,14 +692,14 @@ Consensus<Derived, Traits>::peerProposal(
     return true;
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::timerEntry(NetClock::time_point const& now)
+Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
     // Nothing to do if we are currently working on a ledger
-    if (phase_ == Phase::accepted)
+    if (phase_ == ConsensusPhase::accepted)
         return;
 
     now_ = now;
@@ -847,26 +707,26 @@ Consensus<Derived, Traits>::timerEntry(NetClock::time_point const& now)
     // Check we are on the proper ledger (this may change phase_)
     checkLedger();
 
-    if(phase_ == Phase::open)
+    if(phase_ == ConsensusPhase::open)
     {
         phaseOpen();
     }
-    else if (phase_ == Phase::establish)
+    else if (phase_ == ConsensusPhase::establish)
     {
         phaseEstablish();
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::gotTxSet(
+Consensus<Adaptor>::gotTxSet(
     NetClock::time_point const& now,
     TxSet_t const& txSet)
 {
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
     // Nothing to do if we've finished work on a ledger
-    if (phase_ == Phase::accepted)
+    if (phase_ == ConsensusPhase::accepted)
         return;
 
     now_ = now;
@@ -905,9 +765,9 @@ Consensus<Derived, Traits>::gotTxSet(
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::simulate(
+Consensus<Adaptor>::simulate(
     NetClock::time_point const& now,
     boost::optional<std::chrono::milliseconds> consensusDelay)
 {
@@ -919,15 +779,20 @@ Consensus<Derived, Traits>::simulate(
     result_->roundTime.tick(consensusDelay.value_or(100ms));
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
-    phase_ = Phase::accepted;
-    impl().onForceAccept(
-        *result_, previousLedger_, closeResolution_, rawCloseTimes_, mode_);
+    phase_ = ConsensusPhase::accepted;
+    adaptor_.onForceAccept(
+        *result_,
+        previousLedger_,
+        closeResolution_,
+        rawCloseTimes_,
+        mode_,
+        getJson(true));
     JLOG(j_.info()) << "Simulation complete";
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 Json::Value
-Consensus<Derived, Traits>::getJson(bool full) const
+Consensus<Adaptor>::getJson(bool full) const
 {
     using std::to_string;
     using Int = Json::Value::Int;
@@ -935,10 +800,10 @@ Consensus<Derived, Traits>::getJson(bool full) const
     Json::Value ret(Json::objectValue);
     std::lock_guard<std::recursive_mutex> _(*lock_);
 
-    ret["proposing"] = (mode_ == Mode::proposing);
+    ret["proposing"] = (mode_ == ConsensusMode::proposing);
     ret["proposers"] = static_cast<int>(currPeerPositions_.size());
 
-    if (mode_ != Mode::wrongLedger)
+    if (mode_ != ConsensusMode::wrongLedger)
     {
         ret["synched"] = true;
         ret["ledger_seq"] = previousLedger_.seq() + 1;
@@ -947,7 +812,7 @@ Consensus<Derived, Traits>::getJson(bool full) const
     else
         ret["synched"] = false;
 
-    ret["phase"] = Consensus::to_string(phase_);
+    ret["phase"] = to_string(phase_);
 
     if (result_ && !result_->disputes.empty() && !full)
         ret["disputes"] = static_cast<Int>(result_->disputes.size());
@@ -1023,9 +888,9 @@ Consensus<Derived, Traits>::getJson(bool full) const
 }
 
 // Handle a change in the prior ledger during a consensus round
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::handleWrongLedger(
+Consensus<Adaptor>::handleWrongLedger(
     typename Ledger_t::ID const& lgrId)
 {
     assert(lgrId != prevLedgerID_ || previousLedger_.id() != lgrId);
@@ -1056,22 +921,22 @@ Consensus<Derived, Traits>::handleWrongLedger(
         return;
 
     // we need to switch the ledger we're working from
-    if (auto newLedger = impl().acquireLedger(prevLedgerID_))
+    if (auto newLedger = adaptor_.acquireLedger(prevLedgerID_))
     {
         JLOG(j_.info()) << "Have the consensus ledger " << prevLedgerID_;
-        startRoundInternal(now_, lgrId, *newLedger, Mode::switchedLedger);
+        startRoundInternal(now_, lgrId, *newLedger, ConsensusMode::switchedLedger);
     }
     else
     {
-        mode_ = Mode::wrongLedger;
+        mode_ = ConsensusMode::wrongLedger;
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::checkLedger()
+Consensus<Adaptor>::checkLedger()
 {
-    auto netLgr = impl().getPrevLedger(prevLedgerID_, previousLedger_, mode_);
+    auto netLgr = adaptor_.getPrevLedger(prevLedgerID_, previousLedger_, mode_);
 
     if (netLgr != prevLedgerID_)
     {
@@ -1081,15 +946,16 @@ Consensus<Derived, Traits>::checkLedger()
                         << " mode=" << to_string(mode_);
         JLOG(j_.warn()) << prevLedgerID_ << " to " << netLgr;
         JLOG(j_.warn()) << previousLedger_.getJson();
+        JLOG(j_.debug())<< "State on consensus change " << getJson(true);
         handleWrongLedger(netLgr);
     }
     else if (previousLedger_.id() != prevLedgerID_)
         handleWrongLedger(netLgr);
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::playbackProposals()
+Consensus<Adaptor>::playbackProposals()
 {
     for (auto const& it : recentPeerPositions_)
     {
@@ -1098,29 +964,29 @@ Consensus<Derived, Traits>::playbackProposals()
             if (pos.proposal().prevLedger() == prevLedgerID_)
             {
                 if (peerProposal(now_, pos))
-                    impl().relay(pos);
+                    adaptor_.relay(pos);
             }
         }
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::phaseOpen()
+Consensus<Adaptor>::phaseOpen()
 {
     using namespace std::chrono;
 
     // it is shortly before ledger close time
-    bool anyTransactions = impl().hasOpenTransactions();
+    bool anyTransactions = adaptor_.hasOpenTransactions();
     auto proposersClosed = currPeerPositions_.size();
-    auto proposersValidated = impl().proposersValidated(prevLedgerID_);
+    auto proposersValidated = adaptor_.proposersValidated(prevLedgerID_);
 
     openTime_.tick(clock_.now());
 
     // This computes how long since last ledger's close time
     milliseconds sinceClose;
     {
-        bool previousCloseCorrect = (mode_ != Mode::wrongLedger) &&
+        bool previousCloseCorrect = (mode_ != ConsensusMode::wrongLedger) &&
             previousLedger_.closeAgree() &&
             (previousLedger_.closeTime() !=
              (previousLedger_.parentCloseTime() + 1s));
@@ -1155,9 +1021,9 @@ Consensus<Derived, Traits>::phaseOpen()
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::phaseEstablish()
+Consensus<Adaptor>::phaseEstablish()
 {
     // can only establish consensus if we already took a stance
     assert(result_);
@@ -1188,30 +1054,35 @@ Consensus<Derived, Traits>::phaseEstablish()
                     << " participants)";
     prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
-    phase_ = Phase::accepted;
-    impl().onAccept(
-        *result_, previousLedger_, closeResolution_, rawCloseTimes_, mode_);
+    phase_ = ConsensusPhase::accepted;
+    adaptor_.onAccept(
+        *result_,
+        previousLedger_,
+        closeResolution_,
+        rawCloseTimes_,
+        mode_,
+        getJson(true));
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::closeLedger()
+Consensus<Adaptor>::closeLedger()
 {
     // We should not be closing if we already have a position
     assert(!result_);
 
-    phase_ = Phase::establish;
+    phase_ = ConsensusPhase::establish;
     rawCloseTimes_.self = now_;
 
-    result_.emplace(impl().onClose(previousLedger_, now_, mode_));
+    result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_));
     result_->roundTime.reset(clock_.now());
     // Share the newly created transaction set if we haven't already
     // received it from a peer
     if (acquired_.emplace(result_->set.id(), result_->set).second)
-        impl().relay(result_->set);
+        adaptor_.relay(result_->set);
 
-    if (mode_ == Mode::proposing)
-        impl().propose(result_->position);
+    if (mode_ == ConsensusMode::proposing)
+        adaptor_.propose(result_->position);
 
     // Create disputes with any peer positions we have transactions for
     for (auto const& pit : currPeerPositions_)
@@ -1245,9 +1116,9 @@ participantsNeeded(int participants, int percent)
     return (result == 0) ? 1 : result;
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::updateOurPositions()
+Consensus<Adaptor>::updateOurPositions()
 {
     // We must have a position if we are updating it
     assert(result_);
@@ -1295,7 +1166,7 @@ Consensus<Derived, Traits>::updateOurPositions()
             // Because the threshold for inclusion increases,
             //  time can change our position on a dispute
             if (it.second.updateVote(
-                    convergePercent_, (mode_ == Mode::proposing)))
+                    convergePercent_, (mode_ == ConsensusMode::proposing)))
             {
                 if (!mutableSet)
                     mutableSet.emplace(result_->set);
@@ -1343,7 +1214,7 @@ Consensus<Derived, Traits>::updateOurPositions()
             neededWeight = AV_STUCK_CONSENSUS_PCT;
 
         int participants = currPeerPositions_.size();
-        if (mode_ == Mode::proposing)
+        if (mode_ == ConsensusMode::proposing)
         {
             ++effCloseTimes[effCloseTime(
                 result_->position.closeTime(),
@@ -1419,17 +1290,17 @@ Consensus<Derived, Traits>::updateOurPositions()
             // Share our new transaction set if we haven't already received
             // it from a peer
             if (acquired_.emplace(newID, result_->set).second)
-                impl().relay(result_->set);
+                adaptor_.relay(result_->set);
 
-            if (mode_ == Mode::proposing)
-                impl().propose(result_->position);
+            if (mode_ == ConsensusMode::proposing)
+                adaptor_.propose(result_->position);
         }
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 bool
-Consensus<Derived, Traits>::haveConsensus()
+Consensus<Adaptor>::haveConsensus()
 {
     // Must have a stance if we are checking for consensus
     assert(result_);
@@ -1456,7 +1327,7 @@ Consensus<Derived, Traits>::haveConsensus()
             ++disagree;
         }
     }
-    auto currentFinished = impl().proposersFinished(prevLedgerID_);
+    auto currentFinished = adaptor_.proposersFinished(prevLedgerID_);
 
     JLOG(j_.debug()) << "Checking for TX consensus: agree=" << agree
                      << ", disagree=" << disagree;
@@ -1469,7 +1340,7 @@ Consensus<Derived, Traits>::haveConsensus()
         currentFinished,
         prevRoundTime_,
         result_->roundTime.read(),
-        mode_ == Mode::proposing,
+        mode_ == ConsensusMode::proposing,
         j_);
 
     if (result_->state == ConsensusState::No)
@@ -1486,26 +1357,26 @@ Consensus<Derived, Traits>::haveConsensus()
     return true;
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::leaveConsensus()
+Consensus<Adaptor>::leaveConsensus()
 {
-    if (mode_ == Mode::proposing)
+    if (mode_ == ConsensusMode::proposing)
     {
         if (result_ && !result_->position.isBowOut())
         {
             result_->position.bowOut(now_);
-            impl().propose(result_->position);
+            adaptor_.propose(result_->position);
         }
 
-        mode_ = Mode::observing;
+        mode_ = ConsensusMode::observing;
         JLOG(j_.info()) << "Bowing out of consensus";
     }
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::createDisputes(TxSet_t const& o)
+Consensus<Adaptor>::createDisputes(TxSet_t const& o)
 {
     // Cannot create disputes without our stance
     assert(result_);
@@ -1551,16 +1422,16 @@ Consensus<Derived, Traits>::createDisputes(TxSet_t const& o)
             if (cit != acquired_.end())
                 dtx.setVote(pit.first, cit->second.exists(txID));
         }
-        impl().relay(dtx.tx());
+        adaptor_.relay(dtx.tx());
 
         result_->disputes.emplace(txID, std::move(dtx));
     }
     JLOG(j_.debug()) << dc << " differences found";
 }
 
-template <class Derived, class Traits>
+template <class Adaptor>
 void
-Consensus<Derived, Traits>::updateDisputes(
+Consensus<Adaptor>::updateDisputes(
     NodeID_t const& node,
     TxSet_t const& other)
 {
@@ -1579,41 +1450,6 @@ Consensus<Derived, Traits>::updateDisputes(
     }
 }
 
-template <class Derived, class Traits>
-std::string
-Consensus<Derived, Traits>::to_string(Phase p)
-{
-    switch (p)
-    {
-        case Phase::open:
-            return "open";
-        case Phase::establish:
-            return "establish";
-        case Phase::accepted:
-            return "accepted";
-        default:
-            return "unknown";
-    }
-}
-
-template <class Derived, class Traits>
-std::string
-Consensus<Derived, Traits>::to_string(Mode m)
-{
-    switch (m)
-    {
-        case Mode::proposing:
-            return "proposing";
-        case Mode::observing:
-            return "observing";
-        case Mode::wrongLedger:
-            return "wrongLedger";
-        case Mode::switchedLedger:
-            return "switchedLedger";
-        default:
-            return "unknown";
-    }
-}
 }  // ripple
 
 #endif

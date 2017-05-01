@@ -1831,6 +1831,8 @@
     </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\ConsensusProposal.h">
     </ClInclude>
+    <ClInclude Include="..\..\src\ripple\consensus\ConsensusTypes.h">
+    </ClInclude>
     <ClInclude Include="..\..\src\ripple\consensus\DisputedTx.h">
     </ClInclude>
     <ClCompile Include="..\..\src\ripple\consensus\LedgerTiming.cpp">
