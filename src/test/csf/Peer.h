@@ -21,7 +21,8 @@
 
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
-
+#include <ripple/consensus/Consensus.h>
+#include <ripple/consensus/ConsensusProposal.h>
 #include <test/csf/Ledger.h>
 #include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
@@ -139,20 +140,19 @@ private:
     Proposal proposal_;
 };
 
-struct Traits
+
+/** Represents a single node participating in the consensus process.
+    It implements the Adaptor requirements of generic Consensus.
+*/
+struct Peer
 {
     using Ledger_t = Ledger;
     using NodeID_t = PeerID;
     using TxSet_t = TxSet;
     using PeerPosition_t = PeerPosition;
-};
+    using Result = ConsensusResult<Peer>;
 
-/** Represents a single node participating in the consensus process.
-    It implements the Callbacks required by Consensus.
-*/
-struct Peer : public Consensus<Peer, Traits>
-{
-    using Base = Consensus<Peer, Traits>;
+    Consensus<Peer> consensus;
 
     //! Our unique ID
     PeerID id;
@@ -198,7 +198,7 @@ struct Peer : public Consensus<Peer, Traits>
 
     //! All peers start from the default constructed ledger
     Peer(PeerID i, BasicNetwork<Peer*>& n, UNL const& u, ConsensusParms p)
-        : Consensus<Peer, Traits>(n.clock(), p, beast::Journal{})
+        : consensus(n.clock(), p, *this, beast::Journal{})
         , id{i}
         , net{n}
         , unl(u)
@@ -263,7 +263,7 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     Result
-    onClose(Ledger const& prevLedger, NetClock::time_point closeTime, Mode mode)
+    onClose(Ledger const& prevLedger, NetClock::time_point closeTime, ConsensusMode mode)
     {
         TxSet res{openTxs};
 
@@ -281,10 +281,17 @@ struct Peer : public Consensus<Peer, Traits>
         Result const& result,
         Ledger const& prevLedger,
         NetClock::duration const& closeResolution,
-        CloseTimes const& rawCloseTimes,
-        Mode const& mode)
+        ConsensusCloseTimes const& rawCloseTimes,
+        ConsensusMode const& mode,
+        Json::Value && consensusJson)
     {
-        onAccept(result, prevLedger, closeResolution, rawCloseTimes, mode);
+        onAccept(
+            result,
+            prevLedger,
+            closeResolution,
+            rawCloseTimes,
+            mode,
+            std::move(consensusJson));
     }
 
     void
@@ -292,8 +299,9 @@ struct Peer : public Consensus<Peer, Traits>
         Result const& result,
         Ledger const& prevLedger,
         NetClock::duration const& closeResolution,
-        CloseTimes const& rawCloseTimes,
-        Mode const& mode)
+        ConsensusCloseTimes const& rawCloseTimes,
+        ConsensusMode const& mode,
+        Json::Value && consensusJson)
     {
         auto newLedger = prevLedger.close(
             result.set.txs_,
@@ -322,16 +330,16 @@ struct Peer : public Consensus<Peer, Traits>
         // TODO: reconsider this and instead just save LCL generated here?
         if (completedLedgers <= targetLedgers)
         {
-            startRound(
+            consensus.startRound(
                 now(), lastClosedLedger.id(), lastClosedLedger, proposing_);
         }
     }
 
     Ledger::ID
-    getPrevLedger(Ledger::ID const& ledgerID, Ledger const& ledger, Mode mode)
+    getPrevLedger(Ledger::ID const& ledgerID, Ledger const& ledger, ConsensusMode mode)
     {
         // TODO: Use generic validation code
-        if (mode != Mode::wrongLedger && ledgerID.seq > 0 &&
+        if (mode != ConsensusMode::wrongLedger && ledgerID.seq > 0 &&
             ledger.id().seq > 0)
             return peerValidations.getBestLCL(ledgerID, ledger.parentID());
         return ledgerID;
@@ -359,7 +367,7 @@ struct Peer : public Consensus<Peer, Traits>
             return;
 
         dest.push_back(p);
-        peerProposal(now(), peerPos);
+        consensus.peerProposal(now(), peerPos);
     }
 
     void
@@ -368,7 +376,7 @@ struct Peer : public Consensus<Peer, Traits>
         // save and map complete?
         auto it = txSets.insert(std::make_pair(txs.id(), txs));
         if (it.second)
-            gotTxSet(now(), txs);
+            consensus.gotTxSet(now(), txs);
     }
 
     void
@@ -411,7 +419,7 @@ struct Peer : public Consensus<Peer, Traits>
     void
     timerEntry()
     {
-        Base::timerEntry(now());
+        consensus.timerEntry(now());
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
             net.timer(parms().ledgerGRANULARITY, [&]() { timerEntry(); });
@@ -425,7 +433,7 @@ struct Peer : public Consensus<Peer, Traits>
         // so there is no gaurantee that bestLCL == lastClosedLedger.id()
         auto bestLCL = peerValidations.getBestLCL(
             lastClosedLedger.id(), lastClosedLedger.parentID());
-        startRound(now(), bestLCL, lastClosedLedger, proposing_);
+        consensus.startRound(now(), bestLCL, lastClosedLedger, proposing_);
     }
 
     NetClock::time_point
@@ -453,6 +461,24 @@ struct Peer : public Consensus<Peer, Traits>
             what();
         else
             net.timer(when, std::forward<T>(what));
+    }
+
+    Ledger::ID
+    prevLedgerID()
+    {
+        return consensus.prevLedgerID();
+    }
+
+    std::size_t
+    prevProposers()
+    {
+        return consensus.prevProposers();
+    }
+
+    std::chrono::milliseconds
+    prevRoundTime()
+    {
+        return consensus.prevRoundTime();
     }
 };
 
