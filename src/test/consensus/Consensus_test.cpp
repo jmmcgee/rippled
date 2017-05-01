@@ -119,8 +119,8 @@ public:
         using namespace std::chrono_literals;
         using namespace csf;
 
-        ConsensusParms parms;
         auto tg = TrustGraph::makeComplete(1);
+        ConsensusParms parms;
         Sim s(parms, tg, topology(tg, fixed{parms.ledgerGRANULARITY}));
 
         auto& p = s.peers[0];
