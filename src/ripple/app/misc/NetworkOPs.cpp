@@ -36,6 +36,7 @@
 #include <ripple/app/misc/LoadFeeTrack.h>
 #include <ripple/app/misc/Transaction.h>
 #include <ripple/app/misc/TxQ.h>
+#include <ripple/app/misc/ValidatorKeys.h>
 #include <ripple/app/misc/ValidatorList.h>
 #include <ripple/app/misc/impl/AccountTxPaging.h>
 #include <ripple/app/tx/apply.h>
@@ -187,7 +188,7 @@ public:
         Application& app, clock_type& clock, bool standalone,
             std::size_t network_quorum, bool start_valid, JobQueue& job_queue,
                 LedgerMaster& ledgerMaster, Stoppable& parent,
-                    beast::Journal journal)
+                ValidatorKeys const & validatorKeys, beast::Journal journal)
         : NetworkOPs (parent)
         , app_ (app)
         , m_clock (clock)
@@ -205,6 +206,7 @@ public:
             *m_localTX,
             app.getInboundTransactions(),
             stopwatch(),
+            validatorKeys,
             app_.logs().journal("LedgerConsensus")))
         , m_ledgerMaster (ledgerMaster)
         , m_job_queue (job_queue)
@@ -355,15 +357,7 @@ public:
     }
     void setAmendmentBlocked () override;
     void consensusViewChange () override;
-    PublicKey const& getValidationPublicKey () const override
-    {
-        return mConsensus->getValidationPublicKey ();
-    }
-    void setValidationKeys (
-        SecretKey const& valSecret, PublicKey const& valPublic) override
-    {
-        mConsensus->setValidationKeys (valSecret, valPublic);
-    }
+
     Json::Value getConsensusInfo () override;
     Json::Value getServerInfo (bool human, bool admin) override;
     void clearLedgerFetch () override;
@@ -2129,7 +2123,7 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
 
     if (admin)
     {
-        if (getValidationPublicKey().size ())
+        if (app_.getValidationPublicKey().size ())
         {
             info[jss::pubkey_validator] = toBase58 (
                 TokenType::TOKEN_NODE_PUBLIC,
@@ -3322,10 +3316,10 @@ std::unique_ptr<NetworkOPs>
 make_NetworkOPs (Application& app, NetworkOPs::clock_type& clock, bool standalone,
     std::size_t network_quorum, bool startvalid,
     JobQueue& job_queue, LedgerMaster& ledgerMaster,
-    Stoppable& parent, beast::Journal journal)
+    Stoppable& parent, ValidatorKeys const & validatorKeys, beast::Journal journal)
 {
     return std::make_unique<NetworkOPsImp> (app, clock, standalone, network_quorum,
-        startvalid, job_queue, ledgerMaster, parent, journal);
+        startvalid, job_queue, ledgerMaster, parent, validatorKeys, journal);
 }
 
 } // ripple

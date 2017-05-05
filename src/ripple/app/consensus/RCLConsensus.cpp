@@ -30,6 +30,7 @@
 #include <ripple/app/misc/LoadFeeTrack.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/TxQ.h>
+#include <ripple/app/misc/ValidatorKeys.h>
 #include <ripple/app/misc/ValidatorList.h>
 #include <ripple/app/tx/apply.h>
 #include <ripple/basics/make_lock.h>
@@ -49,6 +50,7 @@ RCLConsensus::RCLConsensus(
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
     Consensus<Adaptor>::clock_type const& clock,
+    ValidatorKeys const& validatorKeys,
     beast::Journal journal)
     : adaptor_(
           app,
@@ -56,6 +58,7 @@ RCLConsensus::RCLConsensus(
           ledgerMaster,
           localTxs,
           inboundTransactions,
+          validatorKeys,
           journal)
     , consensus_(clock, adaptor_, journal)
 
@@ -68,6 +71,7 @@ RCLConsensus::Adaptor::Adaptor(
     LedgerMaster& ledgerMaster,
     LocalTxs& localTxs,
     InboundTransactions& inboundTransactions,
+    ValidatorKeys const& validatorKeys,
     beast::Journal journal)
     : app_(app)
         , feeVote_(std::move(feeVote))
@@ -76,6 +80,8 @@ RCLConsensus::Adaptor::Adaptor(
         , inboundTransactions_{inboundTransactions}
         , j_(journal)
         , nodeID_{calcNodeID(app.nodeIdentity().first)}
+        , valPublic_{validatorKeys.publicKey}
+        , valSecret_{validatorKeys.secretKey}
 {
 }
 
@@ -858,21 +864,6 @@ RCLConsensus::getJson(bool full) const
     auto ret = consensus_.getJson(full);
     ret["validating"] = adaptor_.validating_;
     return ret;
-}
-
-PublicKey const&
-RCLConsensus::getValidationPublicKey() const
-{
-    return adaptor_.valPublic_;
-}
-
-void
-RCLConsensus::setValidationKeys(
-    SecretKey const& valSecret,
-    PublicKey const& valPublic)
-{
-    adaptor_.valSecret_ = valSecret;
-    adaptor_.valPublic_ = valPublic;
 }
 
 void
