@@ -396,8 +396,8 @@ public:
 
         , m_collectorManager (CollectorManager::New (
             config_->section (SECTION_INSIGHT), logs_->journal("Collector")))
-        , validatorKeys_(*config_, m_journal)
         , cachedSLEs_ (std::chrono::minutes(1), stopwatch())
+        , validatorKeys_(*config_, m_journal)
 
         , m_resourceManager (Resource::make_Manager (
             m_collectorManager->collector(), logs_->journal("Resource")))

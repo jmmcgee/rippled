@@ -61,6 +61,7 @@ RCLConsensus::RCLConsensus(
           validatorKeys,
           journal)
     , consensus_(clock, adaptor_, journal)
+    , j_(journal)
 
 {
 }
@@ -368,18 +369,22 @@ RCLConsensus::Adaptor::onAccept(
     Json::Value && consensusJson)
 {
     app_.getJobQueue().addJob(
-        jtACCEPT, "acceptLedger", [&](auto&) {
-            // note that no lock is held inside this thread, which
-            // is fine since once a ledger is accepted, consensus
-            // will not touch any internal state until startRound is called
-            doAccept(
+        jtACCEPT,
+        "acceptLedger",
+        [&, cj = std::move(consensusJson) ](auto&) mutable {
+            // Note that no lock is held or acquired during this job.
+            // This is because generic Consensus guarantees that once a ledger
+            // is accepted, the consensus results and capture by reference state
+            // will not change until startRound is called (which happens via
+            // endConsensus).
+            this->doAccept(
                 result,
                 prevLedger,
                 closeResolution,
                 rawCloseTimes,
                 mode,
-                std::move(consensusJson));
-            app_.getOPs().endConsensus();
+                std::move(cj));
+            this->app_.getOPs().endConsensus();
         });
 }
 
@@ -392,6 +397,9 @@ RCLConsensus::Adaptor::doAccept(
     ConsensusMode const& mode,
     Json::Value && consensusJson)
 {
+    prevProposers_ = result.proposers;
+    prevRoundTime_ = result.roundTime.read();
+
     bool closeTimeCorrect;
 
     const bool proposing = mode == ConsensusMode::proposing;
@@ -861,8 +869,12 @@ RCLConsensus::Adaptor::validate(RCLCxLedger const& ledger, bool proposing)
 Json::Value
 RCLConsensus::getJson(bool full) const
 {
-    auto ret = consensus_.getJson(full);
-    ret["validating"] = adaptor_.validating_;
+    Json::Value ret;
+    {
+      ScopedLockType _{mutex_};
+      ret = consensus_.getJson(full);
+    }
+    ret["validating"] = adaptor_.validating();
     return ret;
 }
 
@@ -871,12 +883,13 @@ RCLConsensus::timerEntry(NetClock::time_point const& now)
 {
     try
     {
+        ScopedLockType _{mutex_};
         consensus_.timerEntry(now);
     }
     catch (SHAMapMissingNode const& mn)
     {
         // This should never happen
-        JLOG(adaptor_.j_.error()) << "Missing node during consensus process " << mn;
+        JLOG(j_.error()) << "Missing node during consensus process " << mn;
         Rethrow();
     }
 }
@@ -886,14 +899,61 @@ RCLConsensus::gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet)
 {
     try
     {
+        ScopedLockType _{mutex_};
         consensus_.gotTxSet(now, txSet);
     }
     catch (SHAMapMissingNode const& mn)
     {
         // This should never happen
-        JLOG(adaptor_.j_.error()) << "Missing node during consensus process " << mn;
+        JLOG(j_.error()) << "Missing node during consensus process " << mn;
         Rethrow();
     }
+}
+
+
+//! @see Consensus::simulate
+
+void
+RCLConsensus::simulate(
+    NetClock::time_point const& now,
+    boost::optional<std::chrono::milliseconds> consensusDelay)
+{
+    ScopedLockType _{mutex_};
+    consensus_.simulate(now, consensusDelay);
+}
+
+bool
+RCLConsensus::peerProposal(
+    NetClock::time_point const& now,
+    RCLCxPeerPos const& newProposal)
+{
+    ScopedLockType _{mutex_};
+    return consensus_.peerProposal(now, newProposal);
+}
+
+bool
+RCLConsensus::Adaptor::preStartRound(RCLCxLedger const & prevLgr)
+{
+    // We have a key, and we have some idea what the ledger is
+    validating_ =
+        !app_.getOPs().isNeedNetworkLedger() && (valPublic_.size() != 0);
+
+    if (validating_)
+    {
+        JLOG(j_.info()) << "Entering consensus process, validating";
+    }
+    else
+    {
+        // Otherwise we just want to monitor the validation process.
+        JLOG(j_.info()) << "Entering consensus process, watching";
+    }
+
+    // Notify inbOund ledgers that we are starting a new round
+    inboundTransactions_.newRound(prevLgr.seq());
+
+    // propose only if we're in sync with the network (and validating)
+    return validating_ &&
+        (app_.getOPs().getOperatingMode() == NetworkOPs::omFULL);
 }
 
 void
@@ -902,27 +962,8 @@ RCLConsensus::startRound(
     RCLCxLedger::ID const& prevLgrId,
     RCLCxLedger const& prevLgr)
 {
-    // We have a key, and we have some idea what the ledger is
-    adaptor_.validating_ =
-        !adaptor_.app_.getOPs().isNeedNetworkLedger() && (adaptor_.valPublic_.size() != 0);
-
-    // propose only if we're in sync with the network (and validating)
-    bool proposing =
-        adaptor_.validating_ && (adaptor_.app_.getOPs().getOperatingMode() == NetworkOPs::omFULL);
-
-    if (adaptor_.validating_)
-    {
-        JLOG(adaptor_.j_.info()) << "Entering consensus process, validating";
-    }
-    else
-    {
-        // Otherwise we just want to monitor the validation process.
-        JLOG(adaptor_.j_.info()) << "Entering consensus process, watching";
-    }
-
-    // Notify inbOund ledgers that we are starting a new round
-    adaptor_.inboundTransactions_.newRound(prevLgr.seq());
-
-    consensus_.startRound(now, prevLgrId, prevLgr, proposing);
+    ScopedLockType _{mutex_};
+    consensus_.startRound(
+        now, prevLgrId, prevLgr, adaptor_.preStartRound(prevLgr));
 }
 }

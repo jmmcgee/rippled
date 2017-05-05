@@ -616,6 +616,9 @@ struct Adaptor
                     Ledger const & prevLedger,
                     ConsensusMode mode);
 
+    // Called when consensus operating mode changes
+    void onModeChange(ConsensuMode before, ConsensusMode after);
+    
     // Called when ledger closes.  Implementation should generate an initial Result
     // with position based on the current open ledger's transactions.
     ConsensusResult onClose(Ledger const &, Ledger const & prev, ConsensusMode mode);

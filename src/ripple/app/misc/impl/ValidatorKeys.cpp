@@ -21,6 +21,7 @@
 #include <ripple/app/misc/ValidatorKeys.h>
 
 #include <ripple/app/misc/Manifest.h>
+#include <ripple/basics/Log.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/ConfigSections.h>
 

@@ -18,9 +18,11 @@
 //==============================================================================
 
 #include <ripple/app/misc/ValidatorKeys.h>
+#include <ripple/beast/unit_test.h>
 #include <ripple/core/Config.h>
 #include <ripple/core/ConfigSections.h>
 #include <string>
+
 namespace ripple {
 namespace test {
 

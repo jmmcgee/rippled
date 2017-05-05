@@ -233,6 +233,8 @@ checkConsensus(
                       Ledger const & prevLedger,
                       Mode mode);
 
+      // Called whenever consensus operating mode changes
+      void onModeChange(ConsensuMode before, ConsensusMode after);
 
       // Called when ledger closes
       Result onClose(Ledger const &, Ledger const & prev, Mode mode);
@@ -288,6 +290,29 @@ class Consensus
 
     using Result = ConsensusResult<Adaptor>;
 
+    // Helper class to ensure adaptor is notified whenver the ConsensusMode
+    // changes
+    class MonitoredMode
+    {
+        ConsensusMode mode_;
+
+    public:
+        MonitoredMode(ConsensusMode m) : mode_{m}
+        {
+        }
+        ConsensusMode
+        get() const
+        {
+            return mode_;
+        }
+
+        void
+        set(ConsensusMode mode, Adaptor& a)
+        {
+            a.onModeChange(mode_, mode);
+            mode_ = mode;
+        }
+    };
 public:
     //! Clock type for measuring time within the consensus code
     using clock_type = beast::abstract_clock<std::chrono::steady_clock>;
@@ -378,29 +403,7 @@ public:
     typename Ledger_t::ID
     prevLedgerID() const
     {
-        std::lock_guard<std::recursive_mutex> _(*lock_);
         return prevLedgerID_;
-    }
-
-    //! Get the number of proposing peers that participated in the previous
-    //! round.
-    std::size_t
-    prevProposers() const
-    {
-        return prevProposers_;
-    }
-
-    /** Get duration of the previous round.
-
-        The duration of the round is the establish phase, measured from closing
-        the open ledger to accepting the consensus result.
-
-        @return Last round duration in milliseconds
-    */
-    std::chrono::milliseconds
-    prevRoundTime() const
-    {
-        return prevRoundTime_;
     }
 
     /** Get the Json state of the consensus process.
@@ -412,12 +415,6 @@ public:
     */
     Json::Value
     getJson(bool full) const;
-
-    ConsensusMode
-    mode() const
-    {
-        return mode_;
-    }
 
 private:
     void
@@ -444,6 +441,13 @@ private:
     */
     void
     playbackProposals();
+
+    /** Handle a replayed or a new peer proposal.
+    */
+    bool
+    peerProposalInternal(
+        NetClock::time_point const& now,
+        PeerPosition_t const& newProposal);
 
     /** Handle pre-close phase.
 
@@ -491,12 +495,10 @@ private:
     leaveConsensus();
 
 private:
-    // TODO: Move this to clients
-    std::unique_ptr<std::recursive_mutex> lock_;
     Adaptor& adaptor_;
 
-    ConsensusPhase phase_ = ConsensusPhase::accepted;
-    ConsensusMode mode_ = ConsensusMode::observing;
+    ConsensusPhase phase_{ConsensusPhase::accepted};
+    MonitoredMode mode_{ConsensusMode::observing};
     bool firstRound_ = true;
     bool haveCloseTimeConsensus_ = false;
 
@@ -561,8 +563,7 @@ Consensus<Adaptor>::Consensus(
     clock_type const& clock,
     Adaptor& adaptor,
     beast::Journal journal)
-    : lock_(std::make_unique<std::recursive_mutex>())
-    , adaptor_(adaptor)
+    : adaptor_(adaptor)
     , clock_(clock)
     , j_{journal}
 {
@@ -577,8 +578,6 @@ Consensus<Adaptor>::startRound(
     Ledger_t prevLedger,
     bool proposing)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     if (firstRound_)
     {
         // take our initial view of closeTime_ from the seed ledger
@@ -622,7 +621,7 @@ Consensus<Adaptor>::startRoundInternal(
     ConsensusMode mode)
 {
     phase_ = ConsensusPhase::open;
-    mode_ = mode;
+    mode_.set(mode, adaptor_);
     now_ = now;
     prevLedgerID_ = prevLedgerID;
     previousLedger_ = prevLedger;
@@ -658,8 +657,6 @@ Consensus<Adaptor>::peerProposal(
 {
     NodeID_t const& peerID = newPeerPos.proposal().nodeID();
 
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     // Always need to store recent positions
     {
         auto& props = recentPeerPositions_[peerID];
@@ -669,7 +666,15 @@ Consensus<Adaptor>::peerProposal(
 
         props.push_back(newPeerPos);
     }
+    return peerProposalInternal(now, newPeerPos);
+}
 
+template <class Adaptor>
+bool
+Consensus<Adaptor>::peerProposalInternal(
+    NetClock::time_point const& now,
+    PeerPosition_t const& newPeerPos)
+{
     // Nothing to do for now if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return false;
@@ -677,6 +682,8 @@ Consensus<Adaptor>::peerProposal(
     now_ = now;
 
     Proposal_t const& newPeerProp = newPeerPos.proposal();
+
+    NodeID_t const& peerID = newPeerProp.nodeID();
 
     if (newPeerProp.prevLedger() != prevLedgerID_)
     {
@@ -764,8 +771,6 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::timerEntry(NetClock::time_point const& now)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     // Nothing to do if we are currently working on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
@@ -791,8 +796,6 @@ Consensus<Adaptor>::gotTxSet(
     NetClock::time_point const& now,
     TxSet_t const& txSet)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     // Nothing to do if we've finished work on a ledger
     if (phase_ == ConsensusPhase::accepted)
         return;
@@ -839,13 +842,11 @@ Consensus<Adaptor>::simulate(
     NetClock::time_point const& now,
     boost::optional<std::chrono::milliseconds> consensusDelay)
 {
-    std::lock_guard<std::recursive_mutex> _(*lock_);
-
     JLOG(j_.info()) << "Simulating consensus";
     now_ = now;
     closeLedger();
     result_->roundTime.tick(consensusDelay.value_or(100ms));
-    prevProposers_ = currPeerPositions_.size();
+    result_->proposers = prevProposers_ = currPeerPositions_.size();
     prevRoundTime_ = result_->roundTime.read();
     phase_ = ConsensusPhase::accepted;
     adaptor_.onForceAccept(
@@ -853,7 +854,7 @@ Consensus<Adaptor>::simulate(
         previousLedger_,
         closeResolution_,
         rawCloseTimes_,
-        mode_,
+        mode_.get(),
         getJson(true));
     JLOG(j_.info()) << "Simulation complete";
 }
@@ -866,12 +867,11 @@ Consensus<Adaptor>::getJson(bool full) const
     using Int = Json::Value::Int;
 
     Json::Value ret(Json::objectValue);
-    std::lock_guard<std::recursive_mutex> _(*lock_);
 
-    ret["proposing"] = (mode_ == ConsensusMode::proposing);
+    ret["proposing"] = (mode_.get() == ConsensusMode::proposing);
     ret["proposers"] = static_cast<int>(currPeerPositions_.size());
 
-    if (mode_ != ConsensusMode::wrongLedger)
+    if (mode_.get() != ConsensusMode::wrongLedger)
     {
         ret["synched"] = true;
         ret["ledger_seq"] = previousLedger_.seq() + 1;
@@ -997,7 +997,7 @@ Consensus<Adaptor>::handleWrongLedger(typename Ledger_t::ID const& lgrId)
     }
     else
     {
-        mode_ = ConsensusMode::wrongLedger;
+        mode_.set(ConsensusMode::wrongLedger, adaptor_);
     }
 }
 
@@ -1005,14 +1005,15 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::checkLedger()
 {
-    auto netLgr = adaptor_.getPrevLedger(prevLedgerID_, previousLedger_, mode_);
+    auto netLgr =
+        adaptor_.getPrevLedger(prevLedgerID_, previousLedger_, mode_.get());
 
     if (netLgr != prevLedgerID_)
     {
         JLOG(j_.warn()) << "View of consensus changed during "
                         << to_string(phase_) << " status=" << to_string(phase_)
                         << ", "
-                        << " mode=" << to_string(mode_);
+                        << " mode=" << to_string(mode_.get());
         JLOG(j_.warn()) << prevLedgerID_ << " to " << netLgr;
         JLOG(j_.warn()) << previousLedger_.getJson();
         JLOG(j_.debug()) << "State on consensus change " << getJson(true);
@@ -1032,7 +1033,7 @@ Consensus<Adaptor>::playbackProposals()
         {
             if (pos.proposal().prevLedger() == prevLedgerID_)
             {
-                if (peerProposal(now_, pos))
+                if (peerProposalInternal(now_, pos))
                     adaptor_.relay(pos);
             }
         }
@@ -1055,7 +1056,8 @@ Consensus<Adaptor>::phaseOpen()
     // This computes how long since last ledger's close time
     milliseconds sinceClose;
     {
-        bool previousCloseCorrect = (mode_ != ConsensusMode::wrongLedger) &&
+        bool previousCloseCorrect =
+            (mode_.get() != ConsensusMode::wrongLedger) &&
             previousLedger_.closeAgree() &&
             (previousLedger_.closeTime() !=
              (previousLedger_.parentCloseTime() + 1s));
@@ -1102,6 +1104,7 @@ Consensus<Adaptor>::phaseEstablish()
     ConsensusParms const & parms = adaptor_.parms();
 
     result_->roundTime.tick(clock_.now());
+    result_->proposers = currPeerPositions_.size();
 
     convergePercent_ = result_->roundTime.read() * 100 /
         std::max<milliseconds>(prevRoundTime_, parms.avMIN_CONSENSUS_TIME);
@@ -1132,7 +1135,7 @@ Consensus<Adaptor>::phaseEstablish()
         previousLedger_,
         closeResolution_,
         rawCloseTimes_,
-        mode_,
+        mode_.get(),
         getJson(true));
 }
 
@@ -1146,14 +1149,14 @@ Consensus<Adaptor>::closeLedger()
     phase_ = ConsensusPhase::establish;
     rawCloseTimes_.self = now_;
 
-    result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_));
+    result_.emplace(adaptor_.onClose(previousLedger_, now_, mode_.get()));
     result_->roundTime.reset(clock_.now());
     // Share the newly created transaction set if we haven't already
     // received it from a peer
     if (acquired_.emplace(result_->set.id(), result_->set).second)
         adaptor_.relay(result_->set);
 
-    if (mode_ == ConsensusMode::proposing)
+    if (mode_.get() == ConsensusMode::proposing)
         adaptor_.propose(result_->position);
 
     // Create disputes with any peer positions we have transactions for
@@ -1240,7 +1243,7 @@ Consensus<Adaptor>::updateOurPositions()
             //  time can change our position on a dispute
             if (it.second.updateVote(
                     convergePercent_,
-                    (mode_ == ConsensusMode::proposing),
+                    mode_.get()== ConsensusMode::proposing,
                     parms))
             {
                 if (!mutableSet)
@@ -1289,7 +1292,7 @@ Consensus<Adaptor>::updateOurPositions()
             neededWeight = parms.avSTUCK_CONSENSUS_PCT;
 
         int participants = currPeerPositions_.size();
-        if (mode_ == ConsensusMode::proposing)
+        if (mode_.get() == ConsensusMode::proposing)
         {
             ++effCloseTimes[effCloseTime(
                 result_->position.closeTime(),
@@ -1332,7 +1335,8 @@ Consensus<Adaptor>::updateOurPositions()
             JLOG(j_.debug())
                 << "No CT consensus:"
                 << " Proposers:" << currPeerPositions_.size()
-                << " Mode:" << to_string(mode_) << " Thresh:" << threshConsensus
+                << " Mode:" << to_string(mode_.get())
+                << " Thresh:" << threshConsensus
                 << " Pos:" << consensusCloseTime.time_since_epoch().count();
         }
     }
@@ -1380,7 +1384,7 @@ Consensus<Adaptor>::updateOurPositions()
 
         // Share our new position if we are still participating this round
         if (!result_->position.isBowOut() &&
-            (mode_ == ConsensusMode::proposing))
+            (mode_.get() == ConsensusMode::proposing))
             adaptor_.propose(result_->position);
     }
 }
@@ -1428,7 +1432,7 @@ Consensus<Adaptor>::haveConsensus()
         prevRoundTime_,
         result_->roundTime.read(),
         adaptor_.parms(),
-        mode_ == ConsensusMode::proposing,
+        mode_.get() == ConsensusMode::proposing,
         j_);
 
     if (result_->state == ConsensusState::No)
@@ -1449,7 +1453,7 @@ template <class Adaptor>
 void
 Consensus<Adaptor>::leaveConsensus()
 {
-    if (mode_ == ConsensusMode::proposing)
+    if (mode_.get() == ConsensusMode::proposing)
     {
         if (result_ && !result_->position.isBowOut())
         {
@@ -1457,7 +1461,7 @@ Consensus<Adaptor>::leaveConsensus()
             adaptor_.propose(result_->position);
         }
 
-        mode_ = ConsensusMode::observing;
+        mode_.set(ConsensusMode::observing, adaptor_);
         JLOG(j_.info()) << "Bowing out of consensus";
     }
 }
