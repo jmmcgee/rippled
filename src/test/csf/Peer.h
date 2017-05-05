@@ -196,6 +196,9 @@ struct Peer
     bool validating_ = true;
     bool proposing_ = true;
 
+    std::size_t prevProposers_ = 0;
+    std::chrono::milliseconds prevRoundTime_;
+
     //! All peers start from the default constructed ledger
     Peer(PeerID i, BasicNetwork<Peer*>& n, UNL const& u, ConsensusParms p)
         : consensus(n.clock(), p, *this, beast::Journal{})
@@ -309,7 +312,8 @@ struct Peer
             rawCloseTimes.self,
             result.position.closeTime() != NetClock::time_point{});
         ledgers[newLedger.id()] = newLedger;
-
+        prevProposers_ = result.proposers;
+        prevRoundTime_ = result.roundTime.read();
         lastClosedLedger = newLedger;
 
         auto it =
@@ -472,14 +476,18 @@ struct Peer
     std::size_t
     prevProposers()
     {
-        return consensus.prevProposers();
+        return prevProposers_;
     }
 
     std::chrono::milliseconds
     prevRoundTime()
     {
-        return consensus.prevRoundTime();
+        return prevRoundTime_;
     }
+
+    // Not interested in tracking consensus mode
+    void
+    onModeChange(ConsensusMode, ConsensusMode) {}
 };
 
 }  // csf
