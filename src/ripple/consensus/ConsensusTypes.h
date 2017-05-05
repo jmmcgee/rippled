@@ -232,6 +232,9 @@ struct ConsensusResult
     // Indicates state in which consensus ended.  Once in the accept phase
     // will be either Yes or MovedOn
     ConsensusState state = ConsensusState::No;
+
+    // The number of peers proposing during the round
+    std::size_t proposers = 0;
 };
 }  // namespace ripple
 
