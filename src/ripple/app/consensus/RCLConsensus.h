@@ -40,6 +40,7 @@ namespace ripple {
 class InboundTransactions;
 class LocalTxs;
 class LedgerMaster;
+class ValidatorKeys;
 
 /** Manges the generic consensus algorithm for use by the RCL.
 
@@ -67,8 +68,8 @@ class RCLConsensus
         beast::Journal j_;
 
         NodeID nodeID_;
-        PublicKey valPublic_;
-        SecretKey valSecret_;
+        PublicKey const valPublic_;
+        SecretKey const valSecret_;
         LedgerHash acquiringLedger_;
 
         // The timestamp of the last validation we used, in network time. This
@@ -84,6 +85,7 @@ class RCLConsensus
             LedgerMaster& ledgerMaster,
             LocalTxs& localTxs,
             InboundTransactions& inboundTransactions,
+            ValidatorKeys const & validatorKeys,
             beast::Journal journal);
 
         /** Attempt to acquire a specific ledger.
@@ -311,6 +313,7 @@ public:
         LocalTxs& localTxs,
         InboundTransactions& inboundTransactions,
         Consensus<Adaptor>::clock_type const& clock,
+        ValidatorKeys const & validatorKeys,
         beast::Journal journal);
 
     RCLConsensus(RCLConsensus const&) = delete;
@@ -361,14 +364,6 @@ public:
     //! See Consensus::gotTxSet
     void
     gotTxSet(NetClock::time_point const& now, RCLTxSet const& txSet);
-
-    /** Returns validation public key */
-    PublicKey const&
-    getValidationPublicKey() const;
-
-    /** Set validation private and public key pair. */
-    void
-    setValidationKeys(SecretKey const& valSecret, PublicKey const& valPublic);
 
     RCLCxLedger::ID
     prevLedgerID() const
