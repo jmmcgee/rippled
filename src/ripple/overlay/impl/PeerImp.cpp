@@ -49,6 +49,7 @@
 #include <ripple/beast/utility/weak_fn.h>
 #include <beast/http/write.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/algorithm/string.hpp>
 #include <boost/asio/io_service.hpp>
 #include <algorithm>
 #include <functional>
@@ -381,6 +382,24 @@ PeerImp::ledgerRange (std::uint32_t& minSeq,
 
     minSeq = minLedger_;
     maxSeq = maxLedger_;
+}
+
+bool
+PeerImp::hasShard (std::uint32_t seq) const
+{
+    std::lock_guard<std::mutex> sl(recentLock_);
+    return shards_.hasValue(seq);
+}
+
+std::string
+PeerImp::getShards () const
+{
+    {
+        std::lock_guard<std::mutex> sl(recentLock_);
+        if (shards_.getFirst() != RangeSet::absent)
+            return shards_.toString();
+    }
+    return {};
 }
 
 bool
@@ -1354,6 +1373,25 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMStatusChange> const& m)
             minLedger_ = 0;
     }
 
+    if (m->has_shardseqs())
+    {
+        shards_ = {};
+        std::vector<std::string> tokens;
+        boost::split(tokens, m->shardseqs(), boost::algorithm::is_any_of(","));
+        for (auto const& t : tokens)
+        {
+            std::vector<std::string> seqs;
+            boost::split(seqs, t, boost::algorithm::is_any_of("-"));
+            if (seqs.size() == 1)
+                shards_.setValue(
+                    beast::lexicalCastThrow<std::uint32_t>(seqs.front()));
+            else if (seqs.size() == 2)
+                shards_.setRange(
+                    beast::lexicalCastThrow<std::uint32_t>(seqs.front()),
+                        beast::lexicalCastThrow<std::uint32_t>(seqs.back()));
+        }
+    }
+
     if (m->has_ledgerseq() &&
         app_.getLedgerMaster().getValidatedLedgerAge() < 2min)
     {
@@ -1428,6 +1466,9 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMStatusChange> const& m)
                 j[jss::ledger_index_max] =
                     Json::UInt (m->lastseq ());
             }
+
+            if (m->has_shardseqs())
+                j[jss::complete_shards] = m->shardseqs();
 
             return j;
         });

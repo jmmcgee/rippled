@@ -18,6 +18,7 @@
 //==============================================================================
 
 #include <BeastConfig.h>
+#include <ripple/app/ledger/LedgerMaster.h>
 #include <ripple/app/misc/HashRouter.h>
 #include <ripple/app/misc/NetworkOPs.h>
 #include <ripple/app/misc/ValidatorList.h>
@@ -29,6 +30,7 @@
 #include <ripple/protocol/JsonFields.h>
 #include <ripple/rpc/json_body.h>
 #include <ripple/server/SimpleWriter.h>
+#include <ripple/nodestore/DatabaseShard.h>
 #include <ripple/overlay/Cluster.h>
 #include <ripple/overlay/impl/ConnectAttempt.h>
 #include <ripple/overlay/impl/OverlayImpl.h>
@@ -809,8 +811,19 @@ OverlayImpl::crawl()
             }
         }
         auto version = sp->getVersion ();
-        if (!version.empty ())
-            pv["version"] = version;
+        if (! version.empty ())
+            pv[jss::version] = version;
+
+        std::uint32_t minSeq, maxSeq;
+        sp->ledgerRange(minSeq, maxSeq);
+        if (minSeq != 0 || maxSeq != 0)
+            pv[jss::complete_ledgers] =
+                boost::lexical_cast<std::string>(minSeq) + "-" +
+                    boost::lexical_cast<std::string>(maxSeq);
+
+        auto shards = sp->getShards();
+        if (! shards.empty())
+            pv[jss::complete_shards] = shards;
     });
 
     return jv;

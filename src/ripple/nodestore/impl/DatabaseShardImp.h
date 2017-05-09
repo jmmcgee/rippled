@@ -56,6 +56,9 @@ public:
     bool
     hasLedger(std::uint32_t seq) override;
 
+    std::string
+    getCompleteShards() override;
+
     int
     fdlimit() const override
     {
@@ -83,6 +86,7 @@ private:
 
     std::mutex m_;
     Shards shards_;
+    std::string complete_;
     NodeStore::Database& nodeStore_;
     Section const& config_;
     Scheduler& scheduler_;
@@ -105,7 +109,11 @@ private:
 
     // Finds a random shard index not in the collection
     boost::optional<std::uint32_t>
-    getShardIndexToAdd(std::uint32_t maxShardIndex);
+    findShardIndexToAdd(std::uint32_t maxShardIndex);
+
+    // Updates the completed shard sequences string
+    void
+    setComplete();
 
     void
     saveMaster();

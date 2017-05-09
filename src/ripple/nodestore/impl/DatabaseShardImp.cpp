@@ -21,6 +21,7 @@
 
 #include <ripple/nodestore/impl/DatabaseShardImp.h>
 #include <ripple/basics/random.h>
+#include <ripple/beast/core/LexicalCast.h>
 
 namespace ripple {
 namespace NodeStore {
@@ -92,8 +93,8 @@ DatabaseShardImp::init()
     {
         if (is_directory(de))
         {
-            auto const i = static_cast<std::uint32_t>(
-                std::stoul(de.path().stem().string()));
+            auto const i = beast::lexicalCastThrow<std::uint32_t>(
+                de.path().stem().string());
             if (shards_.complete.find(i) == shards_.complete.end() &&
                 shards_.incomplete.find(i) == shards_.incomplete.end())
             {
@@ -110,6 +111,7 @@ DatabaseShardImp::init()
             avgShardSize_ += s.second->fileSize();
         avgShardSize_ /= shards_.complete.size();
         filesPerShard = shards_.complete.begin()->second->fdlimit();
+        setComplete();
     }
     else if(! shards_.incomplete.empty())
         filesPerShard = shards_.incomplete.begin()->second->fdlimit();
@@ -304,6 +306,7 @@ DatabaseShardImp::store(std::shared_ptr<Ledger const> const& ledger)
         for (auto const& s : shards_.complete)
             avgShardSize_ += s.second->fileSize();
         avgShardSize_ /= shards_.complete.size();
+        setComplete();
     }
     return true;
 }
@@ -338,9 +341,16 @@ DatabaseShardImp::hasLedger(std::uint32_t seq)
     return it->second->hasLedger(seq);
 }
 
+std::string
+DatabaseShardImp::getCompleteShards()
+{
+    std::lock_guard<std::mutex> l(m_);
+    return complete_;
+}
+
 // Assumes lock is held
 boost::optional<std::uint32_t>
-DatabaseShardImp::getShardIndexToAdd(std::uint32_t maxShardIndex)
+DatabaseShardImp::findShardIndexToAdd(std::uint32_t maxShardIndex)
 {
     assert(maxShardIndex >= detail::genesisShardIndex);
     auto const numShards = shards_.complete.size() + shards_.incomplete.size();
@@ -381,10 +391,40 @@ DatabaseShardImp::getShardIndexToAdd(std::uint32_t maxShardIndex)
 
 // Assumes lock is held
 void
+DatabaseShardImp::setComplete()
+{
+    complete_.clear();
+    for (auto it = shards_.complete.begin(); it != shards_.complete.end(); ++it)
+    {
+        if (it == shards_.complete.begin())
+            complete_ = beast::lexicalCastThrow<std::string>(it->first);
+        else
+        {
+            if (it->first - std::prev(it)->first > 1)
+            {
+                if (complete_.back() == '-')
+                    complete_ += beast::lexicalCastThrow<std::string>(
+                        std::prev(it)->first);
+                complete_ += "," +
+                    beast::lexicalCastThrow<std::string>(it->first);
+            }
+            else
+            {
+                if (complete_.back() != '-')
+                    complete_ += "-";
+                if (std::next(it) == shards_.complete.end())
+                    complete_ += beast::lexicalCastThrow<std::string>(it->first);
+            }
+        }
+    }
+}
+
+// Assumes lock is held
+void
 DatabaseShardImp::saveMaster()
 {
     using namespace boost::filesystem;
-    auto const master = dir_ / "master.bin";
+    static auto const master = dir_ / "master.bin";
     if (! shards_.incomplete.empty() || ! shards_.complete.empty())
     {
         std::ofstream ofs(master.string(), std::ios::binary | std::ios::trunc);

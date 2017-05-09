@@ -22,6 +22,7 @@
 
 #include <ripple/app/consensus/RCLCxPeerPos.h>
 #include <ripple/basics/Log.h> // deprecated
+#include <ripple/basics/RangeSet.h>
 #include <ripple/nodestore/Database.h>
 #include <ripple/overlay/predicates.h>
 #include <ripple/overlay/impl/ProtocolMessage.h>
@@ -135,6 +136,7 @@ private:
     //
     LedgerIndex minLedger_ = 0;
     LedgerIndex maxLedger_ = 0;
+    RangeSet shards_;
     uint256 closedLedgerHash_;
     uint256 previousLedgerHash_;
     std::deque<uint256> recentLedgers_;
@@ -305,6 +307,12 @@ public:
 
     void
     ledgerRange (std::uint32_t& minSeq, std::uint32_t& maxSeq) const override;
+
+    bool
+    hasShard (std::uint32_t seq) const override;
+
+    std::string
+    getShards () const override;
 
     bool
     hasTxSet (uint256 const& hash) const override;

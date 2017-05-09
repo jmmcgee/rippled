@@ -76,6 +76,7 @@ public:
 
     /**
        fetch a node object
+
        @param hash key to the object to fetch
        @param seq index to ledger to fetch. This is needed to find the
               correct shard index.
@@ -92,6 +93,14 @@ public:
        @return `true` if the ledger is stored
     */
     virtual bool hasLedger(std::uint32_t seq) = 0;
+
+    /**
+       query which complete shards are stored
+
+       @return the indexes of complete shards
+    */
+    virtual std::string getCompleteShards() = 0;
+
 
     /**
        query how required file descriptors
