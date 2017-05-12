@@ -370,8 +370,12 @@ PeerImp::hasLedger (uint256 const& hash, std::uint32_t seq) const
     if ((seq != 0) && (seq >= minLedger_) && (seq <= maxLedger_) &&
             (sanity_.load() == Sanity::sane))
         return true;
-    return std::find (recentLedgers_.begin(),
-        recentLedgers_.end(), hash) != recentLedgers_.end();
+    if (std::find(recentLedgers_.begin(),
+            recentLedgers_.end(), hash) != recentLedgers_.end())
+        return true;
+    if (shards_.getFirst() != RangeSet::absent)
+        return shards_.hasValue(NodeStore::seqToShardIndex(seq));
+    return false;
 }
 
 void
