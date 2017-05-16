@@ -18,7 +18,7 @@
 //==============================================================================
 
 #include <test/csf/Tx.h>
-#include <test/csf/Ledger.h>
+#include <test/csf/CSFLedger.h>
 #include <test/csf/BasicNetwork.h>
 #include <test/csf/Peer.h>
 #include <test/csf/UNL.h>

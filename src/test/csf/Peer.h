@@ -22,7 +22,7 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 
-#include <test/csf/Ledger.h>
+#include <test/csf/CSFLedger.h>
 #include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
 
@@ -54,7 +54,7 @@ public:
     update(Validation const& v)
     {
         nodesFromLedger[v.ledger].insert(v.id);
-        if (v.ledger.seq > 0)
+        if (v.prevLedger != 0)
         {
             nodesFromPrevLedger[v.prevLedger].insert(v.id);
             childLedgers[v.prevLedger][v.ledger]++;
@@ -313,8 +313,8 @@ struct Peer : public Consensus<Peer, Traits>
     getPrevLedger(Ledger::ID const& ledgerID, Ledger const& ledger, Mode mode)
     {
         // TODO: Use generic validation code
-        if (mode != Mode::wrongLedger && ledgerID.seq > 0 &&
-            ledger.id().seq > 0)
+        if (mode != Mode::wrongLedger && ledgerID != 0 &&
+            ledger.seq() > 0)
             return peerValidations.getBestLCL(ledgerID, ledger.parentID());
         return ledgerID;
     }

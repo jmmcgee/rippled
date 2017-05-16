@@ -21,9 +21,11 @@
 
 #include <ripple/beast/hash/hash_append.h>
 #include <boost/container/flat_set.hpp>
+#include <boost/function_output_iterator.hpp>
 #include <map>
 #include <ostream>
 #include <string>
+#include <sstream>
 
 namespace ripple {
 namespace test {

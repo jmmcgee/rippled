@@ -16,6 +16,7 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
+#include <BeastConfig.h>
 #include <boost/iterator/counting_iterator.hpp>
 #include <algorithm>
 #include <fstream>

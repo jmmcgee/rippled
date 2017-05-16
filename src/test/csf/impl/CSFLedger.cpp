@@ -1,0 +1,72 @@
+//------------------------------------------------------------------------------
+/*
+    This file is part of rippled: https://github.com/ripple/rippled
+    Copyright (c) 2012-2017 Ripple Labs Inc
+
+    Permission to use, copy, modify, and/or distribute this software for any
+    purpose  with  or without fee is hereby granted, provided that the above
+    copyright notice and this permission notice appear in all copies.
+
+    THE  SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
+    WITH  REGARD  TO  THIS  SOFTWARE  INCLUDING  ALL  IMPLIED  WARRANTIES  OF
+    MERCHANTABILITY  AND  FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
+    ANY  SPECIAL ,  DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
+    WHATSOEVER  RESULTING  FROM  LOSS  OF USE, DATA OR PROFITS, WHETHER IN AN
+    ACTION  OF  CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
+    OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
+*/
+//==============================================================================
+#include <BeastConfig.h>
+#include <test/csf/CSFLedger.h>
+
+#include <sstream>
+// namespace ripple
+namespace ripple {
+namespace test {
+namespace csf {
+
+Ledger::Instance const Ledger::genesis;
+hash_set<Ledger::Instance> Ledger::instances;
+
+std::string
+ripple::test::csf::to_string(Ledger::ID const& id)
+{
+    std::stringstream ss;
+    ss << id;
+    return ss.str();
+}
+
+//! Apply the given transactions to this ledger
+
+Json::Value
+Ledger::getJson() const
+{
+    Json::Value res(Json::objectValue);
+    res["seq"] = seq();
+    return res;
+}
+
+Ledger
+Ledger::close(
+    TxSetType const& txs,
+    NetClock::duration closeTimeResolution,
+    NetClock::time_point const& consensusCloseTime,
+    bool closeTimeAgree) const
+{
+    Instance next(*instance_);
+    next.txs.insert(txs.begin(), txs.end());
+    next.seq = seq() + 1;
+    next.closeTimeResolution = closeTimeResolution;
+    next.actualCloseTime = consensusCloseTime;
+    next.closeTime = effCloseTime(
+        consensusCloseTime, closeTimeResolution, instance_->parentCloseTime);
+    next.closeTimeAgree = closeTimeAgree;
+    next.parentCloseTime = closeTime();
+    next.parentID = id();
+    auto it = instances.emplace(next);
+    return Ledger(&(*it.first));
+}
+
+}  // namespace csf
+}  // namespace test
+}  // namespace ripple

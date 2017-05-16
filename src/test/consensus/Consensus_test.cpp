@@ -21,7 +21,6 @@
 #include <ripple/beast/unit_test.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/ConsensusProposal.h>
-#include <boost/function_output_iterator.hpp>
 #include <test/csf.h>
 #include <utility>
 
@@ -48,12 +47,12 @@ public:
         s.net.step();
 
         // Inspect that the proper ledger was created
-        BEAST_EXPECT(p.prevLedgerID().seq == 1);
         BEAST_EXPECT(p.prevLedgerID() == p.lastClosedLedger.id());
-        BEAST_EXPECT(p.lastClosedLedger.id().txs.size() == 1);
+        BEAST_EXPECT(p.lastClosedLedger.seq() == 1);
+        BEAST_EXPECT(p.lastClosedLedger.txs().size() == 1);
         BEAST_EXPECT(
-            p.lastClosedLedger.id().txs.find(Tx{1}) !=
-            p.lastClosedLedger.id().txs.end());
+            p.lastClosedLedger.txs().find(Tx{1}) !=
+            p.lastClosedLedger.txs().end());
         BEAST_EXPECT(p.prevProposers() == 0);
     }
 
@@ -76,13 +75,13 @@ public:
         sim.run(1);
         for (auto& p : sim.peers)
         {
-            auto const& lgrID = p.prevLedgerID();
-            BEAST_EXPECT(lgrID.seq == 1);
+            auto const& lgr = p.lastClosedLedger;
+            BEAST_EXPECT(lgr.seq() == 1);
             BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
             for (std::uint32_t i = 0; i < sim.peers.size(); ++i)
-                BEAST_EXPECT(lgrID.txs.find(Tx{i}) != lgrID.txs.end());
+                BEAST_EXPECT(lgr.txs().find(Tx{i}) != lgr.txs().end());
             // Matches peer 0 ledger
-            BEAST_EXPECT(lgrID.txs == sim.peers[0].prevLedgerID().txs);
+            BEAST_EXPECT(lgr.txs() == sim.peers[0].lastClosedLedger.txs());
         }
     }
 
@@ -121,8 +120,8 @@ public:
             // which was not received by all peers before the ledger closed
             for (auto& p : sim.peers)
             {
-                auto const& lgrID = p.prevLedgerID();
-                BEAST_EXPECT(lgrID.seq == 1);
+                auto const& lgr = p.lastClosedLedger;
+                BEAST_EXPECT(lgr.seq() == 1);
 
                 // If peer 0 is participating
                 if (isParticipant)
@@ -150,11 +149,11 @@ public:
                         p.prevRoundTime() == sim.peers[0].prevRoundTime());
                 }
 
-                BEAST_EXPECT(lgrID.txs.find(Tx{0}) == lgrID.txs.end());
+                BEAST_EXPECT(lgr.txs().find(Tx{0}) == lgr.txs().end());
                 for (std::uint32_t i = 1; i < sim.peers.size(); ++i)
-                    BEAST_EXPECT(lgrID.txs.find(Tx{i}) != lgrID.txs.end());
+                    BEAST_EXPECT(lgr.txs().find(Tx{i}) != lgr.txs().end());
                 // Matches peer 0 ledger
-                BEAST_EXPECT(lgrID.txs == sim.peers[0].prevLedgerID().txs);
+                BEAST_EXPECT(lgr.txs() == sim.peers[0].lastClosedLedger.txs());
             }
             BEAST_EXPECT(
                 sim.peers[0].openTxs.find(Tx{0}) != sim.peers[0].openTxs.end());
@@ -300,7 +299,7 @@ public:
             {
                 for (auto const& l : p.ledgers)
                 {
-                    ledgers[l.first.seq].insert(l.first);
+                    ledgers[l.second.seq()].insert(l.first);
                 }
             }
 
@@ -448,7 +447,7 @@ public:
             sim.net.step_while([&]() {
                 for (auto& p : sim.peers)
                 {
-                    if (p.prevLedgerID().txs.size() != 1)
+                    if (p.lastClosedLedger.txs().size() != 1)
                     {
                         return true;
                     }
@@ -496,7 +495,7 @@ public:
             if (u(rng) >= transProb)
                 p.openTxs.insert(Tx{0});
         }
-        sim.run(1);
+        sim.run(1000);
 
         // See if the network forked
         bc::flat_set<Ledger::ID> ledgers;
@@ -517,9 +516,9 @@ public:
         testCloseTimeDisagree();
         testWrongLCL();
         testFork();
-
+        
         simClockSkew();
-        simScaleFree();
+        //simScaleFree();
     }
 };
 
