@@ -149,7 +149,7 @@ struct Peer : public Consensus<Peer, Traits>
     Validations peerValidations;
 
     // The ledgers, proposals, TxSets and Txs this peer has seen
-    bc::flat_map<Ledger::ID, Ledger> ledgers;
+    hash_map<Ledger::ID, Ledger> ledgers;
 
     //! Map from Ledger::ID to vector of Positions with that ledger
     //! as the prior ledger

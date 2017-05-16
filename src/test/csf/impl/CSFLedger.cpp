@@ -20,23 +20,14 @@
 #include <test/csf/CSFLedger.h>
 
 #include <sstream>
-// namespace ripple
+
 namespace ripple {
 namespace test {
 namespace csf {
 
 Ledger::Instance const Ledger::genesis;
-hash_set<Ledger::Instance> Ledger::instances;
-
-std::string
-ripple::test::csf::to_string(Ledger::ID const& id)
-{
-    std::stringstream ss;
-    ss << id;
-    return ss.str();
-}
-
-//! Apply the given transactions to this ledger
+hash_map<Ledger::Instance, std::uint32_t> Ledger::instances;
+std::uint32_t Ledger::nextUniqueID{1};
 
 Json::Value
 Ledger::getJson() const
@@ -47,8 +38,7 @@ Ledger::getJson() const
 }
 
 Ledger
-Ledger::close(
-    TxSetType const& txs,
+Ledger::close(TxSetType const& txs,
     NetClock::duration closeTimeResolution,
     NetClock::time_point const& consensusCloseTime,
     bool closeTimeAgree) const
@@ -57,14 +47,15 @@ Ledger::close(
     next.txs.insert(txs.begin(), txs.end());
     next.seq = seq() + 1;
     next.closeTimeResolution = closeTimeResolution;
-    next.actualCloseTime = consensusCloseTime;
     next.closeTime = effCloseTime(
         consensusCloseTime, closeTimeResolution, instance_->parentCloseTime);
     next.closeTimeAgree = closeTimeAgree;
     next.parentCloseTime = closeTime();
     next.parentID = id();
-    auto it = instances.emplace(next);
-    return Ledger(&(*it.first));
+    auto it = instances.find(next);
+    if (it == instances.end())
+        it = instances.emplace(next, nextUniqueID++).first;
+    return Ledger(it->second, &(it->first));
 }
 
 }  // namespace csf

@@ -19,11 +19,11 @@
 #ifndef RIPPLE_TEST_CSF_CSFLEDGER_H_INCLUDED
 #define RIPPLE_TEST_CSF_CSFLEDGER_H_INCLUDED
 
-#include <ripple/basics/chrono.h>
-#include <test/csf/Tx.h>
 #include <ripple/basics/UnorderedContainers.h>
-#include <ripple/json/json_value.h>
+#include <ripple/basics/chrono.h>
 #include <ripple/consensus/LedgerTiming.h>
+#include <ripple/json/json_value.h>
+#include <test/csf/Tx.h>
 
 namespace ripple {
 namespace test {
@@ -34,7 +34,7 @@ namespace csf {
 
     Peers in the consensus process are trying to agree on a set of transactions
     to include in a ledger.  For unit testing, each transaction is a
-    single integer and the ledger is a set of observed integers.  This means
+    single integer and the ledger is the set of observed integers.  This means
     future ledgers have prior ledgers as subsets, e.g.
 
         Ledger 0 :  {}
@@ -42,74 +42,85 @@ namespace csf {
         Ledger 2 :  {1,2,4,5,10}
         ....
 
-    Tx - Integer
-    TxSet - Set of Tx
-    Ledger - Set of Tx and sequence number
+    Ledgers are immutable value types.  All ledgers with the same sequence
+    number, transactions, close time, etc. will have the same ledger ID. Since
+    the parent ledger ID is part of type, this also means distinct histories of
+    ledgers will have distinct ids.
+
 */
 class Ledger
 {
-
-struct Instance
-{
-    // Sequence number
-    std::uint32_t seq = 0;
-    
-    // Transactions added to generate this ledger
-    TxSetType txs;
-
-    // Resolution used to determine close time
-    NetClock::duration closeTimeResolution = ledgerDefaultTimeResolution;
-
-    //! When the ledger closed (up to closeTimeResolution
-    NetClock::time_point closeTime;
-
-    //! Whether consenssus agreed on the close time
-    bool closeTimeAgree = true;
-
-    //! Parent ledger id
-    Instance const * parentID = nullptr;
-
-    //! Parent ledger close time
-    NetClock::time_point parentCloseTime;
-
-    //! Close time unadjusted by closeTimeResolution
-    NetClock::time_point actualCloseTime;
-
-    auto
-    asTie() const
+    // The instance is the common immutable types that will be assigned an ID
+    struct Instance
     {
-        return std::tie(
-            seq,
-            txs,
-            closeTimeResolution,
-            closeTime,
-            closeTimeAgree,
-            parentID,
-            parentCloseTime,
-            actualCloseTime);
-    }
+        // Sequence number
+        std::uint32_t seq = 0;
 
-    friend bool operator==(Instance const & a, Instance const & b)
+        // Transactions added to generate this ledger
+        TxSetType txs;
+
+        // Resolution used to determine close time
+        NetClock::duration closeTimeResolution = ledgerDefaultTimeResolution;
+
+        //! When the ledger closed (up to closeTimeResolution
+        NetClock::time_point closeTime;
+
+        //! Whether consenssus agreed on the close time
+        bool closeTimeAgree = true;
+
+        //! Parent ledger id
+        std::uint32_t parentID = 0;
+
+        //! Parent ledger close time
+        NetClock::time_point parentCloseTime;
+
+        auto
+        asTie() const
+        {
+            return std::tie(seq, txs, closeTimeResolution, closeTime,
+                closeTimeAgree, parentID, parentCloseTime);
+        }
+
+        friend bool
+        operator==(Instance const& a, Instance const& b)
+        {
+            return a.asTie() == b.asTie();
+        }
+
+        template <class Hasher>
+        friend void
+        hash_append(Hasher& h, Ledger::Instance const& instance)
+        {
+            using beast::hash_append;
+            hash_append(h, instance.asTie());
+        }
+    };
+
+    // These static members implement a flyweight style management of ledgers
+    // for the entire application lifetime.  They are not currently thread safe.
+
+    // Single genesis instance
+    static const Instance genesis;
+    // Set of all known post-genesis ledgers; note this is never pruned
+    static hash_map<Instance, std::uint32_t> instances;
+    // Id to assign to the next unique ledger instance
+    static std::uint32_t nextUniqueID;
+
+    Ledger(std::uint32_t id, Instance const* i) : id_{id}, instance_{i}
     {
-        return a.asTie() == b.asTie();
     }
-};
-
-static const Instance genesis;
-static hash_set<Instance> instances;
 
 public:
-    
-    using ID = Instance const *;
+    using ID = std::uint32_t;
 
-    Ledger() : instance_(&genesis) {}
-
-    Ledger(Instance const * i): instance_{i} {}
+    Ledger() : id_{0}, instance_(&genesis)
+    {
+    }
 
     ID
     id() const
     {
-        return instance_;
+        return id_;
     }
 
     std::uint32_t
@@ -137,12 +148,6 @@ public:
     }
 
     NetClock::time_point
-    actualCloseTime() const
-    {
-        return instance_->actualCloseTime;
-    }
-
-    NetClock::time_point
     parentCloseTime() const
     {
         return instance_->parentCloseTime;
@@ -154,38 +159,24 @@ public:
         return instance_->parentID;
     }
 
-    TxSetType const &
+    TxSetType const&
     txs() const
     {
         return instance_->txs;
     }
 
-    Json::Value
-        getJson() const;
+    Json::Value getJson() const;
 
     //! Apply the given transactions to this ledger
-    Ledger
-    close(
-        TxSetType const& txs,
+    Ledger close(TxSetType const& txs,
         NetClock::duration closeTimeResolution,
         NetClock::time_point const& consensusCloseTime,
         bool closeTimeAgree) const;
 
 private:
-    Instance const * instance_;
+    ID id_;
+    Instance const* instance_;
 };
-
-
-template <class Hasher>
-inline void
-hash_append(Hasher& h, Ledger::Instance const& instance)
-{
-    using beast::hash_append;
-    hash_append(h, instance.asTie());
-}
-
-std::string
-to_string(Ledger::ID const& id);
 
 
 }  // csf

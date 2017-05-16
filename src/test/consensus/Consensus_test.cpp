@@ -294,7 +294,7 @@ public:
             //  3. Round to correct
             sim.run(3);
 
-            bc::flat_map<int, bc::flat_set<Ledger::ID>> ledgers;
+            std::map<int, hash_set<Ledger::ID>> ledgers;
             for (auto& p : sim.peers)
             {
                 for (auto const& l : p.ledgers)
@@ -516,7 +516,7 @@ public:
         testCloseTimeDisagree();
         testWrongLCL();
         testFork();
-        
+
         simClockSkew();
         //simScaleFree();
     }
