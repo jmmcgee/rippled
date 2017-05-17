@@ -373,9 +373,8 @@ PeerImp::hasLedger (uint256 const& hash, std::uint32_t seq) const
     if (std::find(recentLedgers_.begin(),
             recentLedgers_.end(), hash) != recentLedgers_.end())
         return true;
-    if (shards_.getFirst() != RangeSet::absent)
-        return shards_.hasValue(NodeStore::seqToShardIndex(seq));
-    return false;
+    return boost::icl::contains(shards_, NodeStore::seqToShardIndex(seq));
+
 }
 
 void
@@ -392,7 +391,7 @@ bool
 PeerImp::hasShard (std::uint32_t seq) const
 {
     std::lock_guard<std::mutex> sl(recentLock_);
-    return shards_.hasValue(seq);
+    return boost::icl::contains(shards_, seq);
 }
 
 std::string
@@ -400,8 +399,8 @@ PeerImp::getShards () const
 {
     {
         std::lock_guard<std::mutex> sl(recentLock_);
-        if (shards_.getFirst() != RangeSet::absent)
-            return shards_.toString();
+        if (!shards_.empty())
+            return to_string(shards_);
     }
     return {};
 }
@@ -1379,7 +1378,7 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMStatusChange> const& m)
 
     if (m->has_shardseqs())
     {
-        shards_ = {};
+        shards_.clear();
         std::vector<std::string> tokens;
         boost::split(tokens, m->shardseqs(), boost::algorithm::is_any_of(","));
         for (auto const& t : tokens)
@@ -1387,12 +1386,12 @@ PeerImp::onMessage (std::shared_ptr <protocol::TMStatusChange> const& m)
             std::vector<std::string> seqs;
             boost::split(seqs, t, boost::algorithm::is_any_of("-"));
             if (seqs.size() == 1)
-                shards_.setValue(
+                shards_.insert(
                     beast::lexicalCastThrow<std::uint32_t>(seqs.front()));
             else if (seqs.size() == 2)
-                shards_.setRange(
+                shards_.insert(range(
                     beast::lexicalCastThrow<std::uint32_t>(seqs.front()),
-                        beast::lexicalCastThrow<std::uint32_t>(seqs.back()));
+                        beast::lexicalCastThrow<std::uint32_t>(seqs.back())));
         }
     }
 

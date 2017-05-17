@@ -136,7 +136,7 @@ private:
     //
     LedgerIndex minLedger_ = 0;
     LedgerIndex maxLedger_ = 0;
-    RangeSet shards_;
+    RangeSet<std::uint32_t> shards_;
     uint256 closedLedgerHash_;
     uint256 previousLedgerHash_;
     std::deque<uint256> recentLedgers_;

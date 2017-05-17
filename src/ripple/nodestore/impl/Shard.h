@@ -137,16 +137,6 @@ public:
     setDeletePath();
 
 private:
-    class RangeSetSerializable : public RangeSet
-    {
-        friend class boost::serialization::access;
-        template<class Archive>
-        void
-        serialize(Archive& ar, const unsigned int version)
-        {
-            ar & mRanges;
-        }
-    };
 
     friend class boost::serialization::access;
     template<class Archive>
@@ -172,7 +162,7 @@ private:
     clock::time_point last_;
 
     // Ledgers currently stored. Empty when shard is complete.
-    RangeSetSerializable storedIndexes_;
+    RangeSet<std::uint32_t> storedIndexes_;
 
     std::uint32_t maxStored_ {0};
     std::uint32_t numStored_ {0};

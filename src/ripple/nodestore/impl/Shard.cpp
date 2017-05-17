@@ -52,7 +52,7 @@ Shard::open(Section config, Scheduler& scheduler,
     {
         maxStored_ = index_ == detail::genesisShardIndex
             ? detail::genesisNumLedgers : ledgersPerShard;
-        numStored_ = storedIndexes_.lebesgue_sum();
+        numStored_ = boost::icl::length(storedIndexes_);
     }
     return true;
 }
@@ -125,13 +125,13 @@ Shard::storeLedgerHeader(std::shared_ptr<Ledger const> const& ledger,
 
     lastStored_ = ledger;
     last_ = clock::now();
-    storedIndexes_.setValue(ledger->info().seq);
+    storedIndexes_.insert(ledger->info().seq);
     request_ = {};
     fileSize_ = calcFileSize();
     if (++numStored_ == maxStored_)
     {
         complete_ = true;
-        storedIndexes_ = {};
+        storedIndexes_.clear();
     }
     return true;
 }
@@ -147,9 +147,9 @@ Shard::prepare(std::uint32_t ledgerIndex)
         return boost::none;
     request_ = now;
 
-    auto const result = storedIndexes_.prevMissing(
+    auto const result = prevMissing(storedIndexes_,
         1 + std::min(ledgerIndex, lastSeq_));
-    if (result == RangeSet::absent || result < firstSeq_)
+    if (result == boost::none || *result < firstSeq_)
         return boost::none;
     return result;
 }
@@ -161,7 +161,7 @@ Shard::hasLedger(std::uint32_t seq) const
         return false;
     if (complete_)
         return true;
-    return storedIndexes_.hasValue(seq);
+    return boost::icl::contains(storedIndexes_,seq);
 }
 
 std::uint32_t

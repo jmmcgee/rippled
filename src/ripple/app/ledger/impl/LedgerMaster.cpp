@@ -1630,16 +1630,16 @@ void LedgerMaster::doAdvance ()
             {
                 // We are in sync, so can acquire
                 bool fetch = false;
-                std::uint32_t missing;
+                boost::optional<std::uint32_t> missing;
                 {
                     ScopedLockType sl(mCompleteLock);
-                    missing = mCompleteLedgers.prevMissing(
-                        mPubLedger->info().seq);
+                    missing =
+                        prevMissing(mCompleteLedgers, mPubLedger->info().seq);
                 }
-                if (missing != RangeSet::absent && missing > 0 &&
-                    (mFillInProgress == 0 || missing > mFillInProgress) &&
+                if (missing != boost::none && *missing > 0 &&
+                    (mFillInProgress == 0 || *missing > mFillInProgress) &&
                     shouldAcquire(mValidLedgerSeq, ledger_history_,
-                        app_.getSHAMapStore().getCanDelete(), missing))
+                        app_.getSHAMapStore().getCanDelete(), *missing))
                 {
                     fetch = true;
                 }
@@ -1652,11 +1652,11 @@ void LedgerMaster::doAdvance ()
                     }
                 }
                 JLOG (m_journal.trace()) <<
-                    "tryAdvance discovered missing " << missing;
+                    "tryAdvance discovered missing " << *missing;
                 if(fetch)
                 {
                     JLOG (m_journal.trace()) << "advanceThread should acquire";
-                    fetchForHistory(missing, progress);
+                    fetchForHistory(*missing, progress);
 
                     if (mValidLedgerSeq != mPubLedgerSeq)
                     {
