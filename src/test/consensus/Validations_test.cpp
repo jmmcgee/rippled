@@ -18,6 +18,7 @@
 //==============================================================================
 #include <BeastConfig.h>
 #include <ripple/beast/clock/manual_clock.h>
+#include <ripple/beast/utility/tagged_integer.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/consensus/Validations.h>
 
@@ -36,56 +37,11 @@ class Validations_test : public beast::unit_test::suite
     // Basic type wrappers for validation types
 
     // Represents a ledger sequence number
-    struct Seq
-    {
-        explicit Seq(std::uint32_t sIn) : s{sIn}
-        {
-        }
+    struct SeqTag;
+    using Seq = beast::tagged_integer<std::uint32_t, SeqTag>;
 
-        Seq() : s{0}
-        {
-        }
-
-        operator std::uint32_t() const
-        {
-            return s;
-        }
-
-        std::uint32_t s;
-    };
-
-    // Represents a unique ledger identifier
-    struct ID
-    {
-        explicit ID(std::uint32_t idIn) : id{idIn}
-        {
-        }
-
-        ID() : id{0}
-        {
-        }
-
-        int
-        signum() const
-        {
-            return id == 0 ? 0 : 1;
-        }
-
-        operator std::size_t() const
-        {
-            return id;
-        }
-
-        template <class Hasher>
-        friend void
-        hash_append(Hasher& h, ID const& id)
-        {
-            using beast::hash_append;
-            hash_append(h, id.id);
-        }
-
-        std::uint32_t id;
-    };
+    struct IdTag;
+    using ID = beast::tagged_integer<std::uint32_t, IdTag>;
 
     class Node;
 
@@ -453,7 +409,7 @@ class Validations_test : public beast::unit_test::suite
 
                 BEAST_EXPECT(harness.stale().size() == 1);
 
-                BEAST_EXPECT(harness.stale()[0].ledgerID() == 1);
+                BEAST_EXPECT(harness.stale()[0].ledgerID() == ID{1});
             }
 
             {
@@ -592,7 +548,7 @@ class Validations_test : public beast::unit_test::suite
         harness.vals().currentTrusted();
 
         BEAST_EXPECT(harness.stale().size() == 1);
-        BEAST_EXPECT(harness.stale()[0].ledgerID() == 1);
+        BEAST_EXPECT(harness.stale()[0].ledgerID() == ID{1});
     }
 
     void
