@@ -17,19 +17,16 @@
 */
 //==============================================================================
 
-#if BEAST_INCLUDE_BEASTCONFIG
 #include <BeastConfig.h>
-#endif
-
+#include <ripple/basics/tagged_integer.h>
+#include <ripple/beast/unit_test.h>
 #include <type_traits>
 
-#include <ripple/beast/utility/tagged_integer.h>
-#include <ripple/beast/unit_test.h>
-
-namespace beast {
+namespace ripple {
+namespace test {
 
 class tagged_integer_test
-    : public unit_test::suite
+    : public beast::unit_test::suite
 {
 private:
     struct Tag1 { };
@@ -149,6 +146,7 @@ public:
     }
 };
 
-BEAST_DEFINE_TESTSUITE(tagged_integer,utility,beast);
+BEAST_DEFINE_TESTSUITE(tagged_integer,ripple_basics,ripple);
 
-} // beast
+} // test
+} // ripple

@@ -18,7 +18,7 @@
 //==============================================================================
 #include <BeastConfig.h>
 #include <ripple/beast/clock/manual_clock.h>
-#include <ripple/beast/utility/tagged_integer.h>
+#include <ripple/basics/tagged_integer.h>
 #include <ripple/beast/unit_test.h>
 #include <ripple/consensus/Validations.h>
 
@@ -38,10 +38,10 @@ class Validations_test : public beast::unit_test::suite
 
     // Represents a ledger sequence number
     struct SeqTag;
-    using Seq = beast::tagged_integer<std::uint32_t, SeqTag>;
+    using Seq = ripple::tagged_integer<std::uint32_t, SeqTag>;
 
     struct IdTag;
-    using ID = beast::tagged_integer<std::uint32_t, IdTag>;
+    using ID = ripple::tagged_integer<std::uint32_t, IdTag>;
 
     class Node;
 
