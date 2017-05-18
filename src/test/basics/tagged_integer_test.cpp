@@ -128,6 +128,7 @@ public:
         tmp = 1u + zero;
         expect (tmp == one, "Should be equal");
 
+        expect(static_cast<std::uint32_t, one> == 1, "Explicit casts to 1");
         expect(--tmp == zero, "Should be equal");
         expect(tmp++ == zero, "Should be equal");
         expect(tmp == one, "Should be equal");

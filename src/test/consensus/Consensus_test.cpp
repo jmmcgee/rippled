@@ -21,7 +21,6 @@
 #include <ripple/beast/unit_test.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/ConsensusProposal.h>
-#include <boost/function_output_iterator.hpp>
 #include <test/csf.h>
 #include <utility>
 

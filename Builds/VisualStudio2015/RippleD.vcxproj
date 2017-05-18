@@ -4487,6 +4487,8 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\UNL.h">
     </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\Validation.h">
+    </ClInclude>
     <ClCompile Include="..\..\src\test\json\json_value_test.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>

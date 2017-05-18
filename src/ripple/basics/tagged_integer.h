@@ -99,6 +99,12 @@ public:
         return orig;
     }
 
+    explicit
+    operator Int() const
+    {
+        return m_value;
+    }
+
     template <class OtherInt>
     typename std::enable_if <
         std::is_integral <OtherInt>::value &&

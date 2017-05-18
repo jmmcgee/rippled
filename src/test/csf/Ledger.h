@@ -21,10 +21,14 @@
 
 #include <ripple/basics/chrono.h>
 #include <test/csf/Tx.h>
+#include <ripple/basics/tagged_integer.h>
+#include <ripple/json/json_value.h>
+#include <ripple/consensus/LedgerTiming.h>
 
 namespace ripple {
 namespace test {
 namespace csf {
+
 
 /** A ledger is a set of observed transactions and a sequence number
     identifying the ledger.
@@ -47,83 +51,65 @@ namespace csf {
 class Ledger
 {
 public:
-    struct ID
-    {
-        std::uint32_t seq = 0;
-        TxSetType txs = TxSetType{};
+    struct SeqTag;
+    using Seq = ripple::tagged_integer<std::uint32_t, SeqTag>;
 
-        bool
-        operator==(ID const& o) const
-        {
-            return seq == o.seq && txs == o.txs;
-        }
+    struct IdTag;
+    using ID = ripple::tagged_integer<std::uint32_t, IdTag>;
 
-        bool
-        operator!=(ID const& o) const
-        {
-            return !(*this == o);
-        }
-
-        bool
-        operator<(ID const& o) const
-        {
-            return std::tie(seq, txs) < std::tie(o.seq, o.txs);
-        }
-    };
-
-    auto const&
+    ID const
     id() const
     {
         return id_;
     }
 
-    auto
+    Seq const
     seq() const
     {
-        return id_.seq;
+        return seq_;
     }
 
-    auto
+    NetClock::duration
     closeTimeResolution() const
     {
         return closeTimeResolution_;
     }
 
-    auto
+    bool
     closeAgree() const
     {
         return closeTimeAgree_;
     }
 
-    auto
+    NetClock::time_point
     closeTime() const
     {
         return closeTime_;
     }
 
-    auto
-    actualCloseTime() const
-    {
-        return actualCloseTime_;
-    }
-
-    auto
+    NetClock::time_point
     parentCloseTime() const
     {
         return parentCloseTime_;
     }
 
-    auto const&
+    ID
     parentID() const
     {
         return parentID_;
+    }
+
+    TxSetType const &
+    txs() const
+    {
+        return txs_;
     }
 
     Json::Value
     getJson() const
     {
         Json::Value res(Json::objectValue);
-        res["seq"] = seq();
+        res["seq"] = static_cast<Seq::value_type>(seq());
         return res;
     }
 
@@ -136,8 +122,8 @@ public:
         bool closeTimeAgree) const
     {
         Ledger res{*this};
-        res.id_.txs.insert(txs.begin(), txs.end());
-        res.id_.seq = seq() + 1;
+        res.txs_.insert(txs.begin(), txs.end());
+        res.seq_ = seq() + 1;
         res.closeTimeResolution_ = closeTimeResolution;
         res.actualCloseTime_ = consensusCloseTime;
         res.closeTime_ = effCloseTime(
@@ -149,8 +135,14 @@ public:
     }
 
 private:
-    //! Unique identifier of ledger is combination of sequence number and id
+    //! Unique identifier of ledger
     ID id_;
+
+    //! Sequence number that is one more than the parent ledger's sequence num
+    Seq seq_;
+
+    //! Transactions in this ledger
+    TxSetType txs_;
 
     //! Bucket resolution used to determine close time
     NetClock::duration closeTimeResolution_ = ledgerDefaultTimeResolution;
@@ -170,20 +162,6 @@ private:
     //! Close time unadjusted by closeTimeResolution
     NetClock::time_point actualCloseTime_;
 };
-
-inline std::ostream&
-operator<<(std::ostream& o, Ledger::ID const& id)
-{
-    return o << id.seq << "," << id.txs;
-}
-
-inline std::string
-to_string(Ledger::ID const& id)
-{
-    std::stringstream ss;
-    ss << id;
-    return ss.str();
-}
 
 }  // csf
 }  // test
