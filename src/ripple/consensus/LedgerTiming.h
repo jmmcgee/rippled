@@ -124,14 +124,14 @@ auto constexpr AV_MIN_CONSENSUS_TIME = 5s;
     @pre previousResolution must be a valid bin
          from @ref ledgerPossibleTimeResolutions
 */
-template <class duration>
+template <class duration, class seq>
 duration
 getNextLedgerTimeResolution(
     duration previousResolution,
     bool previousAgree,
-    std::uint32_t ledgerSeq)
+    seq ledgerSeq)
 {
-    assert(ledgerSeq);
+    assert(ledgerSeq != seq{0});
 
     using namespace std::chrono;
     // Find the current resolution:
@@ -147,7 +147,7 @@ getNextLedgerTimeResolution(
 
     // If we did not previously agree, we try to decrease the resolution to
     // improve the chance that we will agree now.
-    if (!previousAgree && ledgerSeq % decreaseLedgerTimeResolutionEvery == 0)
+    if (!previousAgree && ledgerSeq % decreaseLedgerTimeResolutionEvery == seq{0})
     {
         if (++iter != std::end(ledgerPossibleTimeResolutions))
             return *iter;
@@ -155,7 +155,7 @@ getNextLedgerTimeResolution(
 
     // If we previously agreed, we try to increase the resolution to determine
     // if we can continue to agree.
-    if (previousAgree && ledgerSeq % increaseLedgerTimeResolutionEvery == 0)
+    if (previousAgree && ledgerSeq % increaseLedgerTimeResolutionEvery == seq{0})
     {
         if (iter-- != std::begin(ledgerPossibleTimeResolutions))
             return *iter;

@@ -128,7 +128,8 @@ public:
         tmp = 1u + zero;
         expect (tmp == one, "Should be equal");
 
-        expect(static_cast<std::uint32_t, one> == 1, "Explicit casts to 1");
+        expect(static_cast<std::uint32_t>(one) == 1, "Explicit casts to 1");
+        expect(to_string(one) == "1", "to_string(1) to 1");
         expect(--tmp == zero, "Should be equal");
         expect(tmp++ == zero, "Should be equal");
         expect(tmp == one, "Should be equal");
@@ -144,6 +145,9 @@ public:
 
         tmp -= 1u;
         expect(tmp == zero, "Should be equal");
+
+        TagInt1 three{3};
+        expect(three % 2 == TagInt1{1}, "Should mod");
     }
 };
 

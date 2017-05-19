@@ -141,6 +141,18 @@ public:
     {
         return asTie() < o.asTie();
     }
+
+    void
+    setTrusted()
+    {
+        trusted_ = true;
+    }
+
+    void
+    setSeen(NetClock::time_point seen)
+    {
+        seenTime_ = seen;
+    }
 };
 
 }  // ripple

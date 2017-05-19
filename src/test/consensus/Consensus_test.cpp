@@ -47,12 +47,13 @@ public:
         s.net.step();
 
         // Inspect that the proper ledger was created
-        BEAST_EXPECT(p.prevLedgerID().seq == 1);
+        auto const & lcl =p.lastClosedLedger;
         BEAST_EXPECT(p.prevLedgerID() == p.lastClosedLedger.id());
-        BEAST_EXPECT(p.lastClosedLedger.id().txs.size() == 1);
+        BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
+        BEAST_EXPECT(lcl.txs().size() == 1);
         BEAST_EXPECT(
-            p.lastClosedLedger.id().txs.find(Tx{1}) !=
-            p.lastClosedLedger.id().txs.end());
+            lcl.txs().find(Tx{1}) !=
+            lcl.txs().end());
         BEAST_EXPECT(p.prevProposers() == 0);
     }
 
@@ -69,19 +70,20 @@ public:
 
         // everyone submits their own ID as a TX and relay it to peers
         for (auto& p : sim.peers)
-            p.submit(Tx(p.id));
+            p.submit(Tx(static_cast<std::uint32_t>(p.id)));
 
         // Verify all peers have the same LCL and it has all the Txs
         sim.run(1);
         for (auto& p : sim.peers)
         {
-            auto const& lgrID = p.prevLedgerID();
-            BEAST_EXPECT(lgrID.seq == 1);
+            auto const & lcl = p.lastClosedLedger;
+            BEAST_EXPECT(lcl.id() == p.prevLedgerID());
+            BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
             BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
             for (std::uint32_t i = 0; i < sim.peers.size(); ++i)
-                BEAST_EXPECT(lgrID.txs.find(Tx{i}) != lgrID.txs.end());
+                BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
             // Matches peer 0 ledger
-            BEAST_EXPECT(lgrID.txs == sim.peers[0].prevLedgerID().txs);
+            BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.txs());
         }
     }
 
@@ -99,7 +101,7 @@ public:
         {
             auto tg = TrustGraph::makeComplete(5);
 
-            Sim sim(tg, topology(tg, [](PeerID i, PeerID j) {
+            Sim sim(tg, topology(tg, [](std::uint32_t i, std::uint32_t j) {
                         auto delayFactor = (i == 0 || j == 0) ? 1.1 : 0.2;
                         return round<milliseconds>(
                             delayFactor * LEDGER_GRANULARITY);
@@ -111,7 +113,7 @@ public:
             // peers
             for (auto& p : sim.peers)
             {
-                p.submit(Tx{p.id});
+                p.submit(Tx{static_cast<std::uint32_t>(p.id)});
             }
 
             sim.run(1);
@@ -120,8 +122,8 @@ public:
             // which was not received by all peers before the ledger closed
             for (auto& p : sim.peers)
             {
-                auto const& lgrID = p.prevLedgerID();
-                BEAST_EXPECT(lgrID.seq == 1);
+                auto const& lcl = p.lastClosedLedger;
+                BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
 
                 // If peer 0 is participating
                 if (isParticipant)
@@ -132,14 +134,14 @@ public:
                     // ..) The other peers take an extra timer period before
                     // they find that Peer 0 agrees with them ( 1->0->1,
                     // 2->0->2, ...)
-                    if (p.id != 0)
+                    if (p.id != NodeID{0})
                         BEAST_EXPECT(
                             p.prevRoundTime() > sim.peers[0].prevRoundTime());
                 }
                 else  // peer 0 is not participating
                 {
                     auto const proposers = p.prevProposers();
-                    if (p.id == 0)
+                    if (p.id == NodeID{0})
                         BEAST_EXPECT(proposers == sim.peers.size() - 1);
                     else
                         BEAST_EXPECT(proposers == sim.peers.size() - 2);
@@ -149,11 +151,11 @@ public:
                         p.prevRoundTime() == sim.peers[0].prevRoundTime());
                 }
 
-                BEAST_EXPECT(lgrID.txs.find(Tx{0}) == lgrID.txs.end());
+                BEAST_EXPECT(lcl.txs().find(Tx{0}) == lcl.txs().end());
                 for (std::uint32_t i = 1; i < sim.peers.size(); ++i)
-                    BEAST_EXPECT(lgrID.txs.find(Tx{i}) != lgrID.txs.end());
+                    BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
                 // Matches peer 0 ledger
-                BEAST_EXPECT(lgrID.txs == sim.peers[0].prevLedgerID().txs);
+                BEAST_EXPECT(lcl.txs()== sim.peers[0].lastClosedLedger.txs());
             }
             BEAST_EXPECT(
                 sim.peers[0].openTxs.find(Tx{0}) != sim.peers[0].openTxs.end());
@@ -269,7 +271,7 @@ public:
             {
                 p.validationDelay = validationDelay;
                 p.missingLedgerDelay = netDelay;
-                if (unls[1].find(p.id) != unls[1].end())
+                if (unls[1].find(static_cast<std::uint32_t>(p.id)) != unls[1].end())
                     p.openTxs.insert(Tx{0});
                 else
                     p.openTxs.insert(Tx{1});
@@ -294,28 +296,28 @@ public:
             //  3. Round to correct
             sim.run(3);
 
-            bc::flat_map<int, bc::flat_set<Ledger::ID>> ledgers;
+            bc::flat_map<Ledger::Seq, bc::flat_set<Ledger::ID>> ledgers;
             for (auto& p : sim.peers)
             {
                 for (auto const& l : p.ledgers)
                 {
-                    ledgers[l.first.seq].insert(l.first);
+                    ledgers[l.second.seq()].insert(l.first);
                 }
             }
 
-            BEAST_EXPECT(ledgers[0].size() == 1);
-            BEAST_EXPECT(ledgers[1].size() == 1);
+            BEAST_EXPECT(ledgers[Ledger::Seq{0}].size() == 1);
+            BEAST_EXPECT(ledgers[Ledger::Seq{1}].size() == 1);
             if (validationDelay == 0s)
             {
-                BEAST_EXPECT(ledgers[2].size() == 2);
-                BEAST_EXPECT(ledgers[3].size() == 1);
-                BEAST_EXPECT(ledgers[4].size() == 1);
+                BEAST_EXPECT(ledgers[Ledger::Seq{2}].size() == 2);
+                BEAST_EXPECT(ledgers[Ledger::Seq{3}].size() == 1);
+                BEAST_EXPECT(ledgers[Ledger::Seq{4}].size() == 1);
             }
             else
             {
-                BEAST_EXPECT(ledgers[2].size() == 2);
-                BEAST_EXPECT(ledgers[3].size() == 2);
-                BEAST_EXPECT(ledgers[4].size() == 1);
+                BEAST_EXPECT(ledgers[Ledger::Seq{2}].size() == 2);
+                BEAST_EXPECT(ledgers[Ledger::Seq{3}].size() == 2);
+                BEAST_EXPECT(ledgers[Ledger::Seq{4}].size() == 1);
             }
         }
         // Additional test engineered to switch LCL during the establish phase.
@@ -346,7 +348,7 @@ public:
             p.missingLedgerDelay = 2 * LEDGER_MIN_CLOSE;
 
             // Everyone sees only their own LCL
-            p.openTxs.insert(Tx(p.id));
+            p.openTxs.insert(Tx(static_cast<std::uint32_t>(p.id)));
           }
           // additional rounds to generate wrongLCL and recover
           sim.run(2);
@@ -377,9 +379,9 @@ public:
             for (auto& p : sim.peers)
             {
                 // Nodes have only seen transactions from their neighbors
-                p.openTxs.insert(Tx{p.id});
+                p.openTxs.insert(Tx{static_cast<std::uint32_t>(p.id)});
                 for (auto const link : sim.net.links(&p))
-                    p.openTxs.insert(Tx{link.to->id});
+                    p.openTxs.insert(Tx{static_cast<std::uint32_t>(link.to->id)});
             }
             sim.run(1);
 
@@ -422,7 +424,7 @@ public:
         for (auto stagger : {800ms, 1600ms, 3200ms, 30000ms, 45000ms, 300000ms})
         {
             auto tg = TrustGraph::makeComplete(5);
-            Sim sim(tg, topology(tg, [](PeerID i, PeerID) {
+            Sim sim(tg, topology(tg, [](std::uint32_t i, std::uint32_t) {
                         return 200ms * (i + 1);
                     }));
 
@@ -447,7 +449,7 @@ public:
             sim.net.step_while([&]() {
                 for (auto& p : sim.peers)
                 {
-                    if (p.prevLedgerID().txs.size() != 1)
+                    if (p.lastClosedLedger.txs().size() != 1)
                     {
                         return true;
                     }

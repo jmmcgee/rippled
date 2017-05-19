@@ -130,19 +130,6 @@ class Validations_test : public beast::unit_test::suite
         }
     };
 
-    // Non-locking mutex to avoid the need for testing generic Validations
-    struct DummyMutex
-    {
-        void
-        lock()
-        {
-        }
-
-        void
-        unlock()
-        {
-        }
-    };
 
     // Saved StaleData for inspection in test
     struct StaleData
@@ -182,8 +169,22 @@ class Validations_test : public beast::unit_test::suite
         }
     };
 
+    // Non-locking mutex to avoid locks in generic Validations
+    struct NotAMutex
+    {
+        void
+        lock()
+        {
+        }
+
+        void
+        unlock()
+        {
+        }
+    };
+
     // Specialize generic Validations using the above types
-    using TestValidations = Validations<StalePolicy, Validation, DummyMutex>;
+    using TestValidations = Validations<StalePolicy, Validation, NotAMutex>;
 
     // Hoist enum for writing simpler tests
     using AddOutcome = TestValidations::AddOutcome;
@@ -575,7 +576,7 @@ class Validations_test : public beast::unit_test::suite
                 Ledger::Seq{0});  // No cutoff
 
             BEAST_EXPECT(res.size() == 1);
-            BEAST_EXPECT(res[Ledger::ID{2}].count == 3);
+            BEAST_EXPECT(res[Ledger::ID{2}] == 3);
         }
 
         {
@@ -586,8 +587,8 @@ class Validations_test : public beast::unit_test::suite
                 Ledger::Seq{0});  // No cutoff
 
             BEAST_EXPECT(res.size() == 2);
-            BEAST_EXPECT(res[Ledger::ID{2}].count == 2);
-            BEAST_EXPECT(res[Ledger::ID{1}].count == 1);
+            BEAST_EXPECT(res[Ledger::ID{2}] == 2);
+            BEAST_EXPECT(res[Ledger::ID{1}] == 1);
         }
 
         {
@@ -598,9 +599,9 @@ class Validations_test : public beast::unit_test::suite
                 Ledger::Seq{0});  // No cutoff
 
             BEAST_EXPECT(res.size() == 3);
-            BEAST_EXPECT(res[Ledger::ID{1}].count == 1);
-            BEAST_EXPECT(res[Ledger::ID{2}].count == 1);
-            BEAST_EXPECT(res[Ledger::ID{3}].count == 1);
+            BEAST_EXPECT(res[Ledger::ID{1}] == 1);
+            BEAST_EXPECT(res[Ledger::ID{2}] == 1);
+            BEAST_EXPECT(res[Ledger::ID{3}] == 1);
         }
 
         {
@@ -610,7 +611,7 @@ class Validations_test : public beast::unit_test::suite
                 Ledger::ID{1},    // prior ledger
                 Ledger::Seq{2});  // Only sequence 2 or later
             BEAST_EXPECT(res.size() == 1);
-            BEAST_EXPECT(res[Ledger::ID{2}].count == 2);
+            BEAST_EXPECT(res[Ledger::ID{2}] == 2);
         }
     }
 
@@ -741,15 +742,16 @@ class Validations_test : public beast::unit_test::suite
             auto const val = node.validation(Ledger::Seq{1}, Ledger::ID{1});
             BEAST_EXPECT(AddOutcome::current == harness.add(node, val));
             expected.emplace(node.masterKey(), val);
-        }
+        } 
         Validation staleA = expected.find(a.masterKey())->second;
+        
 
         // Send in a new validation for a, saving the new one into the expected
         // map after setting the proper prior ledger ID it replaced
         harness.clock().advance(1s);
         auto newVal = a.validation(Ledger::Seq{2}, Ledger::ID{2});
         BEAST_EXPECT(AddOutcome::current == harness.add(a, newVal));
-        expected.emplace(a.masterKey(), newVal);
+        expected.find(a.masterKey())->second = newVal;
 
         // Now flush
         harness.vals().flush();

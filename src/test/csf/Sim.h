@@ -83,8 +83,10 @@ public:
     {
         for (auto& p : peers)
         {
+           #if 0 // FIX
             if (p.completedLedgers == 0)
                 p.relay(Validation{p.id, p.prevLedgerID(), p.prevLedgerID()});
+           #endif
             p.targetLedgers = p.completedLedgers + ledgers;
             p.start();
         }

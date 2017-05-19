@@ -163,6 +163,19 @@ public:
         return tagged_integer (lhs.m_value - rhs);
     }
 
+    template <class OtherInt>
+    friend
+    typename std::enable_if <
+        std::is_integral <OtherInt>::value &&
+            sizeof (OtherInt) <= sizeof (Int),
+    tagged_integer <Int, Tag>>::type
+    operator% (tagged_integer const& lhs,
+               OtherInt rhs) noexcept
+    {
+        return tagged_integer (lhs.m_value % rhs);
+    }
+
+
     friend
     Int
     operator- (tagged_integer const& lhs,
@@ -234,6 +247,13 @@ public:
     {
         s >> t.m_value;
         return s;
+    }
+
+    friend 
+    std::string 
+    to_string(tagged_integer const& t)
+    {
+        return std::to_string(t.m_value);
     }
 };
 
