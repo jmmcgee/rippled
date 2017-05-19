@@ -83,18 +83,15 @@ public:
     {
         for (auto& p : peers)
         {
-           #if 0 // FIX
-            if (p.completedLedgers == 0)
-                p.relay(Validation{p.id, p.prevLedgerID(), p.prevLedgerID()});
-           #endif
             p.targetLedgers = p.completedLedgers + ledgers;
             p.start();
         }
         net.step();
     }
 
-    std::vector<Peer> peers;
     BasicNetwork<Peer*> net;
+    std::vector<Peer> peers;
+    
 };
 
 }  // csf

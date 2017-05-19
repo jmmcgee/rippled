@@ -5211,6 +5211,9 @@
     <ClCompile Include="..\..\src\test\csf\BasicNetwork_test.cpp">
       <Filter>test\csf</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test\csf\impl\Ledger.cpp">
+      <Filter>test\csf\impl</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\test\csf\impl\UNL.cpp">
       <Filter>test\csf\impl</Filter>
     </ClCompile>

@@ -26,7 +26,7 @@
 #include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
 #include <test/csf/Validation.h>
-
+#include <algorithm>
 namespace ripple {
 namespace test {
 namespace csf {
@@ -259,7 +259,13 @@ struct Peer : public Consensus<Peer, Traits>
         openTxs.erase(it, openTxs.end());
 
         if (validating_)
-            relay(Validation{newLedger.id(), newLedger.seq(), now(), now(), key, id, false});
+        {
+            Validation v{newLedger.id(), newLedger.seq(), now(), now(), key, id, false};
+            // relay is not trusted
+            relay(v);
+            // we trust ourselves
+            addTrustedValidation(v);
+        }
 
         // kick off the next round...
         // in the actual implementation, this passes back through
@@ -270,14 +276,23 @@ struct Peer : public Consensus<Peer, Traits>
         // TODO: reconsider this and instead just save LCL generated here?
         if (completedLedgers <= targetLedgers)
         {
-            startRound(
-                now(), lastClosedLedger.id(), lastClosedLedger, proposing_);
+            startRound();
         }
     }
 
+    Ledger::Seq
+    earliestAllowedSeq() const
+    {
+        if(lastClosedLedger.seq() > Ledger::Seq{20})
+            return lastClosedLedger.seq() - 20;
+        return Ledger::Seq{0};
+    }
     Ledger::ID
     getPrevLedger(Ledger::ID const& ledgerID, Ledger const& ledger, Mode mode)
     {
+        // only do if we are past the genesis ledger
+        if(ledger.seq() ==  Ledger::Seq{0})
+            return ledgerID;
         // TODO-THIS IS COMMON TO RCLCONSENSUS< PUT SOMEWHERE?
         Ledger::ID parentID;
         // Only set the parent ID if we believe ledger is the right ledger
@@ -290,7 +305,7 @@ struct Peer : public Consensus<Peer, Traits>
             validations.currentTrustedDistribution(
                 ledgerID,
                 parentID,
-                lastClosedLedger.seq() - 20 /* go back 20 ledgers at most? */);
+                earliestAllowedSeq());
 
         Ledger::ID netLgr = ledgerID;
         int netLgrCount = 0;
@@ -362,7 +377,7 @@ struct Peer : public Consensus<Peer, Traits>
     {
         v.setTrusted();
         v.setSeen(now());
-        validations.add(key, v);
+        validations.add(v.key(), v);
     }
 
     void
@@ -401,19 +416,36 @@ struct Peer : public Consensus<Peer, Traits>
         if (completedLedgers < targetLedgers)
             net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
     }
+
+    void 
+    startRound()
+    {
+        auto valDistribution = validations.currentTrustedDistribution(lastClosedLedger.id(),
+            lastClosedLedger.parentID(), earliestAllowedSeq());
+
+        Ledger::ID bestLCL = lastClosedLedger.id();
+
+        // Take the best validated ledger if available
+        if(!valDistribution.empty())
+        {
+            bestLCL = std::max_element(
+                          valDistribution.begin(),
+                          valDistribution.end(),
+                          [](auto const& a, auto const& b) {
+                              return std::tie(a.second, a.first) <
+                                  std::tie(b.second, b.first);
+                          })->first;
+        }
+        // Otherwise get dominant peer ledger?
+        // Check that switching to something compatible with our (network) validated history of ledgers?
+        Base::startRound(now(), bestLCL, lastClosedLedger, proposing_);
+    }
+
     void
     start()
     {
         net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
-        // The ID is the one we have seen the most validations for
-        // In practice, we might not actually have that ledger itself yet,
-        // so there is no gaurantee that bestLCL == lastClosedLedger.id()
-        #if 0 //FIX
-        auto bestLCL = validations.getBestLCL(
-            lastClosedLedger.id(), lastClosedLedger.parentID());
-        #endif
-        auto bestLCL = lastClosedLedger.id();
-        startRound(now(), bestLCL, lastClosedLedger, proposing_);
+        startRound();
     }
 
     NetClock::time_point

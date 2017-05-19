@@ -179,7 +179,7 @@ public:
         // send proposals with differing times.
 
         // However, they have to agree on the effective close time, not the
-        // exact close time.  The minimum closeTimeResolution is given by
+        // exact close time. The minimum closeTimeResolution is given by
         // ledgerPossibleTimeResolutions[0], which is currently 10s. This means
         // the skews need to be at least 10 seconds.
 
@@ -296,7 +296,7 @@ public:
             //  3. Round to correct
             sim.run(3);
 
-            bc::flat_map<Ledger::Seq, bc::flat_set<Ledger::ID>> ledgers;
+            std::map<Ledger::Seq, std::set<Ledger::ID>> ledgers;
             for (auto& p : sim.peers)
             {
                 for (auto const& l : p.ledgers)
@@ -320,42 +320,51 @@ public:
                 BEAST_EXPECT(ledgers[Ledger::Seq{4}].size() == 1);
             }
         }
-        // Additional test engineered to switch LCL during the establish phase.
-        // This was added to trigger a scenario that previously crashed, in which
-        // switchLCL switched from establish to open phase, but still processed
-        // the establish phase logic.
+
         {
-          using namespace csf;
-          using namespace std::chrono;
+            // Additional test engineered to switch LCL during the establish
+            // phase. This was added to trigger a scenario that previously
+            // crashed, in which switchLCL switched from establish to open
+            // phase, but still processed the establish phase logic.
 
-          // A mostly disjoint topology
-          std::vector<UNL> unls;
-          unls.push_back({0, 1});
-          unls.push_back({2});
-          unls.push_back({3});
-          unls.push_back({0, 1, 2, 3, 4});
-          std::vector<int> membership = {0, 0, 1, 2, 3};
+            // Node 0 will accept an initial ledger A, but all other nodes
+            // accept ledger B a bit later.  By delaying the time it takes
+            // to process a validation, node 0 will detect the wrongLCL after it
+            // is already in the establish phase of the next round.
 
-          TrustGraph tg{unls, membership};
+            // UNL:
+            //  - Node 0 trusts nodes 0-3
+            //  - All other nodes trust all nodes
+            std::vector<UNL> unls;
+            unls.push_back({0, 1, 2, 3});
+            unls.push_back({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
+            std::vector<int> membership = {0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+            TrustGraph tg{unls, membership};
 
-          Sim sim(tg, topology(tg, fixed{round<milliseconds>(
-                                       0.2 * LEDGER_GRANULARITY)}));
+            Sim sim(
+                tg,
+                topology(
+                    tg, fixed{round<milliseconds>(0.2 * LEDGER_GRANULARITY)}));
 
-          // initial ground to set prior state
-          sim.run(1);
-          for (auto &p : sim.peers) {
-            // A long delay to acquire a missing ledger from the network
-            p.missingLedgerDelay = 2 * LEDGER_MIN_CLOSE;
+            // initial round to set prior state
+            sim.run(1);
+            for (auto& p : sim.peers)
+            {
+                // Nodes 0 - 3 see only Tx 0
+                if (p.id < NodeID{4})
+                    p.openTxs.insert(Tx(0));
+                else  // Nodes 4+ see Tx 1
+                    p.openTxs.insert(Tx(1));
 
-            // Everyone sees only their own LCL
-            p.openTxs.insert(Tx(static_cast<std::uint32_t>(p.id)));
-          }
-          // additional rounds to generate wrongLCL and recover
-          sim.run(2);
+                // Delay validation processing
+                p.validationDelay = LEDGER_GRANULARITY;
+            }
+            // additional rounds to generate wrongLCL and recover
+            sim.run(2);
 
-          // Check all peers recovered
-          for (auto &p : sim.peers)
-            BEAST_EXPECT(p.prevLedgerID() == sim.peers[0].prevLedgerID());
+            // Check all peers recovered
+            for (auto& p : sim.peers)
+                BEAST_EXPECT(p.prevLedgerID() == sim.peers[0].prevLedgerID());
         }
     }
 
@@ -386,7 +395,7 @@ public:
             sim.run(1);
 
             // See if the network forked
-            bc::flat_set<Ledger::ID> ledgers;
+            std::set<Ledger::ID> ledgers;
             for (auto& p : sim.peers)
             {
                 ledgers.insert(p.prevLedgerID());
@@ -500,7 +509,7 @@ public:
         sim.run(1);
 
         // See if the network forked
-        bc::flat_set<Ledger::ID> ledgers;
+        std::set<Ledger::ID> ledgers;
         for (auto& p : sim.peers)
         {
             ledgers.insert(p.prevLedgerID());
