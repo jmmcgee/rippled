@@ -68,8 +68,8 @@ struct Peer : public Consensus<Peer, Traits>
             return p_.now();
         }
 
-        void 
-        onStale(Validation && v) 
+        void
+        onStale(Validation && v)
         {}
 
         void
@@ -273,7 +273,6 @@ struct Peer : public Consensus<Peer, Traits>
         ++completedLedgers;
         // startRound sets the LCL state, so we need to call it once after
         // the last requested round completes
-        // TODO: reconsider this and instead just save LCL generated here?
         if (completedLedgers <= targetLedgers)
         {
             startRound();
@@ -293,7 +292,7 @@ struct Peer : public Consensus<Peer, Traits>
         // only do if we are past the genesis ledger
         if(ledger.seq() ==  Ledger::Seq{0})
             return ledgerID;
-        // TODO-THIS IS COMMON TO RCLCONSENSUS< PUT SOMEWHERE?
+
         Ledger::ID parentID;
         // Only set the parent ID if we believe ledger is the right ledger
         if (mode != Mode::wrongLedger)
@@ -307,23 +306,11 @@ struct Peer : public Consensus<Peer, Traits>
                 parentID,
                 earliestAllowedSeq());
 
-        Ledger::ID netLgr = ledgerID;
-        int netLgrCount = 0;
-        for (auto const& it : ledgerCounts)
-        {
-            // Switch to ledger supported by more peers
-            // Or stick with ours on a tie
-            if ((it.second > netLgrCount) ||
-                ((it.second == netLgrCount) && (it.first == ledgerID)))
-            {
-                netLgr = it.first;
-                netLgrCount = it.second;
-            }
-        }
+        Ledger::ID netLgr = getPreferredLedger(ledgerID, ledgerCounts);
 
         if (netLgr != ledgerID)
         {
-            // signal ?
+            // signal change?
         }
         return netLgr;
     }
@@ -417,33 +404,29 @@ struct Peer : public Consensus<Peer, Traits>
             net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
     }
 
-    void 
+    void
     startRound()
     {
-        auto valDistribution = validations.currentTrustedDistribution(lastClosedLedger.id(),
-            lastClosedLedger.parentID(), earliestAllowedSeq());
+        auto valDistribution = validations.currentTrustedDistribution(
+            lastClosedLedger.id(),
+            lastClosedLedger.parentID(),
+            earliestAllowedSeq());
 
-        Ledger::ID bestLCL = lastClosedLedger.id();
+        Ledger::ID bestLCL =
+            getPreferredLedger(lastClosedLedger.id(), valDistribution);
 
-        // Take the best validated ledger if available
-        if(!valDistribution.empty())
-        {
-            bestLCL = std::max_element(
-                          valDistribution.begin(),
-                          valDistribution.end(),
-                          [](auto const& a, auto const& b) {
-                              return std::tie(a.second, a.first) <
-                                  std::tie(b.second, b.first);
-                          })->first;
-        }
-        // Otherwise get dominant peer ledger?
-        // Check that switching to something compatible with our (network) validated history of ledgers?
+        // TODO:
+        //  - Get dominant peer ledger if no validated available?
+        //  - Check that we are switching to something compatible with our
+        //    (network) validated history of ledgers?
         Base::startRound(now(), bestLCL, lastClosedLedger, proposing_);
     }
 
     void
     start()
     {
+        // TODO: Expire validations less frequently
+        validations.expire();
         net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
         startRound();
     }

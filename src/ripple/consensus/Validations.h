@@ -73,6 +73,7 @@ struct ValidationParms
     std::chrono::seconds validationSET_EXPIRES = std::chrono::minutes{10};
 };
 
+
 /** Whether a validation is still current
 
     Determines whether a validation can still be considered the current
@@ -100,6 +101,36 @@ isCurrent(
         (signTime < (now + p.validationCURRENT_WALL)) &&
         ((seenTime == NetClock::time_point{}) ||
          (seenTime < (now + p.validationCURRENT_LOCAL)));
+}
+
+/** Determine the preferred ledger based on its support
+
+    @param current The current ledger the node follows
+    @param ledgerCounts The distribution of ledger IDs and count of support
+    @return The ID of the lddger with most support, preferring to stick with
+            current ledger in the case of equal support
+*/
+template <class LedgerID>
+inline LedgerID
+getPreferredLedger(
+    LedgerID const& current,
+    hash_map<LedgerID, std::uint32_t> const& dist)
+{
+    LedgerID netLgr = current;
+    int netLgrCount = 0;
+    for (auto const& it : dist)
+    {
+        // Switch to ledger supported by more peers
+        // Or stick with ours on a tie
+        if ((it.second > netLgrCount) ||
+            ((it.second == netLgrCount) &&
+             ((it.first == current) || (it.first > netLgr))))
+        {
+            netLgr = it.first;
+            netLgrCount = it.second;
+        }
+    }
+    return netLgr;
 }
 
 /** Maintains current and recent ledger validations.
@@ -192,7 +223,7 @@ class Validations
     using NodeKey = decay_result_t<decltype (&Validation::key)(Validation)>;
     using NodeID = decay_result_t<decltype (&Validation::nodeID)(Validation)>;
     using SeqType = decay_result_t<decltype (&Validation::seq)(Validation)>;
-    
+
 
     using ScopedLock = std::lock_guard<MutexType>;
 

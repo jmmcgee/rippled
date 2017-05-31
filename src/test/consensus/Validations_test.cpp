@@ -319,7 +319,7 @@ class Validations_test : public beast::unit_test::suite
                     BEAST_EXPECT(trustedVals[0].key() == a.currKey());
                     // ... and should be the only node after ID{2}
                     BEAST_EXPECT(harness.vals().getNodesAfter(Ledger::ID{2}) == 1);
-                    
+
                 }
 
                 // A new key, but re-issue a validation with the same ID and
@@ -577,6 +577,8 @@ class Validations_test : public beast::unit_test::suite
 
             BEAST_EXPECT(res.size() == 1);
             BEAST_EXPECT(res[Ledger::ID{2}] == 3);
+            BEAST_EXPECT(
+                getPreferredLedger(Ledger::ID{2}, res) == Ledger::ID{2});
         }
 
         {
@@ -589,6 +591,8 @@ class Validations_test : public beast::unit_test::suite
             BEAST_EXPECT(res.size() == 2);
             BEAST_EXPECT(res[Ledger::ID{2}] == 2);
             BEAST_EXPECT(res[Ledger::ID{1}] == 1);
+            BEAST_EXPECT(
+                getPreferredLedger(Ledger::ID{2}, res) == Ledger::ID{2});
         }
 
         {
@@ -602,6 +606,8 @@ class Validations_test : public beast::unit_test::suite
             BEAST_EXPECT(res[Ledger::ID{1}] == 1);
             BEAST_EXPECT(res[Ledger::ID{2}] == 1);
             BEAST_EXPECT(res[Ledger::ID{3}] == 1);
+            BEAST_EXPECT(
+                getPreferredLedger(Ledger::ID{0}, res) == Ledger::ID{3});
         }
 
         {
@@ -612,6 +618,8 @@ class Validations_test : public beast::unit_test::suite
                 Ledger::Seq{2});  // Only sequence 2 or later
             BEAST_EXPECT(res.size() == 1);
             BEAST_EXPECT(res[Ledger::ID{2}] == 2);
+            BEAST_EXPECT(
+                getPreferredLedger(Ledger::ID{2}, res) == Ledger::ID{2});
         }
     }
 
@@ -742,9 +750,9 @@ class Validations_test : public beast::unit_test::suite
             auto const val = node.validation(Ledger::Seq{1}, Ledger::ID{1});
             BEAST_EXPECT(AddOutcome::current == harness.add(node, val));
             expected.emplace(node.masterKey(), val);
-        } 
+        }
         Validation staleA = expected.find(a.masterKey())->second;
-        
+
 
         // Send in a new validation for a, saving the new one into the expected
         // map after setting the proper prior ledger ID it replaced
