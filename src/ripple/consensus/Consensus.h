@@ -582,6 +582,7 @@ Consensus<Adaptor>::startRound(
     {
         // take our initial view of closeTime_ from the seed ledger
         prevRoundTime_ = adaptor_.parms().ledgerIDLE_INTERVAL;
+        prevRoundTime_ = adaptor_.parms().ledgerIDLE_INTERVAL;
         prevCloseTime_ = prevLedger.closeTime();
         firstRound_ = false;
     }

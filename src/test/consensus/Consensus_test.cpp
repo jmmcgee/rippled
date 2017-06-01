@@ -131,8 +131,8 @@ public:
         s.scheduler.step();
 
         // Inspect that the proper ledger was created
-        auto const & lcl =p.lastClosedLedger;
-        BEAST_EXPECT(p.prevLedgerID() == p.lastClosedLedger.id());
+        auto const & lcl =p.lastClosedLedger.get();
+        BEAST_EXPECT(p.prevLedgerID() == lcl.id());
         BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
         BEAST_EXPECT(lcl.txs().size() == 1);
         BEAST_EXPECT(
@@ -164,14 +164,14 @@ public:
         sim.run(1);
         for (auto& p : sim.peers)
         {
-            auto const & lcl = p.lastClosedLedger;
+            auto const & lcl = p.lastClosedLedger.get();
             BEAST_EXPECT(lcl.id() == p.prevLedgerID());
             BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
             BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
             for (std::uint32_t i = 0; i < sim.peers.size(); ++i)
                 BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
             // Matches peer 0 ledger
-            BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.txs());
+            BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.get().txs());
         }
     }
 
@@ -211,7 +211,7 @@ public:
             // which was not received by all peers before the ledger closed
             for (auto& p : sim.peers)
             {
-                auto const & lcl = p.lastClosedLedger;
+                auto const & lcl = p.lastClosedLedger.get();
                 BEAST_EXPECT(lcl.id() == p.prevLedgerID());
                 BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
 
@@ -222,7 +222,7 @@ public:
                 for (std::uint32_t i = 2; i < sim.peers.size(); ++i)
                     BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
                 // Matches peer 0 ledger
-                BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.txs());
+                BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.get().txs());
             }
             BEAST_EXPECT(
                 sim.peers[0].openTxs.find(Tx{0}) != sim.peers[0].openTxs.end());
@@ -248,10 +248,8 @@ public:
                             delayFactor * parms.ledgerGRANULARITY);
                     }));
 
-                sim.peers[0].proposing_ = sim.peers[0].validating_ =
-                    isParticipant;
-                sim.peers[1].proposing_ = sim.peers[1].validating_ =
-                    isParticipant;
+                sim.peers[0].runAsValidator = isParticipant;
+                sim.peers[1].runAsValidator = isParticipant;
 
                 // All peers submit their own ID as a transaction and relay it
                 // to peers
@@ -266,7 +264,7 @@ public:
                 // which was not received by all peers before the ledger closed
                 for (auto& p : sim.peers)
                 {
-                    auto const & lcl = p.lastClosedLedger;
+                    auto const & lcl = p.lastClosedLedger.get();
                     BEAST_EXPECT(lcl.id() == p.prevLedgerID());
                     BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
 
@@ -314,7 +312,8 @@ public:
                     for (std::uint32_t i = 2; i < sim.peers.size(); ++i)
                         BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
                     // Matches peer 0 ledger
-                    BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.txs());
+                    BEAST_EXPECT(
+                        lcl.txs() == sim.peers[0].lastClosedLedger.get().txs());
                 }
                 BEAST_EXPECT(
                     sim.peers[0].openTxs.find(Tx{0}) !=
@@ -364,7 +363,7 @@ public:
 
         // Run consensus without skew until we have a short close time
         // resolution
-        while (sim.peers.front().lastClosedLedger.closeTimeResolution() >=
+        while (sim.peers.front().lastClosedLedger.get().closeTimeResolution() >=
                parms.proposeFRESHNESS)
             sim.run(1);
 
@@ -378,7 +377,7 @@ public:
         sim.run(1);
         for (auto& p : sim.peers)
         {
-            BEAST_EXPECT(!p.lastClosedLedger.closeAgree());
+            BEAST_EXPECT(!p.lastClosedLedger.get().closeAgree());
         }
     }
 
@@ -437,8 +436,7 @@ public:
             // tx 1
             for (auto& p : sim.peers)
             {
-                p.validationDelay = validationDelay;
-                p.missingLedgerDelay = netDelay;
+                p.delays.recvValidation= validationDelay;
                 if (unls[1].find(static_cast<std::uint32_t>(p.id)) != unls[1].end())
                     p.openTxs.insert(Tx{0});
                 else
@@ -464,28 +462,47 @@ public:
             //  3. Round to correct
             sim.run(3);
 
-            std::map<Ledger::Seq, std::set<Ledger::ID>> ledgers;
-            for (auto& p : sim.peers)
-            {
-                for (auto const& l : p.ledgers)
-                {
-                    ledgers[l.second.seq()].insert(l.first);
-                }
-            }
+            // The network never actually forks, since node 0-1 never see a
+            // quorum of validations to validate the incorrect chain.
 
-            BEAST_EXPECT(ledgers[Ledger::Seq{0}].size() == 1);
-            BEAST_EXPECT(ledgers[Ledger::Seq{1}].size() == 1);
-            if (validationDelay == 0s)
+            // However, for a non zero-validation delay, the network is not
+            // synchronized because nodes 0 and 1 are running one ledger behind
+            if (BEAST_EXPECT(sim.forks() == 1))
             {
-                BEAST_EXPECT(ledgers[Ledger::Seq{2}].size() == 2);
-                BEAST_EXPECT(ledgers[Ledger::Seq{3}].size() == 1);
-                BEAST_EXPECT(ledgers[Ledger::Seq{4}].size() == 1);
-            }
-            else
-            {
-                BEAST_EXPECT(ledgers[Ledger::Seq{2}].size() == 2);
-                BEAST_EXPECT(ledgers[Ledger::Seq{3}].size() == 2);
-                BEAST_EXPECT(ledgers[Ledger::Seq{4}].size() == 1);
+                for(auto const & peer : sim.peers)
+                {
+                    if(peer.id >= NodeID{2})
+                    {
+                        // No jumps
+                        BEAST_EXPECT(peer.fullyValidatedLedger.jumps().empty());
+                        BEAST_EXPECT(peer.lastClosedLedger.jumps().empty());
+                    }
+                    else
+                    {
+                        // last closed ledger jump between chains
+                        {
+                            BEAST_EXPECT(
+                                peer.lastClosedLedger.jumps().size() == 1);
+                            LedgerState::Jump const& jump =
+                                peer.lastClosedLedger.jumps().front();
+                            // Jump is to a different chain
+                            BEAST_EXPECT(jump.from.seq() <= jump.to.seq());
+                            BEAST_EXPECT(
+                                !sim.oracle.isAncestor(jump.from, jump.to));
+                        }
+                        // fully validted jump forward in same chain
+                        {
+                            BEAST_EXPECT(
+                                peer.fullyValidatedLedger.jumps().size() == 1);
+                            LedgerState::Jump const& jump =
+                                peer.fullyValidatedLedger.jumps().front();
+                            // Jump is to a different chain with same seq
+                            BEAST_EXPECT(jump.from.seq() < jump.to.seq());
+                            BEAST_EXPECT(
+                                sim.oracle.isAncestor(jump.from, jump.to));
+                        }
+                    }
+                }
             }
         }
 
@@ -525,7 +542,7 @@ public:
                     p.openTxs.insert(Tx(1));
 
                 // Delay validation processing
-                p.validationDelay = parms.ledgerGRANULARITY;
+                p.delays.recvValidation = parms.ledgerGRANULARITY;
             }
             // additional rounds to generate wrongLCL and recover
             sim.run(2);
@@ -631,7 +648,7 @@ public:
             sim.scheduler.step_while([&]() {
                 for (auto& p : sim.peers)
                 {
-                    if (p.lastClosedLedger.txs().size() != 1)
+                    if (p.lastClosedLedger.get().txs().size() != 1)
                     {
                         return true;
                     }
