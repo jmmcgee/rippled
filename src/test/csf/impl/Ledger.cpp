@@ -33,6 +33,7 @@ Json::Value
 Ledger::getJson() const
 {
     Json::Value res(Json::objectValue);
+    res["id"] = static_cast<ID::value_type>(id());
     res["seq"] = static_cast<Seq::value_type>(seq());
     return res;
 }

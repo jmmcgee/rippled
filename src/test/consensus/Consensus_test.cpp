@@ -47,8 +47,8 @@ public:
         s.net.step();
 
         // Inspect that the proper ledger was created
-        auto const & lcl =p.lastClosedLedger;
-        BEAST_EXPECT(p.prevLedgerID() == p.lastClosedLedger.id());
+        auto const & lcl =p.lastClosedLedger.get();
+        BEAST_EXPECT(p.prevLedgerID() == lcl.id());
         BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
         BEAST_EXPECT(lcl.txs().size() == 1);
         BEAST_EXPECT(
@@ -76,14 +76,14 @@ public:
         sim.run(1);
         for (auto& p : sim.peers)
         {
-            auto const & lcl = p.lastClosedLedger;
+            auto const & lcl = p.lastClosedLedger.get();
             BEAST_EXPECT(lcl.id() == p.prevLedgerID());
             BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
             BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
             for (std::uint32_t i = 0; i < sim.peers.size(); ++i)
                 BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
             // Matches peer 0 ledger
-            BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.txs());
+            BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.get().txs());
         }
     }
 
@@ -122,7 +122,7 @@ public:
             // which was not received by all peers before the ledger closed
             for (auto& p : sim.peers)
             {
-                auto const& lcl = p.lastClosedLedger;
+                auto const& lcl = p.lastClosedLedger.get();
                 BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
 
                 // If peer 0 is participating
@@ -155,7 +155,7 @@ public:
                 for (std::uint32_t i = 1; i < sim.peers.size(); ++i)
                     BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
                 // Matches peer 0 ledger
-                BEAST_EXPECT(lcl.txs()== sim.peers[0].lastClosedLedger.txs());
+                BEAST_EXPECT(lcl.txs()== sim.peers[0].lastClosedLedger.get().txs());
             }
             BEAST_EXPECT(
                 sim.peers[0].openTxs.find(Tx{0}) != sim.peers[0].openTxs.end());
@@ -199,7 +199,7 @@ public:
 
         // Run consensus without skew until we have a short close time
         // resolution
-        while (sim.peers.front().lastClosedLedger.closeTimeResolution() >=
+        while (sim.peers.front().lastClosedLedger.get().closeTimeResolution() >=
                PROPOSE_FRESHNESS)
             sim.run(1);
 
@@ -209,11 +209,10 @@ public:
         sim.peers[2].clockSkew = PROPOSE_FRESHNESS;
         sim.peers[3].clockSkew = PROPOSE_FRESHNESS;
 
-        // Verify all peers have the same LCL and it has all the Txs
         sim.run(1);
         for (auto& p : sim.peers)
         {
-            BEAST_EXPECT(!p.lastClosedLedger.closeAgree());
+            BEAST_EXPECT(!p.lastClosedLedger.get().closeAgree());
         }
     }
 
@@ -458,7 +457,7 @@ public:
             sim.net.step_while([&]() {
                 for (auto& p : sim.peers)
                 {
-                    if (p.lastClosedLedger.txs().size() != 1)
+                    if (p.lastClosedLedger.get().txs().size() != 1)
                     {
                         return true;
                     }

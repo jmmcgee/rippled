@@ -49,7 +49,7 @@ class Validation
     NodeID nodeID_{0};
     bool trusted_ = true;
     boost::optional<std::uint32_t> loadFee_;
-  
+
 public:
     Validation(Ledger::ID id,
         Ledger::Seq seq,

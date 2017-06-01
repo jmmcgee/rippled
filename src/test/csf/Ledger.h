@@ -119,7 +119,6 @@ private:
     }
 
 public:
-    
     Ledger() : id_{0}, instance_(&genesis)
     {
     }

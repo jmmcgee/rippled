@@ -5220,6 +5220,9 @@
     <ClInclude Include="..\..\src\test\csf\Ledger.h">
       <Filter>test\csf</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\LedgerChains.h">
+      <Filter>test\csf</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Peer.h">
       <Filter>test\csf</Filter>
     </ClInclude>
