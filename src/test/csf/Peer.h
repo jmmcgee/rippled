@@ -22,11 +22,10 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 #include <ripple/consensus/Validations.h>
-#include <test/csf/Ledger.h>
+#include <test/csf/ledgers.h>
 #include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
 #include <test/csf/Validation.h>
-#include <test/csf/LedgerChains.h>
 #include <algorithm>
 namespace ripple {
 namespace test {
@@ -98,6 +97,15 @@ struct Peer : public Consensus<Peer, Traits>
     NodeID id;
     NodeKey key;
 
+    //! The oracle that manages unique ledgers
+    LedgerOracle & oracle;
+
+    //! Handle to network for sending messages
+    BasicNetwork<Peer*>& net;
+
+    //! UNL of trusted peers
+    UNL unl;
+
     //! openTxs that haven't been closed in a ledger yet
     TxSetType openTxs;
 
@@ -106,12 +114,6 @@ struct Peer : public Consensus<Peer, Traits>
 
     //! Ledgers this node has closed or loaded from the network
     hash_map<Ledger::ID, Ledger> ledgers;
-
-    //! Handle to network for sending messages
-    BasicNetwork<Peer*>& net;
-
-    //! UNL of trusted peers
-    UNL unl;
 
     //! Validationss from trusted nodes
     Validations<StalePolicy, Validation, NotAMutex> validations;
@@ -147,10 +149,11 @@ struct Peer : public Consensus<Peer, Traits>
     std::size_t quorum;
 
     //! All peers start from the default constructed ledger
-    Peer(std::uint32_t id, BasicNetwork<Peer*>& n, UNL const& u)
+    Peer(std::uint32_t i, LedgerOracle & o, BasicNetwork<Peer*>& n, UNL const& u)
         : Consensus<Peer, Traits>(n.clock(), beast::Journal{})
-        , id{id}
+        , id{i}
         , key{id, 0}
+        , oracle{o}
         , net{n}
         , unl(u)
         , validations{ValidationParms{}, n.clock(), beast::Journal{}, *this}
@@ -254,7 +257,7 @@ struct Peer : public Consensus<Peer, Traits>
         CloseTimes const& rawCloseTimes,
         Mode const& mode)
     {
-        auto newLedger = prevLedger.close(
+        auto newLedger = oracle.accept(prevLedger,
             result.set.txs_,
             closeResolution,
             rawCloseTimes.self,

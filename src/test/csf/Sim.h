@@ -54,7 +54,7 @@ public:
     {
         peers.reserve(g.numPeers());
         for (int i = 0; i < g.numPeers(); ++i)
-            peers.emplace_back(i, net, g.unl(i));
+            peers.emplace_back(i, oracle, net, g.unl(i));
 
         for (int i = 0; i < peers.size(); ++i)
         {
@@ -89,9 +89,10 @@ public:
         net.step();
     }
 
+    LedgerOracle oracle;
     BasicNetwork<Peer*> net;
     std::vector<Peer> peers;
-    
+
 };
 
 }  // csf

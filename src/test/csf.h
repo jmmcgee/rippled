@@ -18,8 +18,7 @@
 //==============================================================================
 
 #include <test/csf/BasicNetwork.h>
-#include <test/csf/Ledger.h>
-#include <test/csf/LedgerChains.h>
+#include <test/csf/ledgers.h>
 #include <test/csf/Peer.h>
 #include <test/csf/Sim.h>
 #include <test/csf/Tx.h>

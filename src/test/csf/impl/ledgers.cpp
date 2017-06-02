@@ -17,7 +17,7 @@
 */
 //==============================================================================
 #include <BeastConfig.h>
-#include <test/csf/Ledger.h>
+#include <test/csf/ledgers.h>
 
 #include <sstream>
 
@@ -25,9 +25,7 @@ namespace ripple {
 namespace test {
 namespace csf {
 
-Ledger::Instance const Ledger::genesis;
-hash_map<Ledger::Instance, Ledger::ID> Ledger::instances;
-Ledger::ID Ledger::nextUniqueID{1};
+Ledger::Instance const Ledger::genesis{};
 
 Json::Value
 Ledger::getJson() const
@@ -38,25 +36,65 @@ Ledger::getJson() const
     return res;
 }
 
+LedgerOracle::LedgerOracle()
+{
+    instances_.insert(InstanceEntry{Ledger::genesis, nextID()});
+}
+
+Ledger::ID
+LedgerOracle::nextID() const
+{
+    return Ledger::ID{static_cast<Ledger::ID::value_type>(instances_.size())};
+}
+
 Ledger
-Ledger::close(TxSetType const& txs,
+LedgerOracle::accept(Ledger const & curr, TxSetType const& txs,
     NetClock::duration closeTimeResolution,
     NetClock::time_point const& consensusCloseTime,
-    bool closeTimeAgree) const
+    bool closeTimeAgree)
 {
-    Instance next(*instance_);
+    Ledger::Instance next(*curr.instance_);
     next.txs.insert(txs.begin(), txs.end());
-    next.seq = seq() + 1;
+    next.seq = curr.seq() + 1;
     next.closeTimeResolution = closeTimeResolution;
     next.closeTime = effCloseTime(
-        consensusCloseTime, closeTimeResolution, instance_->parentCloseTime);
+        consensusCloseTime, closeTimeResolution, curr.parentCloseTime());
     next.closeTimeAgree = closeTimeAgree;
-    next.parentCloseTime = closeTime();
-    next.parentID = id();
-    auto it = instances.find(next);
-    if (it == instances.end())
-        it = instances.emplace(next, nextUniqueID++).first;
+    next.parentCloseTime = curr.closeTime();
+    next.parentID = curr.id();
+    auto it = instances_.left.find(next);
+    if (it == instances_.left.end())
+    {
+        using Entry = InstanceMap::left_value_type;
+        it = instances_.left.insert(Entry{next, nextID()}).first;
+    }
     return Ledger(it->second, &(it->first));
+}
+
+
+/** Switch to a new current ledger
+
+    Switch to a new current ledger, recording a jump if the new ledger
+    is not the child of the current ledger.
+
+    @param now When the switcho ccurs
+    @param f The new ledger
+
+*/
+void
+LedgerState::switchTo(NetClock::time_point const now, Ledger const& f)
+{
+    // No switch to the same ledger
+    if (current_.id() == f.id())
+        return;
+
+    // This is a jump if current_ is not the parent of f
+    if (f.parentID() != current_.id())
+    {
+        jumps_.emplace_back(Jump{now, current_.id(), f.id()});
+    }
+
+    current_ = f;
 }
 
 }  // namespace csf

@@ -16,8 +16,8 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
-#ifndef RIPPLE_TEST_CSF_LEDGER_H_INCLUDED
-#define RIPPLE_TEST_CSF_LEDGER_H_INCLUDED
+#ifndef RIPPLE_TEST_CSF_LEDGERS_H_INCLUDED
+#define RIPPLE_TEST_CSF_LEDGERS_H_INCLUDED
 
 #include <ripple/basics/UnorderedContainers.h>
 #include <ripple/basics/chrono.h>
@@ -25,6 +25,8 @@
 #include <ripple/consensus/LedgerTiming.h>
 #include <ripple/json/json_value.h>
 #include <test/csf/Tx.h>
+#include <boost/bimap/bimap.hpp>
+#include <boost/bimap/unordered_set_of.hpp>
 
 namespace ripple {
 namespace test {
@@ -34,31 +36,36 @@ namespace csf {
     identifying the ledger.
 
     Peers in the consensus process are trying to agree on a set of transactions
-    to include in a ledger.  For unit testing, each transaction is a
-    single integer and the ledger is the set of observed integers.  This means
-    future ledgers have prior ledgers as subsets, e.g.
+    to include in a ledger. For simulation , each transaction is a single
+    integer and the ledger is the set of observed integers. This means future
+    ledgers have prior ledgers as subsets, e.g.
 
         Ledger 0 :  {}
         Ledger 1 :  {1,4,5}
         Ledger 2 :  {1,2,4,5,10}
         ....
 
-    Ledgers are immutable value types.  All ledgers with the same sequence
-    number, transactions, close time, etc. will have the same ledger ID. Since
-    the parent ledger ID is part of type, this also means distinct histories of
-    ledgers will have distinct ids.
-
+    Ledgers are immutable value types. All ledgers with the same sequence
+    number, transactions, close time, etc. will have the same ledger ID. The
+    LedgerOracle class below manges ID assignments for a simulation and is the
+    only way to close and create a new ledger. Since the parent ledger ID is
+    part of type, this also means distinct histories of ledgers will have
+    distinct ids.
 */
 class Ledger
 {
+    friend class LedgerOracle;
+
 public:
     struct SeqTag;
     using Seq = tagged_integer<std::uint32_t, SeqTag>;
 
     struct IdTag;
     using ID = tagged_integer<std::uint32_t, IdTag>;
+
 private:
-    // The instance is the common immutable types that will be assigned an ID
+    // The instance is the common immutable data that will be assigned a uniqe
+    // ID by the oracle
     struct Instance
     {
         // Sequence number
@@ -70,7 +77,7 @@ private:
         // Resolution used to determine close time
         NetClock::duration closeTimeResolution = ledgerDefaultTimeResolution;
 
-        //! When the ledger closed (up to closeTimeResolution
+        //! When the ledger closed (up to closeTimeResolution)
         NetClock::time_point closeTime;
 
         //! Whether consenssus agreed on the close time
@@ -95,6 +102,18 @@ private:
             return a.asTie() == b.asTie();
         }
 
+        friend bool
+        operator!=(Instance const& a, Instance const& b)
+        {
+            return a.asTie() != b.asTie();
+        }
+
+        friend bool
+        operator<(Instance const & a, Instance const & b)
+        {
+            return a.asTie() < b.asTie();
+        }
+
         template <class Hasher>
         friend void
         hash_append(Hasher& h, Ledger::Instance const& instance)
@@ -104,15 +123,9 @@ private:
         }
     };
 
-    // These static members implement a flyweight style management of ledgers
-    // for the entire application lifetime.  They are not currently thread safe.
 
-    // Single genesis instance
+    // Single common genesis instance
     static const Instance genesis;
-    // Set of all known post-genesis ledgers; note this is never pruned
-    static hash_map<Instance, ID> instances;
-    // Id to assign to the next unique ledger instance
-    static ID nextUniqueID;
 
     Ledger(ID id, Instance const* i) : id_{id}, instance_{i}
     {
@@ -173,17 +186,84 @@ public:
 
     Json::Value getJson() const;
 
-    //! Apply the given transactions to this ledger
-    Ledger close(TxSetType const& txs,
-        NetClock::duration closeTimeResolution,
-        NetClock::time_point const& consensusCloseTime,
-        bool closeTimeAgree) const;
-
 private:
     ID id_{0};
     Instance const* instance_;
 };
 
+
+/** Oracle maintaining unique ledgers for a simulation.
+*/
+class LedgerOracle
+{
+    using InstanceMap = boost::bimaps::bimap<Ledger::Instance, Ledger::ID>;
+    using InstanceEntry = InstanceMap::value_type;
+
+    // Set of all known ledgers; note this is never pruned
+    InstanceMap instances_;
+
+    Ledger::ID
+    nextID() const;
+
+public:
+
+    LedgerOracle();
+
+    /** Accept the given txs and generate a new ledger
+
+        @param curr The current ledger
+        @param txs The transactions to apply to the current ledger
+        @param closeTimeResolution Resolution used in determining close time
+        @param consensusCloseTime The consensus agreed close time
+        @param closeTimeAgree Whether consensus agreed to disagree about close
+                              time
+    */
+    Ledger
+    accept(Ledger const & curr, TxSetType const& txs,
+        NetClock::duration closeTimeResolution,
+        NetClock::time_point const& consensusCloseTime,
+        bool closeTimeAgree);
+};
+
+/** Represents the current ledger and monitors when changing ledgers jumps
+    across ledger histories.
+*/
+class LedgerState
+{
+    // Represents changing to ledger 'to' when parent of 'to' is not 'from'
+    struct Jump
+    {
+        NetClock::time_point when;
+        Ledger::ID from;
+        Ledger::ID to;
+    };
+
+    // The current ledger
+    Ledger current_;
+
+    // History of jumps (might switch to map or multi-map by seq?)
+    std::vector<Jump> jumps_;
+
+public:
+
+    Ledger
+    get() const
+    {
+        return current_;
+    }
+
+    /** Switch to a new current ledger
+
+        Switch to a new current ledger, recording a jump if the new ledger
+        is not the direct descendent of the current ledger.
+
+        @param now When the switcho ccurs
+        @param f The new ledger
+
+    */
+    void
+    switchTo(NetClock::time_point const now, Ledger const& f);
+};
 
 }  // csf
 }  // test

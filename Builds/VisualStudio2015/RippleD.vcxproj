@@ -4473,7 +4473,7 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
-    <ClCompile Include="..\..\src\test\csf\impl\Ledger.cpp">
+    <ClCompile Include="..\..\src\test\csf\impl\ledgers.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
@@ -4481,9 +4481,9 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
-    <ClInclude Include="..\..\src\test\csf\Ledger.h">
-    </ClInclude>
     <ClInclude Include="..\..\src\test\csf\LedgerChains.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\ledgers.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Peer.h">
     </ClInclude>
