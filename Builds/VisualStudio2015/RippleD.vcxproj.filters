@@ -5214,12 +5214,12 @@
     <ClCompile Include="..\..\src\test\csf\impl\ledgers.cpp">
       <Filter>test\csf\impl</Filter>
     </ClCompile>
+    <ClCompile Include="..\..\src\test\csf\impl\Sim.cpp">
+      <Filter>test\csf\impl</Filter>
+    </ClCompile>
     <ClCompile Include="..\..\src\test\csf\impl\UNL.cpp">
       <Filter>test\csf\impl</Filter>
     </ClCompile>
-    <ClInclude Include="..\..\src\test\csf\LedgerChains.h">
-      <Filter>test\csf</Filter>
-    </ClInclude>
     <ClInclude Include="..\..\src\test\csf\ledgers.h">
       <Filter>test\csf</Filter>
     </ClInclude>

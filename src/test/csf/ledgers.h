@@ -26,7 +26,8 @@
 #include <ripple/json/json_value.h>
 #include <test/csf/Tx.h>
 #include <boost/bimap/bimap.hpp>
-#include <boost/bimap/unordered_set_of.hpp>
+#include <boost/optional.hpp>
+#include <set>
 
 namespace ripple {
 namespace test {
@@ -64,10 +65,12 @@ public:
     using ID = tagged_integer<std::uint32_t, IdTag>;
 
 private:
-    // The instance is the common immutable data that will be assigned a uniqe
+    // The instance is the common immutable data that will be assigned a unique
     // ID by the oracle
     struct Instance
     {
+        Instance() {}
+
         // Sequence number
         Seq seq{0};
 
@@ -186,6 +189,12 @@ public:
 
     Json::Value getJson() const;
 
+    friend bool
+    operator<(Ledger const & a, Ledger const & b)
+    {
+        return a.id() < b.id();
+    }
+
 private:
     ID id_{0};
     Instance const* instance_;
@@ -209,20 +218,33 @@ public:
 
     LedgerOracle();
 
+    /** Find the ledger with the given ID */
+    boost::optional<Ledger>
+    lookup(Ledger::ID const & id) const;
+
     /** Accept the given txs and generate a new ledger
 
         @param curr The current ledger
         @param txs The transactions to apply to the current ledger
         @param closeTimeResolution Resolution used in determining close time
-        @param consensusCloseTime The consensus agreed close time
-        @param closeTimeAgree Whether consensus agreed to disagree about close
-                              time
+        @param consensusCloseTime The consensus agreed close time, no valid time
+                                  if 0
+
     */
     Ledger
     accept(Ledger const & curr, TxSetType const& txs,
         NetClock::duration closeTimeResolution,
-        NetClock::time_point const& consensusCloseTime,
-        bool closeTimeAgree);
+        NetClock::time_point const& consensusCloseTime);
+
+    /** Determine whether ancestor is really an ancestor of descendent */
+    bool
+    isAncestor(Ledger const & ancestor, Ledger const& descendant) const;
+
+    /** Determine the number of forks for the set of ledgers.
+    */
+    std::size_t
+    forks(std::set<Ledger> const & ledgers) const;
+
 };
 
 /** Represents the current ledger and monitors when changing ledgers jumps
@@ -230,14 +252,15 @@ public:
 */
 class LedgerState
 {
+public:
     // Represents changing to ledger 'to' when parent of 'to' is not 'from'
     struct Jump
     {
         NetClock::time_point when;
-        Ledger::ID from;
-        Ledger::ID to;
+        Ledger from;
+        Ledger to;
     };
-
+private:
     // The current ledger
     Ledger current_;
 
@@ -250,6 +273,12 @@ public:
     get() const
     {
         return current_;
+    }
+
+    std::vector<Jump> const &
+    jumps() const
+    {
+        return jumps_;
     }
 
     /** Switch to a new current ledger

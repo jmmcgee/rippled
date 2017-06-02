@@ -22,11 +22,14 @@
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
 #include <ripple/consensus/Validations.h>
+#include <ripple/consensus/Consensus.h>
+#include <ripple/consensus/ConsensusProposal.h>
 #include <test/csf/ledgers.h>
 #include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
 #include <test/csf/Validation.h>
 #include <algorithm>
+
 namespace ripple {
 namespace test {
 namespace csf {
@@ -260,8 +263,7 @@ struct Peer : public Consensus<Peer, Traits>
         auto newLedger = oracle.accept(prevLedger,
             result.set.txs_,
             closeResolution,
-            rawCloseTimes.self,
-            result.position.closeTime() != NetClock::time_point{});
+            result.position.closeTime());
         ledgers[newLedger.id()] = newLedger;
 
         lastClosedLedger.switchTo(now(), newLedger);

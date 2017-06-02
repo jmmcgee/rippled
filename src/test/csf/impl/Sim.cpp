@@ -1,7 +1,7 @@
 //------------------------------------------------------------------------------
 /*
     This file is part of rippled: https://github.com/ripple/rippled
-    Copyright (c) 2012-2017 Ripple Labs Inc.
+    Copyright (c) 2012-2017 Ripple Labs Inc
 
     Permission to use, copy, modify, and/or distribute this software for any
     purpose  with  or without fee is hereby granted, provided that the above
@@ -16,10 +16,50 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
-
 #include <BeastConfig.h>
+#include <test/csf/Sim.h>
 
-#include <test/csf/BasicNetwork_test.cpp>
-#include <test/csf/impl/UNL.cpp>
-#include <test/csf/impl/ledgers.cpp>
-#include <test/csf/impl/Sim.cpp>
+namespace ripple {
+namespace test {
+namespace csf {
+
+void
+Sim::run(int ledgers)
+{
+    for (auto& p : peers)
+    {
+        p.targetLedgers = p.completedLedgers + ledgers;
+        p.start();
+    }
+    net.step();
+}
+
+bool
+Sim::synchronized() const
+{
+    if (peers.size() < 1)
+        return true;
+    Peer const& ref = peers.front();
+    return std::all_of(peers.begin(), peers.end(), [&ref](Peer const& p) {
+        return p.lastClosedLedger.get().id() ==
+            ref.lastClosedLedger.get().id() &&
+            p.fullyValidatedLedger.get().id() ==
+            ref.fullyValidatedLedger.get().id();
+    });
+}
+
+std::size_t
+Sim::forks() const
+{
+    if(peers.size() < 1)
+        return 0;
+    std::set<Ledger> ledgers;
+    for(auto const & peer : peers)
+        ledgers.insert(peer.fullyValidatedLedger.get());
+
+    return oracle.forks(ledgers);
+}
+
+}  // namespace csf
+}  // namespace test
+}  // namespace ripple

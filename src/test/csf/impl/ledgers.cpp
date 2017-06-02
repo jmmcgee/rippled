@@ -25,7 +25,7 @@ namespace ripple {
 namespace test {
 namespace csf {
 
-Ledger::Instance const Ledger::genesis{};
+Ledger::Instance const Ledger::genesis;
 
 Json::Value
 Ledger::getJson() const
@@ -48,18 +48,23 @@ LedgerOracle::nextID() const
 }
 
 Ledger
-LedgerOracle::accept(Ledger const & curr, TxSetType const& txs,
+LedgerOracle::accept(
+    Ledger const& curr,
+    TxSetType const& txs,
     NetClock::duration closeTimeResolution,
-    NetClock::time_point const& consensusCloseTime,
-    bool closeTimeAgree)
+    NetClock::time_point const& consensusCloseTime)
 {
     Ledger::Instance next(*curr.instance_);
     next.txs.insert(txs.begin(), txs.end());
     next.seq = curr.seq() + 1;
     next.closeTimeResolution = closeTimeResolution;
-    next.closeTime = effCloseTime(
-        consensusCloseTime, closeTimeResolution, curr.parentCloseTime());
-    next.closeTimeAgree = closeTimeAgree;
+    next.closeTimeAgree = consensusCloseTime != NetClock::time_point{};
+    if(next.closeTimeAgree)
+        next.closeTime = effCloseTime(
+            consensusCloseTime, closeTimeResolution, curr.parentCloseTime());
+    else
+        next.closeTime = consensusCloseTime + 1s;
+
     next.parentCloseTime = curr.closeTime();
     next.parentID = curr.id();
     auto it = instances_.left.find(next);
@@ -69,6 +74,66 @@ LedgerOracle::accept(Ledger const & curr, TxSetType const& txs,
         it = instances_.left.insert(Entry{next, nextID()}).first;
     }
     return Ledger(it->second, &(it->first));
+}
+
+boost::optional<Ledger>
+LedgerOracle::lookup(Ledger::ID const & id) const
+{
+    auto const it = instances_.right.find(id);
+    if(it != instances_.right.end())
+    {
+        return Ledger(it->first, &(it->second));
+    }
+    return boost::none;
+}
+
+
+bool
+LedgerOracle::isAncestor(Ledger const & ancestor, Ledger const& descendant) const
+{
+    // The ancestor must have an earlier sequence number than the descendent
+    if(ancestor.seq() >= descendant.seq())
+        return false;
+
+    boost::optional<Ledger> current{descendant};
+    while(current && current->seq() > ancestor.seq())
+        current = lookup(current->parentID());
+    return current && (current->id() == ancestor.id());
+}
+
+std::size_t
+LedgerOracle::forks(std::set<Ledger> const & ledgers) const
+{
+    // Tip always maintains the Ledger with largest sequence number
+    // along all known chains.
+    std::vector<Ledger> tips;
+    tips.reserve(ledgers.size());
+
+    for (Ledger const & ledger : ledgers)
+    {
+        // Three options,
+        //  1. cursor is on a new fork
+        //  2. cursor is on a fork that we have seen tip for
+        //  3. cursor is the new tip for a fork
+        bool found = false;
+        for (auto idx = 0; idx < tips.size() && !found; ++idx)
+        {
+            bool idxEarlier = tips[idx].seq() < ledger.seq();
+            Ledger const & earlier = idxEarlier ? tips[idx] : ledger;
+            Ledger const & later = idxEarlier ? ledger : tips[idx] ;
+            if (isAncestor(earlier, later))
+            {
+                tips[idx] = later;
+                found = true;
+            }
+        }
+
+        if(!found)
+            tips.push_back(ledger);
+
+    }
+    // The size of tips is the number of forks
+    return tips.size();
 }
 
 
@@ -91,7 +156,7 @@ LedgerState::switchTo(NetClock::time_point const now, Ledger const& f)
     // This is a jump if current_ is not the parent of f
     if (f.parentID() != current_.id())
     {
-        jumps_.emplace_back(Jump{now, current_.id(), f.id()});
+        jumps_.emplace_back(Jump{now, current_, f});
     }
 
     current_ = f;
