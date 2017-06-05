@@ -500,12 +500,13 @@ public:
     }
 
     void
-    simScaleFree()
+    simScaleFreeStress()
     {
         using namespace std::chrono;
         using namespace csf;
+
         // Generate a quasi-random scale free network and simulate consensus
-        // for a single transaction
+        // as we vary transaction submission rates
 
         int N = 100;  // Peers
 
@@ -530,14 +531,46 @@ public:
         // Initial round to set prior state
         sim.run(1);
 
-        std::uniform_real_distribution<> u{};
-        for (auto& p : sim.peers)
+        // Run for 10 minues, submitting 100 tx/second
+        auto simDuration = 10min;
+        std::chrono::nanoseconds quiet = 10s;
+
+        struct SteadySubmitter
         {
-            // 50-50 chance to have seen a transaction
-            if (u(rng) >= transProb)
-                p.openTxs.insert(Tx{0});
-        }
-        sim.run(1);
+            using Network = BasicNetwork<Peer*>;
+            std::chrono::nanoseconds txRate = 1000ms/10;
+            Network::time_point end;
+            std::uint32_t txId = 0;
+            Peer & target;
+            Network & net;
+
+            SteadySubmitter(Peer & t, BasicNetwork<Peer*> & n,
+                 Network::time_point start,
+                 Network::time_point endTime)
+                : target(t), net(n), end(endTime)
+            {
+                net.timer(start, [&]() { submit(); });
+            }
+
+            void
+            submit()
+            {
+                target.submit(Tx{txId});
+                txId++;
+                if (net.now() < end)
+                    net.timer(txRate, [&]() { submit(); });
+            }
+        };
+
+        // txs, start/stop/step, target
+        SteadySubmitter ss(
+            sim.peers.front(),
+            sim.net,
+            sim.net.now() + quiet,
+            sim.net.now() + (simDuration - quiet));
+
+        // run simulation for given duration
+        sim.run(simDuration);
 
         BEAST_EXPECT(sim.synchronized());
     }
@@ -552,8 +585,10 @@ public:
         testWrongLCL();
         testFork();
 
+        #ifdef ENABLE_SIM
         simClockSkew();
-        simScaleFree();
+        simScaleFreeStress();
+        #endif
     }
 };
 
