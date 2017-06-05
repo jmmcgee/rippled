@@ -594,124 +594,15 @@ public:
             // Since the overlapped nodes have a UNL that is the union of the
             // two cliques, the maximum sized UNL list is the number of peers
             if (overlap > 0.4 * numPeers)
-                BEAST_EXPECT(ledgers.size() == 1);
-            else  // Even if we do fork, there shouldn't be more than 3 ledgers
+                BEAST_EXPECT(sim.synchronized());
+            else
+            {
+                // Even if we do fork, there shouldn't be more than 3 ledgers
                 // One for cliqueA, one for cliqueB and one for nodes in both
-                BEAST_EXPECT(ledgers.size() <= 3);
-        }
-    }
-
-    void
-    simClockSkew()
-    {
-        using namespace csf;
-        using namespace std::chrono_literals;
-        // Attempting to test what happens if peers enter consensus well
-        // separated in time.  Initial round (in which peers are not staggered)
-        // is used to get the network going, then transactions are submitted
-        // together and consensus continues.
-
-        // For all the times below, the same ledger is built but the close times
-        // disgree.  BUT THE LEDGER DOES NOT SHOW disagreeing close times.
-        // It is probably because peer proposals are stale, so they get ignored
-        // but with no peer proposals, we always assume close time consensus is
-        // true.
-
-        // Disabled while continuing to understand testt.
-
-        for (auto stagger : {800ms, 1600ms, 3200ms, 30000ms, 45000ms, 300000ms})
-        {
-            ConsensusParms parms;
-            auto tg = TrustGraph::makeComplete(5);
-            Sim sim(parms, tg, topology(tg, [](std::uint32_t i, std::uint32_t) {
-                        return 200ms * (i + 1);
-                    }));
-
-            // all transactions submitted before starting
-            // Initial round to set prior state
-            sim.run(1);
-
-            for (auto& p : sim.peers)
-            {
-                p.openTxs.insert(Tx{0});
-                p.targetLedgers = p.completedLedgers + 1;
+                BEAST_EXPECT(sim.forks() <= 3);
             }
-
-            // stagger start of consensus
-            for (auto& p : sim.peers)
-            {
-                p.start();
-                sim.scheduler.step_for(stagger);
-            }
-
-            // run until all peers have accepted all transactions
-            sim.scheduler.step_while([&]() {
-                for (auto& p : sim.peers)
-                {
-                    if (p.lastClosedLedger.get().txs().size() != 1)
-                    {
-                        return true;
-                    }
-                }
-                return false;
-            });
         }
     }
-
-    void
-    simScaleFree()
-    {
-        using namespace std::chrono;
-        using namespace csf;
-        // Generate a quasi-random scale free network and simulate consensus
-        // for a single transaction
-
-        int N = 100;  // Peers
-
-        int numUNLs = 15;  //  UNL lists
-        int minUNLSize = N / 4, maxUNLSize = N / 2;
-
-        double transProb = 0.5;
-
-        std::mt19937_64 rng;
-        ConsensusParms parms;
-
-        auto tg = TrustGraph::makeRandomRanked(
-            N,
-            numUNLs,
-            PowerLawDistribution{1, 3},
-            std::uniform_int_distribution<>{minUNLSize, maxUNLSize},
-            rng);
-
-        Sim sim{
-            parms,
-            tg,
-            topology(
-                tg,
-                fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)})};
-
-        // Initial round to set prior state
-        sim.run(1);
-
-        std::uniform_real_distribution<> u{};
-        for (auto& p : sim.peers)
-        {
-            // 50-50 chance to have seen a transaction
-            if (u(rng) >= transProb)
-                p.openTxs.insert(Tx{0});
-        }
-        sim.run(1);
-
-        // See if the network forked
-        std::set<Ledger::ID> ledgers;
-        for (auto& p : sim.peers)
-        {
-            ledgers.insert(p.prevLedgerID());
-        }
-
-        BEAST_EXPECT(ledgers.size() == 1);
-    }
-
     void
     run() override
     {
@@ -724,9 +615,6 @@ public:
         testCloseTimeDisagree();
         testWrongLCL();
         testFork();
-
-        simClockSkew();
-        simScaleFree();
     }
 };
 
