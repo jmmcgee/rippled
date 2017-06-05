@@ -109,7 +109,7 @@ public:
                             delayFactor * LEDGER_GRANULARITY);
                     }));
 
-            sim.peers[0].proposing_ = sim.peers[0].validating_ = isParticipant;
+            sim.peers[0].runAsValidator = isParticipant;
 
             // All peers submit their own ID as a transaction and relay it to
             // peers
@@ -280,8 +280,7 @@ public:
             // tx 1
             for (auto& p : sim.peers)
             {
-                p.validationDelay = validationDelay;
-                p.missingLedgerDelay = netDelay;
+                p.delays.recvValidation = validationDelay;
                 if (unls[1].find(static_cast<std::uint32_t>(p.id)) != unls[1].end())
                     p.openTxs.insert(Tx{0});
                 else
@@ -387,7 +386,7 @@ public:
                     p.openTxs.insert(Tx(1));
 
                 // Delay validation processing
-                p.validationDelay = LEDGER_GRANULARITY;
+                p.delays.recvValidation = LEDGER_GRANULARITY;
             }
             // additional rounds to generate wrongLCL and recover
             sim.run(2);
