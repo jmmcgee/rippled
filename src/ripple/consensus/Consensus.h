@@ -1282,7 +1282,7 @@ Consensus<Derived, Traits>::updateOurPositions()
         }
 
         if (mutableSet)
-            ourNewSet.emplace(*mutableSet);
+            ourNewSet.emplace(std::move(*mutableSet));
     }
 
     NetClock::time_point consensusCloseTime = {};
@@ -1508,7 +1508,8 @@ Consensus<Derived, Traits>::createDisputes(TxSet_t const& o)
 
         JLOG(j_.debug()) << "Transaction " << txID << " is disputed";
 
-        typename Result::Dispute_t dtx{tx, result_->set.exists(txID), j_};
+        typename Result::Dispute_t dtx{tx, result_->set.exists(txID),
+         std::max(prevProposers_, peerProposals_.size()), j_};
 
         // Update all of the available peer's votes on the disputed transaction
         for (auto& pit : peerProposals_)

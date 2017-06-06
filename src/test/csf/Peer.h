@@ -19,31 +19,30 @@
 #ifndef RIPPLE_TEST_CSF_PEER_H_INCLUDED
 #define RIPPLE_TEST_CSF_PEER_H_INCLUDED
 
-#include <boost/container/flat_map.hpp>
-#include <boost/container/flat_set.hpp>
-#include <ripple/consensus/Validations.h>
 #include <ripple/consensus/Consensus.h>
 #include <ripple/consensus/ConsensusProposal.h>
-#include <test/csf/ledgers.h>
+#include <ripple/consensus/Validations.h>
+#include <boost/container/flat_map.hpp>
+#include <boost/container/flat_set.hpp>
+#include <algorithm>
 #include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
 #include <test/csf/Validation.h>
-#include <algorithm>
+#include <test/csf/ledgers.h>
 
 namespace ripple {
 namespace test {
 namespace csf {
-
 
 namespace bc = boost::container;
 
 /** Proposal is a position taken in the consensus process and is represented
     directly from the generic types.
 */
-using Proposal = ConsensusProposal<NodeID, Ledger::ID, TxSetType>;
+using Proposal = ConsensusProposal<NodeID, Ledger::ID, TxSet::ID>;
 
 /** Simulated delays in internal peer processing.
-*/
+ */
 struct SimDelays
 {
     //! Delay in consensus calling doAccept to accepting and issuing validation
@@ -83,12 +82,14 @@ struct Peer : public Consensus<Peer, Traits>
         }
 
         void
-        onStale(Validation && v)
-        {}
+        onStale(Validation&& v)
+        {
+        }
 
         void
-        flush(hash_map<NodeKey, Validation>&& remaining) {}
-
+        flush(hash_map<NodeKey, Validation>&& remaining)
+        {
+        }
     };
 
     // Non-locking mutex to avoid locks in generic Validations
@@ -112,7 +113,7 @@ struct Peer : public Consensus<Peer, Traits>
     NodeKey key;
 
     //! The oracle that manages unique ledgers
-    LedgerOracle & oracle;
+    LedgerOracle& oracle;
 
     //! Handle to network for sending messages
     BasicNetwork<Peer*>& net;
@@ -159,7 +160,7 @@ struct Peer : public Consensus<Peer, Traits>
     std::size_t quorum;
 
     //! All peers start from the default constructed ledger
-    Peer(std::uint32_t i, LedgerOracle & o, BasicNetwork<Peer*>& n, UNL const& u)
+    Peer(std::uint32_t i, LedgerOracle& o, BasicNetwork<Peer*>& n, UNL const& u)
         : Consensus<Peer, Traits>(n.clock(), beast::Journal{})
         , id{i}
         , key{id, 0}
@@ -187,7 +188,6 @@ struct Peer : public Consensus<Peer, Traits>
             auto it = p.ledgers.find(ledgerHash);
             if (it != p.ledgers.end())
             {
-
                 auto res = ledgers.emplace(ledgerHash, it->second);
                 return &res.first->second;
             }
@@ -265,7 +265,7 @@ struct Peer : public Consensus<Peer, Traits>
         schedule(delays.ledgerAccept, [&]() {
             auto newLedger = oracle.accept(
                 prevLedger,
-                result.set.txs_,
+                result.set.txs(),
                 closeResolution,
                 result.position.closeTime());
             ledgers[newLedger.id()] = newLedger;
@@ -311,7 +311,7 @@ struct Peer : public Consensus<Peer, Traits>
     Ledger::Seq
     earliestAllowedSeq() const
     {
-        if(lastClosedLedger.get().seq() > Ledger::Seq{20})
+        if (lastClosedLedger.get().seq() > Ledger::Seq{20})
             return lastClosedLedger.get().seq() - 20;
         return Ledger::Seq{0};
     }
@@ -319,7 +319,7 @@ struct Peer : public Consensus<Peer, Traits>
     getPrevLedger(Ledger::ID const& ledgerID, Ledger const& ledger, Mode mode)
     {
         // only do if we are past the genesis ledger
-        if(ledger.seq() ==  Ledger::Seq{0})
+        if (ledger.seq() == Ledger::Seq{0})
             return ledgerID;
 
         Ledger::ID parentID;
@@ -329,11 +329,8 @@ struct Peer : public Consensus<Peer, Traits>
 
         // Get validators that are on our ledger, or "close" to being on
         // our ledger.
-        auto ledgerCounts =
-            validations.currentTrustedDistribution(
-                ledgerID,
-                parentID,
-                earliestAllowedSeq());
+        auto ledgerCounts = validations.currentTrustedDistribution(
+            ledgerID, parentID, earliestAllowedSeq());
 
         Ledger::ID netLgr = getPreferredLedger(ledgerID, ledgerCounts);
 
@@ -379,12 +376,10 @@ struct Peer : public Consensus<Peer, Traits>
     void
     receive(Tx const& tx)
     {
-        if (openTxs.find(tx.id()) == openTxs.end())
-        {
-            openTxs.insert(tx);
-            // relay to peers???
-            relay(tx);
-        }
+        auto const& lastClosedTxs = lastClosedLedger.get().txs();
+        if (lastClosedTxs.find(tx) != lastClosedTxs.end())
+            return;
+        openTxs.insert(tx);
     }
 
     void
@@ -395,7 +390,7 @@ struct Peer : public Consensus<Peer, Traits>
         validations.add(v.key(), v);
 
         auto it = ledgers.find(v.ledgerID());
-        if(it != ledgers.end())
+        if (it != ledgers.end())
             checkFullyValidated(it->second);
         // TODO:
         //   else acquire from the network!
@@ -406,9 +401,8 @@ struct Peer : public Consensus<Peer, Traits>
     {
         if (unl.find(static_cast<std::uint32_t>(v.nodeID())) != unl.end())
         {
-            schedule(delays.recvValidation, [&, v](){
-                addTrustedValidation(v);
-            });
+            schedule(
+                delays.recvValidation, [&, v]() { addTrustedValidation(v); });
         }
     }
 
@@ -491,10 +485,10 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     void
-    checkFullyValidated(Ledger const & ledger)
+    checkFullyValidated(Ledger const& ledger)
     {
         // Only consider ledgers newer than our last fully validated ledger
-        if(ledger.seq() < fullyValidatedLedger.get().seq())
+        if (ledger.seq() < fullyValidatedLedger.get().seq())
             return;
 
         auto count = validations.numTrustedForLedger(ledger.id());
@@ -505,7 +499,7 @@ struct Peer : public Consensus<Peer, Traits>
     }
 };
 
-}  // csf
-}  // test
-}  // ripple
+}  // namespace csf
+}  // namespace test
+}  // namespace ripple
 #endif
