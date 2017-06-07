@@ -376,10 +376,14 @@ struct Peer : public Consensus<Peer, Traits>
     void
     receive(Tx const& tx)
     {
+        // Ignore tranasctions already in our ledger
         auto const& lastClosedTxs = lastClosedLedger.get().txs();
         if (lastClosedTxs.find(tx) != lastClosedTxs.end())
             return;
-        openTxs.insert(tx);
+        // Only relay if it is new to us
+        // TODO: Figure out better overlay model to manage relay/flood
+        if(openTxs.insert(tx).second)
+            relay(tx);
     }
 
     void
@@ -415,12 +419,11 @@ struct Peer : public Consensus<Peer, Traits>
                 this, link.to, [ msg = t, to = link.to ] { to->receive(msg); });
     }
 
-    // Receive and relay locally submitted transaction
+    // Receive locally submitted transaction
     void
     submit(Tx const& tx)
     {
         receive(tx);
-        relay(tx);
     }
 
     void
