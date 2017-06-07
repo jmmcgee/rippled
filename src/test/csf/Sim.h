@@ -23,6 +23,7 @@
 #include <test/csf/BasicNetwork.h>
 #include <test/csf/Peer.h>
 #include <test/csf/UNL.h>
+#include <test/csf/events.h>
 
 namespace ripple {
 namespace test {
@@ -31,13 +32,15 @@ namespace csf {
 class Sim
 {
 public:
+    using clock_type = beast::manual_clock<std::chrono::steady_clock>;
+    using duration = typename clock_type::duration;
+    using time_point = typename clock_type::time_point;
 
+public:
+    Collector collector;
     LedgerOracle oracle;
     BasicNetwork<Peer*> net;
     std::vector<Peer> peers;
-
-    using time_point = BasicNetwork<Peer*>::time_point;
-    using duration = BasicNetwork<Peer*>::duration;
 
     /** Create a simulator for the given trust graph and network topology.
 
@@ -59,11 +62,12 @@ public:
 
     */
     template <class Topology>
-    Sim(TrustGraph const& g, Topology const& top)
+    Sim(TrustGraph const& g, Topology const& top) : collector(NullCollector{})
     {
         peers.reserve(g.numPeers());
         for (int i = 0; i < g.numPeers(); ++i)
-            peers.emplace_back(i, oracle, net, g.unl(i));
+            peers.emplace_back(i, oracle, net, g.unl(i),
+                NodeReporter{collector, NodeID{i}, net.clock()});
 
         for (int i = 0; i < peers.size(); ++i)
         {
@@ -92,7 +96,7 @@ public:
 
     /** Run consensus for the given duration */
     void
-    run(duration const & dur);
+    run(duration const& dur);
 
     /** Check whether all peers in the network are synchronized.
 
@@ -109,11 +113,10 @@ public:
     */
     std::size_t
     forks() const;
-
 };
 
-}  // csf
-}  // test
-}  // ripple
+}  // namespace csf
+}  // namespace test
+}  // namespace ripple
 
 #endif

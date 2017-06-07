@@ -70,16 +70,15 @@ class ScaleFreeSim_test : public beast::unit_test::suite
 
         struct SteadySubmitter
         {
-            using Network = BasicNetwork<Peer*>;
             std::chrono::nanoseconds txRate = 1000ms/100;
-            Network::time_point end;
+            Sim::time_point end;
             std::uint32_t txId = 0;
             Peer & target;
-            Network & net;
+            BasicNetwork<Peer*> & net;
 
             SteadySubmitter(Peer & t, BasicNetwork<Peer*> & n,
-                 Network::time_point start,
-                 Network::time_point endTime)
+                 Sim::time_point start,
+                 Sim::time_point endTime)
                 : target(t), net(n), end(endTime)
             {
                 net.timer(start, [&]() { submit(); });

@@ -4481,6 +4481,8 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
+    <ClInclude Include="..\..\src\test\csf\events.h">
+    </ClInclude>
     <ClCompile Include="..\..\src\test\csf\impl\ledgers.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
@@ -4496,6 +4498,8 @@
     <ClInclude Include="..\..\src\test\csf\ledgers.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Peer.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\Proposal.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Sim.h">
     </ClInclude>

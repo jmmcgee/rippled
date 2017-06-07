@@ -20,7 +20,7 @@
 #define RIPPLE_TEST_CSF_PEER_H_INCLUDED
 
 #include <ripple/consensus/Consensus.h>
-#include <ripple/consensus/ConsensusProposal.h>
+
 #include <ripple/consensus/Validations.h>
 #include <boost/container/flat_map.hpp>
 #include <boost/container/flat_set.hpp>
@@ -29,17 +29,13 @@
 #include <test/csf/UNL.h>
 #include <test/csf/Validation.h>
 #include <test/csf/ledgers.h>
+#include <test/csf/events.h>
 
 namespace ripple {
 namespace test {
 namespace csf {
 
 namespace bc = boost::container;
-
-/** Proposal is a position taken in the consensus process and is represented
-    directly from the generic types.
-*/
-using Proposal = ConsensusProposal<NodeID, Ledger::ID, TxSet::ID>;
 
 /** Simulated delays in internal peer processing.
  */
@@ -159,8 +155,11 @@ struct Peer : public Consensus<Peer, Traits>
     // TODO: Use the logic in ValidatorList to set this
     std::size_t quorum;
 
+    //! The collector to report events to
+    NodeReporter reporter;
+
     //! All peers start from the default constructed ledger
-    Peer(std::uint32_t i, LedgerOracle& o, BasicNetwork<Peer*>& n, UNL const& u)
+    Peer(std::uint32_t i, LedgerOracle& o, BasicNetwork<Peer*>& n, UNL const& u, NodeReporter r)
         : Consensus<Peer, Traits>(n.clock(), beast::Journal{})
         , id{i}
         , key{id, 0}
@@ -169,6 +168,7 @@ struct Peer : public Consensus<Peer, Traits>
         , unl(u)
         , validations{ValidationParms{}, n.clock(), beast::Journal{}, *this}
         , quorum{static_cast<std::size_t>(unl.size() * 0.8)}
+        , reporter{r}
     {
         ledgers[lastClosedLedger.get().id()] = lastClosedLedger.get();
     }
@@ -181,7 +181,6 @@ struct Peer : public Consensus<Peer, Traits>
             return &(it->second);
 
         // TODO Get from network properly!
-
         for (auto const& link : net.links(this))
         {
             auto const& p = *link.to;
@@ -207,7 +206,17 @@ struct Peer : public Consensus<Peer, Traits>
         auto it = txSets.find(setId);
         if (it != txSets.end())
             return &(it->second);
-        // TODO Get from network instead!
+        // TODO Get from network properly!
+        for (auto const& link : net.links(this))
+        {
+            auto const& p = *link.to;
+            auto it = p.txSets.find(setId);
+            if (it != p.txSets.end())
+            {
+                auto res = txSets.emplace(setId, it->second);
+                return &res.first->second;
+            }
+        }
         return nullptr;
     }
 
@@ -232,12 +241,12 @@ struct Peer : public Consensus<Peer, Traits>
     Result
     onClose(Ledger const& prevLedger, NetClock::time_point closeTime, Mode mode)
     {
-        TxSet res{openTxs};
+        reporter.on(CloseLedger{prevLedger, openTxs});
 
         return Result{TxSet{openTxs},
                       Proposal{prevLedger.id(),
                                Proposal::seqJoin,
-                               res.id(),
+                               TxSet::calcID(openTxs),
                                closeTime,
                                now(),
                                id}};
@@ -269,6 +278,8 @@ struct Peer : public Consensus<Peer, Traits>
                 closeResolution,
                 result.position.closeTime());
             ledgers[newLedger.id()] = newLedger;
+
+            reporter.on(AcceptLedger{newLedger, lastClosedLedger.get()});
 
             lastClosedLedger.switchTo(now(), newLedger);
 
@@ -336,7 +347,7 @@ struct Peer : public Consensus<Peer, Traits>
 
         if (netLgr != ledgerID)
         {
-            // signal change?
+            reporter.on(WrongPrevLedger{ledgerID, netLgr});
         }
         return netLgr;
     }
@@ -349,8 +360,34 @@ struct Peer : public Consensus<Peer, Traits>
 
     //-------------------------------------------------------------------------
     // non-callback helpers
+
+    // Generic overlay points
+
+    // Receive a message from a specific peer
+    template <class T>
     void
-    receive(Proposal const& p)
+    receive(NodeID from, T const & t)
+    {
+        reporter.on(Receive<T>{from, t});
+
+        handle(t);
+    }
+
+    // Relay a message to all connected peers
+    template <class T>
+    void
+    relay(T const & t)
+    {
+        reporter.on(Relay<T>{t});
+        for (auto const& link : net.links(this))
+            net.send(this, link.to, [ msg = t, to = link.to, id = this->id ] {
+                to->receive(id, msg);
+            });
+    }
+
+    // Type specific receive handlers
+    void
+    handle(Proposal const& p)
     {
         if (unl.find(static_cast<std::uint32_t>(p.nodeID())) == unl.end())
             return;
@@ -365,7 +402,7 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     void
-    receive(TxSet const& txs)
+    handle(TxSet const& txs)
     {
         // save and map complete?
         auto it = txSets.insert(std::make_pair(txs.id(), txs));
@@ -374,7 +411,7 @@ struct Peer : public Consensus<Peer, Traits>
     }
 
     void
-    receive(Tx const& tx)
+    handle(Tx const& tx)
     {
         // Ignore tranasctions already in our ledger
         auto const& lastClosedTxs = lastClosedLedger.get().txs();
@@ -393,15 +430,14 @@ struct Peer : public Consensus<Peer, Traits>
         v.setSeen(now());
         validations.add(v.key(), v);
 
-        auto it = ledgers.find(v.ledgerID());
-        if (it != ledgers.end())
-            checkFullyValidated(it->second);
-        // TODO:
-        //   else acquire from the network!
+        // Acquire will try to get from network if not already local
+        Ledger const * lgr = acquireLedger(v.ledgerID());
+        if(lgr)
+            checkFullyValidated(*lgr);
     }
 
     void
-    receive(Validation const& v)
+    handle(Validation const& v)
     {
         if (unl.find(static_cast<std::uint32_t>(v.nodeID())) != unl.end())
         {
@@ -410,20 +446,11 @@ struct Peer : public Consensus<Peer, Traits>
         }
     }
 
-    template <class T>
-    void
-    relay(T const& t)
-    {
-        for (auto const& link : net.links(this))
-            net.send(
-                this, link.to, [ msg = t, to = link.to ] { to->receive(msg); });
-    }
-
-    // Receive locally submitted transaction
+    // Receive (handle) a locally submitted transaction
     void
     submit(Tx const& tx)
     {
-        receive(tx);
+        handle(tx);
     }
 
     void
@@ -446,10 +473,13 @@ struct Peer : public Consensus<Peer, Traits>
         Ledger::ID bestLCL =
             getPreferredLedger(lastClosedLedger.get().id(), valDistribution);
 
+        reporter.on(StartRound{bestLCL, lastClosedLedger.get()});
+
         // TODO:
         //  - Get dominant peer ledger if no validated available?
         //  - Check that we are switching to something compatible with our
         //    (network) validated history of ledgers?
+        // TODO: Expire validations less frequently?
         Base::startRound(
             now(), bestLCL, lastClosedLedger.get(), runAsValidator);
     }
@@ -457,8 +487,6 @@ struct Peer : public Consensus<Peer, Traits>
     void
     start()
     {
-        // TODO: Expire validations less frequently
-        validations.expire();
         net.timer(LEDGER_GRANULARITY, [&]() { timerEntry(); });
         startRound();
     }
@@ -497,6 +525,7 @@ struct Peer : public Consensus<Peer, Traits>
         auto count = validations.numTrustedForLedger(ledger.id());
         if (count >= quorum)
         {
+            reporter.on(FullyValidateLedger{ledger, fullyValidatedLedger.get()});
             fullyValidatedLedger.switchTo(now(), ledger);
         }
     }
