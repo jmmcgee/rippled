@@ -55,6 +55,28 @@ struct Traits
     using TxSet_t = TxSet;
 };
 
+/** Helper to simplify a peer notifying a collector */
+class PeerCollector
+{
+    using clock_type = beast::manual_clock<std::chrono::steady_clock>;
+    Collector& collector_;
+    NodeID id_;
+    clock_type& clock_;
+
+public:
+    PeerCollector(Collector& collector, NodeID id, clock_type& clock)
+        : collector_{collector}, id_{id}, clock_{clock}
+    {
+    }
+
+    template <class Event>
+    void
+    on(Event const& e)
+    {
+        collector_.on(id_, clock_.now(), e);
+    }
+};
+
 /** Represents a single node participating in the consensus process.
     It implements the Callbacks required by Consensus.
 */
@@ -156,10 +178,10 @@ struct Peer : public Consensus<Peer, Traits>
     std::size_t quorum;
 
     //! The collector to report events to
-    NodeReporter reporter;
+    PeerCollector collector;
 
     //! All peers start from the default constructed ledger
-    Peer(std::uint32_t i, LedgerOracle& o, BasicNetwork<Peer*>& n, UNL const& u, NodeReporter r)
+    Peer(std::uint32_t i, LedgerOracle& o, BasicNetwork<Peer*>& n, UNL const& u, Collector & c)
         : Consensus<Peer, Traits>(n.clock(), beast::Journal{})
         , id{i}
         , key{id, 0}
@@ -168,7 +190,7 @@ struct Peer : public Consensus<Peer, Traits>
         , unl(u)
         , validations{ValidationParms{}, n.clock(), beast::Journal{}, *this}
         , quorum{static_cast<std::size_t>(unl.size() * 0.8)}
-        , reporter{r}
+        , collector{c, id, net.clock()}
     {
         ledgers[lastClosedLedger.get().id()] = lastClosedLedger.get();
     }
@@ -241,7 +263,7 @@ struct Peer : public Consensus<Peer, Traits>
     Result
     onClose(Ledger const& prevLedger, NetClock::time_point closeTime, Mode mode)
     {
-        reporter.on(CloseLedger{prevLedger, openTxs});
+        collector.on(CloseLedger{prevLedger, openTxs});
 
         return Result{TxSet{openTxs},
                       Proposal{prevLedger.id(),
@@ -279,7 +301,7 @@ struct Peer : public Consensus<Peer, Traits>
                 result.position.closeTime());
             ledgers[newLedger.id()] = newLedger;
 
-            reporter.on(AcceptLedger{newLedger, lastClosedLedger.get()});
+            collector.on(AcceptLedger{newLedger, lastClosedLedger.get()});
 
             lastClosedLedger.switchTo(now(), newLedger);
 
@@ -347,7 +369,7 @@ struct Peer : public Consensus<Peer, Traits>
 
         if (netLgr != ledgerID)
         {
-            reporter.on(WrongPrevLedger{ledgerID, netLgr});
+            collector.on(WrongPrevLedger{ledgerID, netLgr});
         }
         return netLgr;
     }
@@ -368,7 +390,7 @@ struct Peer : public Consensus<Peer, Traits>
     void
     receive(NodeID from, T const & t)
     {
-        reporter.on(Receive<T>{from, t});
+        collector.on(Receive<T>{from, t});
 
         handle(t);
     }
@@ -378,7 +400,7 @@ struct Peer : public Consensus<Peer, Traits>
     void
     relay(T const & t)
     {
-        reporter.on(Relay<T>{t});
+        collector.on(Relay<T>{t});
         for (auto const& link : net.links(this))
             net.send(this, link.to, [ msg = t, to = link.to, id = this->id ] {
                 to->receive(id, msg);
@@ -473,7 +495,7 @@ struct Peer : public Consensus<Peer, Traits>
         Ledger::ID bestLCL =
             getPreferredLedger(lastClosedLedger.get().id(), valDistribution);
 
-        reporter.on(StartRound{bestLCL, lastClosedLedger.get()});
+        collector.on(StartRound{bestLCL, lastClosedLedger.get()});
 
         // TODO:
         //  - Get dominant peer ledger if no validated available?
@@ -525,7 +547,7 @@ struct Peer : public Consensus<Peer, Traits>
         auto count = validations.numTrustedForLedger(ledger.id());
         if (count >= quorum)
         {
-            reporter.on(FullyValidateLedger{ledger, fullyValidatedLedger.get()});
+            collector.on(FullyValidateLedger{ledger, fullyValidatedLedger.get()});
             fullyValidatedLedger.switchTo(now(), ledger);
         }
     }

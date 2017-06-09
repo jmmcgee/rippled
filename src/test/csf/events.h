@@ -301,27 +301,6 @@ public:
     }
 };
 
-class NodeReporter
-{
-    using clock_type = beast::manual_clock<std::chrono::steady_clock>;
-    Collector& collector_;
-    NodeID id_;
-    clock_type& clock_;
-
-public:
-    NodeReporter(Collector& collector, NodeID id, clock_type& clock)
-        : collector_{collector}, id_{id}, clock_{clock}
-    {
-    }
-
-    template <class Event>
-    void
-    on(Event const& e)
-    {
-        collector_.on(id_, clock_.now(), e);
-    }
-};
-
 }  // namespace csf
 }  // namespace test
 }  // namespace ripple

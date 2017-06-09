@@ -66,8 +66,7 @@ public:
     {
         peers.reserve(g.numPeers());
         for (int i = 0; i < g.numPeers(); ++i)
-            peers.emplace_back(i, oracle, net, g.unl(i),
-                NodeReporter{collector, NodeID{i}, net.clock()});
+            peers.emplace_back(i, oracle, net, g.unl(i), collector);
 
         for (int i = 0; i < peers.size(); ++i)
         {

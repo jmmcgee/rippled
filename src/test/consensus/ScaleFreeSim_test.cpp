@@ -55,7 +55,7 @@ class ScaleFreeSim_test : public beast::unit_test::suite
             PowerLawDistribution{1, 3},
             std::uniform_int_distribution<>{minUNLSize, maxUNLSize},
             rng);
-
+        
         Sim sim{
             tg,
             topology(tg, fixed{round<milliseconds>(0.2 * LEDGER_GRANULARITY)})};
