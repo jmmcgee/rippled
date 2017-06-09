@@ -30,6 +30,7 @@
 #include <test/csf/Validation.h>
 #include <test/csf/ledgers.h>
 #include <test/csf/events.h>
+#include <test/csf/CollectorRef.h>
 
 namespace ripple {
 namespace test {
@@ -55,27 +56,6 @@ struct Traits
     using TxSet_t = TxSet;
 };
 
-/** Helper to simplify a peer notifying a collector */
-class PeerCollector
-{
-    using clock_type = beast::manual_clock<std::chrono::steady_clock>;
-    Collector& collector_;
-    NodeID id_;
-    clock_type& clock_;
-
-public:
-    PeerCollector(Collector& collector, NodeID id, clock_type& clock)
-        : collector_{collector}, id_{id}, clock_{clock}
-    {
-    }
-
-    template <class Event>
-    void
-    on(Event const& e)
-    {
-        collector_.on(id_, clock_.now(), e);
-    }
-};
 
 /** Represents a single node participating in the consensus process.
     It implements the Callbacks required by Consensus.
@@ -121,6 +101,36 @@ struct Peer : public Consensus<Peer, Traits>
         void
         unlock()
         {
+        }
+    };
+
+    /** Helper to simplify a peer notifying a collector */
+    class WrappedCollector
+    {
+        using clock_type = beast::manual_clock<std::chrono::steady_clock>;
+        CollectorRef collector_;
+        NodeID id_;
+        clock_type& clock_;
+
+    public:
+
+        template <class Collector>
+        WrappedCollector(Collector& collector, NodeID id, clock_type& clock)
+            : collector_{collector}, id_{id}, clock_{clock}
+        {
+        }
+
+        WrappedCollector(WrappedCollector const & ) = delete;
+        WrappedCollector& operator= (WrappedCollector const & ) = delete;
+
+        WrappedCollector(WrappedCollector && ) = default;
+        WrappedCollector& operator= (WrappedCollector && ) = default;
+
+        template <class Event>
+        void
+        on(Event const& e)
+        {
+            collector_.on(id_, clock_.now(), e);
         }
     };
 
@@ -178,9 +188,10 @@ struct Peer : public Consensus<Peer, Traits>
     std::size_t quorum;
 
     //! The collector to report events to
-    PeerCollector collector;
+    WrappedCollector collector;
 
     //! All peers start from the default constructed ledger
+    template <class Collector>
     Peer(std::uint32_t i, LedgerOracle& o, BasicNetwork<Peer*>& n, UNL const& u, Collector & c)
         : Consensus<Peer, Traits>(n.clock(), beast::Journal{})
         , id{i}

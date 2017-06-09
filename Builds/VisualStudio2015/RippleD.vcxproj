@@ -4481,6 +4481,10 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
+    <ClInclude Include="..\..\src\test\csf\CollectorRef.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\collectors.h">
+    </ClInclude>
     <ClInclude Include="..\..\src\test\csf\events.h">
     </ClInclude>
     <ClCompile Include="..\..\src\test\csf\impl\ledgers.cpp">

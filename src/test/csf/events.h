@@ -23,11 +23,34 @@
 #include <test/csf/Validation.h>
 #include <test/csf/ledgers.h>
 #include <test/csf/Proposal.h>
-
 #include <chrono>
+
+
 namespace ripple {
 namespace test {
 namespace csf {
+
+// Below are events which occur during the course of simulation. Each Peer
+// is responsible for issuing the appropriate event.  A simulation can have
+// a collector, which listens to the event updates, perhaps calculating
+// statistics or storing events to a log for post-processing.
+//
+// Example collectors can be found in collectors.h, but have the general
+// interface:
+//
+// @code
+//     template <class T>
+//     struct Collector
+//     {
+//        template <class Event>
+//        void
+//        on(NodeID who, time_point when, Event e);
+//     };
+// @endcode
+//
+// CollectorRef.f defines a type-erased holder for arbitrary Collectors.  If
+// any new events are added, the interface there needs to be updated.
+
 
 /** A value received from another node
  */
@@ -102,204 +125,6 @@ struct FullyValidateLedger
     Ledger prior;
 };
 
-struct NullCollector
-{
-    template <class E>
-    void
-    on(NodeID node, std::chrono::steady_clock::time_point when, E const& e)
-    {
-    }
-};
-
-class Collector
-{
-    using tp = std::chrono::steady_clock::time_point;
-
-    struct ICollector
-    {
-        virtual ~ICollector() = default;
-
-        virtual std::unique_ptr<ICollector>
-        copy() const = 0;
-
-        virtual void
-        on(NodeID node, tp when, Receive<Tx> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Receive<TxSet> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Receive<Validation> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Receive<Ledger> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Receive<Proposal> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Relay<Tx> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Relay<TxSet> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Relay<Validation> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Relay<Ledger> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, Relay<Proposal> const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, StartRound const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, CloseLedger const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, AcceptLedger const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, WrongPrevLedger const&) = 0;
-
-        virtual void
-        on(NodeID node, tp when, FullyValidateLedger const&) = 0;
-    };
-
-    template <class T>
-    class AnyCollector final : public ICollector
-    {
-        T t_;
-
-    public:
-        AnyCollector(T t) : t_{std::move(t)}
-        {
-        }
-
-        std::unique_ptr<ICollector>
-        copy() const override
-        {
-            return std::make_unique<AnyCollector>(*this);
-        }
-        void
-        on(NodeID node, tp when, Receive<Tx> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Receive<TxSet> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Receive<Validation> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Receive<Ledger> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Receive<Proposal> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Relay<Tx> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Relay<TxSet> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Relay<Validation> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Relay<Ledger> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, Relay<Proposal> const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-
-        virtual void
-        on(NodeID node, tp when, StartRound const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, CloseLedger const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, AcceptLedger const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, WrongPrevLedger const& e) override
-        {
-            t_.on(node, when, e);
-        }
-
-        virtual void
-        on(NodeID node, tp when, FullyValidateLedger const& e) override
-        {
-            t_.on(node, when, e);
-        }
-    };
-
-    std::unique_ptr<ICollector> impl_;
-
-public:
-    template <class T>
-    Collector(T t) : impl_{new AnyCollector<T>(std::forward<T>(t))}
-    {
-    }
-
-    Collector(Collector const& c) = delete;
-
-    Collector(Collector&&) = default;
-
-    Collector&
-    operator=(Collector& c) = delete;
-
-    Collector&
-    operator=(Collector&&) = default;
-
-    template <class E>
-    void
-    on(NodeID node, tp when, E const& e)
-    {
-        impl_->on(node, when, e);
-    }
-};
 
 }  // namespace csf
 }  // namespace test

@@ -16,13 +16,31 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
+#ifndef RIPPLE_TEST_CSF_COLLECTORS_H_INCLUDED
+#define RIPPLE_TEST_CSF_COLLECTORS_H_INCLUDED
 
-#include <test/csf/BasicNetwork.h>
-#include <test/csf/Peer.h>
-#include <test/csf/Sim.h>
-#include <test/csf/Tx.h>
-#include <test/csf/UNL.h>
 #include <test/csf/events.h>
-#include <test/csf/ledgers.h>
-#include <test/csf/Proposal.h>
-#include <test/csf/collectors.h>
+#include <chrono>
+
+
+namespace ripple {
+namespace test {
+namespace csf {
+
+/** Collector which ignores all events
+*/
+struct NullCollector
+{
+    template <class E>
+    void
+    on(NodeID, std::chrono::steady_clock::time_point, E const& e)
+    {
+    }
+};
+
+
+}  // namespace csf
+}  // namespace test
+}  // namespace ripple
+
+#endif

@@ -23,7 +23,7 @@
 #include <test/csf/BasicNetwork.h>
 #include <test/csf/Peer.h>
 #include <test/csf/UNL.h>
-#include <test/csf/events.h>
+#include <test/csf/collectors.h>
 
 namespace ripple {
 namespace test {
@@ -31,13 +31,15 @@ namespace csf {
 
 class Sim
 {
+    static NullCollector nullCollector;
 public:
     using clock_type = beast::manual_clock<std::chrono::steady_clock>;
     using duration = typename clock_type::duration;
     using time_point = typename clock_type::time_point;
 
+
+
 public:
-    Collector collector;
     LedgerOracle oracle;
     BasicNetwork<Peer*> net;
     std::vector<Peer> peers;
@@ -59,10 +61,11 @@ public:
 
         @param g The trust graph between peers.
         @param top The network topology between peers.
+        @param collector The event collector to use for the simulation
 
     */
-    template <class Topology>
-    Sim(TrustGraph const& g, Topology const& top) : collector(NullCollector{})
+    template <class Topology, class Collector>
+    Sim(TrustGraph const& g, Topology const& top, Collector & collector)
     {
         peers.reserve(g.numPeers());
         for (int i = 0; i < g.numPeers(); ++i)
@@ -82,6 +85,13 @@ public:
                 }
             }
         }
+    }
+
+    /** Create a simulator using a NullCollector
+    */
+    template <class Topology>
+    Sim(TrustGraph const& g, Topology const& top) : Sim(g, top, nullCollector)
+    {
     }
 
     /** Run consensus protocol to generate the provided number of ledgers.
