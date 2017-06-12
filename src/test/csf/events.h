@@ -44,13 +44,15 @@ namespace csf {
 //     {
 //        template <class Event>
 //        void
-//        on(NodeID who, time_point when, Event e);
+//        on(NodeID who, EventTime when, Event e);
 //     };
 // @endcode
 //
 // CollectorRef.f defines a type-erased holder for arbitrary Collectors.  If
 // any new events are added, the interface there needs to be updated.
 
+
+using EventTime = std::chrono::steady_clock::time_point;
 
 /** A value received from another node
  */
@@ -101,8 +103,8 @@ struct AcceptLedger
     // The newly created ledger
     Ledger ledger;
 
-    // The prior ledger (this is a jupm if prior.id() != ledger.parentID())
-    Ledger priorLedger;
+    // The prior ledger (this is a jump if prior.id() != ledger.parentID())
+    Ledger prior;
 };
 
 //! Node detected a wrong prior ledger during consensus

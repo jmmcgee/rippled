@@ -483,6 +483,8 @@ struct Peer : public Consensus<Peer, Traits>
     void
     submit(Tx const& tx)
     {
+        // Received this from ourselves
+        collector.on(Receive<Tx>{id, tx});
         handle(tx);
     }
 

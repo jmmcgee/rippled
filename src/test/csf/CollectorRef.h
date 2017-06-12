@@ -65,7 +65,7 @@ namespace csf {
 */
 class CollectorRef
 {
-    using tp = std::chrono::steady_clock::time_point;
+    using tp = EventTime;
 
     struct ICollector
     {

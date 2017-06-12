@@ -25,4 +25,5 @@
 #include <test/csf/events.h>
 #include <test/csf/ledgers.h>
 #include <test/csf/Proposal.h>
+#include <test/csf/Histogram.h>
 #include <test/csf/collectors.h>
