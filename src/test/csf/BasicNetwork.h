@@ -472,7 +472,6 @@ public:
     bool
     step_for(std::chrono::duration<Period, Rep> const& amount);
 };
-
 //------------------------------------------------------------------------------
 
 template <class Peer>

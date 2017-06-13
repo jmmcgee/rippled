@@ -71,40 +71,15 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         // Run for 10 minues, submitting 100 tx/second
         std::chrono::nanoseconds simDuration = 10min;
         std::chrono::nanoseconds quiet = 10s;
-
-
-        struct SteadySubmitter
-        {
-            std::chrono::nanoseconds txRate = 1000ms/100;
-            std::uint32_t txId = 0;
-            Peer & target;
-            BasicNetwork<Peer*> & net;
-            Sim::time_point end;
-
-            SteadySubmitter(Peer & t, BasicNetwork<Peer*> & n,
-                 Sim::time_point start,
-                 Sim::time_point endTime)
-                : target(t), net(n), end(endTime)
-            {
-                net.timer(start, [&]() { submit(); });
-            }
-
-            void
-            submit()
-            {
-                target.submit(Tx{txId});
-                txId++;
-                if (net.now() < end)
-                    net.timer(txRate, [&]() { submit(); });
-            }
-        };
+        Rate rate{100, 1000ms};
 
         // txs, start/stop/step, target
-        SteadySubmitter ss(
-            sim.peers.front(),
-            sim.net,
-            sim.net.now() + quiet,
-            sim.net.now() + (simDuration - quiet));
+        auto txSubmitter = submitter(Fixed{rate},
+                          sim.net.now() + quiet,
+                          sim.net.now() + (simDuration - quiet),
+                          sim.peers.front(),
+                          sim.net,
+                          rng);
 
         // run simulation for given duration
         sim.run(simDuration);
@@ -128,7 +103,7 @@ class ScaleFreeSim_test : public beast::unit_test::suite
             return double(count)/duration_cast<seconds>(simDuration).count();
         };
 
-        auto fmtS = [](EventTime::duration dur)
+        auto fmtS = [](SimDuration dur)
         {
             return duration_cast<duration<float>>(dur).count();
         };

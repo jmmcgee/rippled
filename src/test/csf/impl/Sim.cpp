@@ -37,7 +37,7 @@ Sim::run(int ledgers)
 }
 
 void
-Sim::run(duration const & dur)
+Sim::run(SimDuration const & dur)
 {
     for (auto& p : peers)
     {

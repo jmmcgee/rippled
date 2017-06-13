@@ -4513,6 +4513,10 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Sim.h">
     </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\SimTime.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\submitters.h">
+    </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Tx.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\UNL.h">

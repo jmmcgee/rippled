@@ -17,15 +17,22 @@
 */
 //==============================================================================
 
-#include <test/csf/BasicNetwork.h>
-#include <test/csf/Histogram.h>
-#include <test/csf/Peer.h>
-#include <test/csf/Proposal.h>
-#include <test/csf/Sim.h>
-#include <test/csf/SimTime.h>
-#include <test/csf/Tx.h>
-#include <test/csf/UNL.h>
-#include <test/csf/collectors.h>
-#include <test/csf/events.h>
-#include <test/csf/ledgers.h>
-#include <test/csf/submitters.h>
+#ifndef RIPPLE_TEST_CSF_SIMTIME_H_INCLUDED
+#define RIPPLE_TEST_CSF_SIMTIME_H_INCLUDED
+
+#include <ripple/beast/clock/manual_clock.h>
+#include <chrono>
+
+namespace ripple {
+namespace test {
+namespace csf {
+
+using SimClock = beast::manual_clock<std::chrono::steady_clock>;
+using SimDuration = typename SimClock::duration;
+using SimTime = typename SimClock::time_point;
+
+}  // namespace csf
+}  // namespace test
+}  // namespace ripple
+
+#endif
