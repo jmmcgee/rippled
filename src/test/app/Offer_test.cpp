@@ -4086,6 +4086,7 @@ public:
         env.close();
 
         env (pay(gw, bob, gwUSD(50)));
+
         env.close();
         env.require (balance (bob, gwUSD(50)));
 
@@ -4120,6 +4121,65 @@ public:
         env.close();
 
         env (offer (alice, gwUSD(40), XRP(4000)));
+        env.close();
+
+        env.require (offers (alice, 0));
+        env.require (balance (alice, gwUSD(40)));
+
+        env.require (offers (bob, 0));
+        env.require (balance (bob, gwUSD(10)));
+    }
+
+    void testRequireAuth2 (std::initializer_list<uint256> fs)
+    {
+        // Only test FlowCross.  Results are different with Taker.
+        if (std::find (fs.begin(), fs.end(), featureFlowCross) == fs.end())
+            return;
+
+        testcase ("lsfRequireAuth2");
+
+
+        using namespace jtx;
+
+        Env env {*this, fs};
+        auto const closeTime =
+            fix1449Time() +
+                100 * env.closed()->info().closeTimeResolution;
+        env.close (closeTime);
+
+        auto const gw = Account("gw");
+        auto const alice = Account("alice");
+        auto const bob = Account("bob");
+        auto const gwUSD = gw["USD"];
+        auto const aliceUSD = alice["USD"];
+        auto const bobUSD = bob["USD"];
+
+        env.fund (XRP(400000), gw, alice, bob);
+        env.close();
+
+        // GW requires authorization for holders of its IOUs
+        env(fset (gw, asfRequireAuth));
+        env.close();
+
+        // Properly set trust and have gw authorize bob and alice
+        env (trust (gw, bobUSD(100)), txflags (tfSetfAuth));
+        env (trust (bob, gwUSD(100)));
+        env (trust (gw, aliceUSD(100)), txflags (tfSetfAuth));
+        env (trust (alice, gwUSD(100)));
+        // Alice is able to place the offer since the GW has authorized her
+        env (offer (alice, gwUSD(40), XRP(4000)));
+        env.close();
+
+        env.require (offers (alice, 1));
+        env.require (balance (alice, gwUSD(0)));
+
+        env (pay(gw, bob, gwUSD(50)));
+        env.close();
+
+        env.require (balance (bob, gwUSD(50)));
+
+        // Bob's offer should cross Alice's
+        env (offer (bob, XRP(4000), gwUSD(40)));
         env.close();
 
         env.require (offers (alice, 0));
@@ -4300,6 +4360,7 @@ public:
             testSelfPayXferFeeOffer (fs);
             testSelfPayUnlimitedFunds (fs);
             testRequireAuth (fs);
+            testRequireAuth2 (fs);
             testTickSize (fs);
         };
 // The following test variants passed at one time in the past (and should
