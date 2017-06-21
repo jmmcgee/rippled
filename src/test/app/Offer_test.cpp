@@ -4138,7 +4138,6 @@ public:
 
         testcase ("lsfRequireAuth2");
 
-
         using namespace jtx;
 
         Env env {*this, fs};
@@ -4187,6 +4186,98 @@ public:
 
         env.require (offers (bob, 0));
         env.require (balance (bob, gwUSD(10)));
+    }
+
+    void testRCSmoketest(std::initializer_list<uint256> fs)
+    {
+        testcase("RippleConnect Smoketest payment flow");
+        using namespace jtx;
+
+        Env env {*this, fs};
+        auto const closeTime =
+            fix1449Time() +
+                100 * env.closed()->info().closeTimeResolution;
+        env.close (closeTime);
+
+        // This test mimics the payment flow used in the Ripple Connect
+        // smoke test.  The players:
+        //   A USD gateway with hot and cold wallets
+        //   A EUR gateway with hot and cold walllets
+        //   A MM gateway that will provide offers from USD->EUR and EUR->USD
+        // A path from hot US to cold EUR is found and then used to send
+        // USD for EUR that goes through the market maker
+
+        auto const hotUS = Account("hotUS");
+        auto const coldUS = Account("coldUS");
+        auto const hotEU = Account("hotEU");
+        auto const coldEU = Account("coldEU");
+        auto const mm = Account("mm");
+
+        auto const USD = coldUS["USD"];
+        auto const EUR = coldEU["EUR"];
+
+        env.fund (XRP(100000), hotUS, coldUS, hotEU, coldEU, mm);
+        env.close();
+
+        // Cold wallets require trust but will ripple by default
+        for( auto & cold : {coldUS, coldEU})
+        {
+            env(fset (cold, asfRequireAuth));
+            env(fset (cold, asfDefaultRipple));
+        }
+        env.close();
+
+        //Each hot wallet trusts the related cold wallet for a large amount
+        env (trust(hotUS, USD(10000000)), txflags (tfSetNoRipple));
+        env (trust(hotEU, EUR(10000000)), txflags (tfSetNoRipple));
+        //Market maker trusts both cold wallets for a large amount
+        env (trust(mm, USD(10000000)), txflags (tfSetNoRipple));
+        env (trust(mm, EUR(10000000)), txflags (tfSetNoRipple));
+        env.close();
+
+        // Gateways authorize the trustlines of hot and market maker
+        env (trust (coldUS, USD(0), hotUS, tfSetfAuth));
+        env (trust (coldEU, EUR(0), hotEU, tfSetfAuth));
+        env (trust (coldUS, USD(0), mm, tfSetfAuth));
+        env (trust (coldEU, EUR(0), mm, tfSetfAuth));
+        env.close();
+
+        // issue currency from cold wallets to hot and market maker
+        env (pay(coldUS, hotUS, USD(5000000)));
+        env (pay(coldEU, hotEU, EUR(5000000)));
+        env (pay(coldUS, mm, USD(5000000)));
+        env (pay(coldEU, mm, EUR(5000000)));
+        env.close();
+
+        // MM places offers
+        float const rate = 0.9f; // 0.9 USD = 1 EUR
+        env (offer(mm,  EUR(4000000 * rate), USD(4000000)), json(jss::Flags, tfSell));
+
+        float const reverseRate = 1.0f/rate * 1.00101f;
+        env (offer(mm,  USD(4000000 * reverseRate), EUR(4000000)), json(jss::Flags, tfSell));
+        env.close();
+
+        // There should be a path available from hot US to cold EUR
+        {
+            Json::Value jvParams;
+            jvParams[jss::destination_account] = coldEU.human();
+            jvParams[jss::destination_amount][jss::issuer] = coldEU.human();
+            jvParams[jss::destination_amount][jss::currency] = "EUR";
+            jvParams[jss::destination_amount][jss::value] = 10;
+            jvParams[jss::source_account] = hotUS.human();
+
+            auto jrr = env.rpc(
+                "json", "ripple_path_find", to_string(jvParams))[jss::result];
+
+            BEAST_EXPECT(jrr[jss::status] == "success");
+            BEAST_EXPECT(
+                jrr[jss::alternatives].isArray() &&
+                jrr[jss::alternatives].size() > 0);
+        }
+
+        // TODO: Send the payment using the found path?
+        env (pay (hotUS, coldEU, EUR(10)));
+
     }
 
     void testTickSize (std::initializer_list<uint256> fs)
@@ -4361,6 +4452,7 @@ public:
             testSelfPayUnlimitedFunds (fs);
             testRequireAuth (fs);
             testRequireAuth2 (fs);
+            testRCSmoketest (fs);
             testTickSize (fs);
         };
 // The following test variants passed at one time in the past (and should
