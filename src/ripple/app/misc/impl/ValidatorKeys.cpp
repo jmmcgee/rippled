@@ -28,6 +28,15 @@
 namespace ripple {
 ValidatorKeys::ValidatorKeys(Config const& config, beast::Journal j)
 {
+    if (config.exists(SECTION_VALIDATOR_TOKEN) &&
+        config.exists(SECTION_VALIDATION_SEED))
+    {
+        configInvalid_ = true;
+        JLOG(j.fatal()) << "Cannot specify both [" SECTION_VALIDATION_SEED
+                           "] and [" SECTION_VALIDATOR_TOKEN "]";
+        return;
+    }
+
     if (config.exists(SECTION_VALIDATOR_TOKEN))
     {
         if (auto const token = ValidatorToken::make_ValidatorToken(
@@ -41,7 +50,7 @@ ValidatorKeys::ValidatorKeys(Config const& config, beast::Journal j)
         {
             configInvalid_ = true;
             JLOG(j.fatal())
-                << "Invalid entry in validator token configuration.";
+                << "Invalid token specified in [" SECTION_VALIDATOR_TOKEN "]";
         }
     }
     else if (config.exists(SECTION_VALIDATION_SEED))
