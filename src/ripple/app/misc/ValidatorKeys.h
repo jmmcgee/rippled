@@ -17,8 +17,8 @@
 */
 //==============================================================================
 
-#ifndef RIPPLE_APP_MISC_VALIDATOR_IDENTITY_H_INCLUDED
-#define RIPPLE_APP_MISC_VALIDATOR_IDENTITY_H_INCLUDED
+#ifndef RIPPLE_APP_MISC_VALIDATOR_KEYS_H_INCLUDED
+#define RIPPLE_APP_MISC_VALIDATOR_KEYS_H_INCLUDED
 
 #include <ripple/beast/utility/Journal.h>
 #include <ripple/protocol/PublicKey.h>
@@ -30,7 +30,7 @@ namespace ripple {
 class Config;
 
 /** Validator keys and manifest as set in configuration file.  Values will be
-    emtpy if not configured as a validator or not configured with a manifest.
+    empty if not configured as a validator or not configured with a manifest.
 */
 class ValidatorKeys
 {

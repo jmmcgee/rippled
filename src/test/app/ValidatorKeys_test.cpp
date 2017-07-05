@@ -81,8 +81,10 @@ public:
             Config c;
             ValidatorKeys k{c, j};
             BEAST_EXPECT(k.publicKey.size() == 0);
+            BEAST_EXPECT(k.secretKey.size() == 0);
             BEAST_EXPECT(k.manifest.empty());
             BEAST_EXPECT(!k.configInvalid());
+
         }
         {
             // validation seed section -> empty manifest and valid seeds
@@ -104,6 +106,7 @@ public:
             ValidatorKeys k{c, j};
             BEAST_EXPECT(k.configInvalid());
             BEAST_EXPECT(k.publicKey.size() == 0);
+            BEAST_EXPECT(k.secretKey.size() == 0);
             BEAST_EXPECT(k.manifest.empty());
         }
 
@@ -125,20 +128,21 @@ public:
             ValidatorKeys k{c, j};
             BEAST_EXPECT(k.configInvalid());
             BEAST_EXPECT(k.publicKey.size() == 0);
+            BEAST_EXPECT(k.secretKey.size() == 0);
             BEAST_EXPECT(k.manifest.empty());
         }
 
         {
-            // Token takes precedence over seed
+            // Cannot specify both
             Config c;
             c.section(SECTION_VALIDATION_SEED).append(seed);
             c.section(SECTION_VALIDATOR_TOKEN).append(tokenBlob);
             ValidatorKeys k{c, j};
 
-            BEAST_EXPECT(k.publicKey == tokenPublicKey);
-            BEAST_EXPECT(k.secretKey == tokenSecretKey);
-            BEAST_EXPECT(k.manifest == tokenManifest);
-            BEAST_EXPECT(!k.configInvalid());
+            BEAST_EXPECT(k.configInvalid());
+            BEAST_EXPECT(k.publicKey.size() == 0);
+            BEAST_EXPECT(k.secretKey.size() == 0);
+            BEAST_EXPECT(k.manifest.empty());
         }
 
     }
