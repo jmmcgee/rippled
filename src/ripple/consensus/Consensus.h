@@ -234,7 +234,7 @@ checkConsensus(
                       Mode mode);
 
       // Called whenever consensus operating mode changes
-      void onModeChange(ConsensuMode before, ConsensusMode after);
+      void onModeChange(ConsensusMode before, ConsensusMode after);
 
       // Called when ledger closes
       Result onClose(Ledger const &, Ledger const & prev, Mode mode);
@@ -493,7 +493,7 @@ private:
     void
     updateDisputes(NodeID_t const& node, TxSet_t const& other);
 
-    //Revoke our outstanding proposal, if any, and cease proposing
+    // Revoke our outstanding proposal, if any, and cease proposing
     // until this round ends.
     void
     leaveConsensus();
