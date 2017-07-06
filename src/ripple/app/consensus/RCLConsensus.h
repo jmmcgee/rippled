@@ -126,6 +126,13 @@ class RCLConsensus
         bool
         preStartRound(RCLCxLedger const & prevLedger);
 
+
+        ConsensusParms const&
+        parms() const
+        {
+            return parms_;
+        }
+
     private:
         //---------------------------------------------------------------------
         // The following members implement the generic Consensus requirements
@@ -284,11 +291,6 @@ class RCLConsensus
             ConsensusCloseTimes const& rawCloseTimes,
             ConsensusMode const& mode,
             Json::Value&& consensusJson);
-        ConsensusParms const&
-        parms() const
-        {
-            return parms_;
-        }
 
         /** Notify peers of a consensus state change
 

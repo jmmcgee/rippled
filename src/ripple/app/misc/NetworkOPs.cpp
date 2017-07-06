@@ -632,7 +632,7 @@ void NetworkOPsImp::setStateTimer ()
 
 void NetworkOPsImp::setHeartbeatTimer ()
 {
-    m_heartbeatTimer.setExpiration (mConsensus->parms().ledgerGRANULARITY);
+    m_heartbeatTimer.setExpiration (mConsensus.parms().ledgerGRANULARITY);
 }
 
 void NetworkOPsImp::setClusterTimer ()

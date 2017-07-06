@@ -417,8 +417,6 @@ public:
     */
     Json::Value
     getJson(bool full) const;
-    
-    }
 
 private:
     void
