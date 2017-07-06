@@ -2143,7 +2143,7 @@ Json::Value NetworkOPsImp::getServerInfo (bool human, bool admin)
 
     if (admin)
     {
-        if (app_.getValidationPublicKey().size ())
+        if (!app_.getValidationPublicKey().empty())
         {
             info[jss::pubkey_validator] = toBase58 (
                 TokenType::TOKEN_NODE_PUBLIC,

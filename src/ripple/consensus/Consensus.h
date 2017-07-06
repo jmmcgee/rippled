@@ -234,7 +234,7 @@ checkConsensus(
                       Mode mode);
 
       // Called whenever consensus operating mode changes
-      void onModeChange(ConsensuMode before, ConsensusMode after);
+      void onModeChange(ConsensusMode before, ConsensusMode after);
 
       // Called when ledger closes
       Result onClose(Ledger const &, Ledger const & prev, Mode mode);
