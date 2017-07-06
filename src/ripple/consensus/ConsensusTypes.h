@@ -48,8 +48,9 @@ namespace ripple {
    We enter the round proposing or observing. If we detect we are working
    on the wrong prior ledger, we go to wrongLedger and attempt to acquire
    the right one. Once we acquire the right one, we go to the switchedLedger
-   mode.  If we again detect the wrong ledger before this round ends, we go
-   back to wrongLedger until we acquire the right one.
+   mode.  It is possible we fall behind again and find there is a new better
+   ledger, moving back and forth between wrongLedger and switchLedger as
+   we attempt to catch up.
 */
 enum class ConsensusMode {
     //! We are normal participant in consensus and propose our position

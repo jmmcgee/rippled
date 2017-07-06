@@ -81,7 +81,6 @@ public:
             Config c;
             ValidatorKeys k{c, j};
             BEAST_EXPECT(k.publicKey.size() == 0);
-            BEAST_EXPECT(k.secretKey.size() == 0);
             BEAST_EXPECT(k.manifest.empty());
             BEAST_EXPECT(!k.configInvalid());
 
@@ -106,7 +105,6 @@ public:
             ValidatorKeys k{c, j};
             BEAST_EXPECT(k.configInvalid());
             BEAST_EXPECT(k.publicKey.size() == 0);
-            BEAST_EXPECT(k.secretKey.size() == 0);
             BEAST_EXPECT(k.manifest.empty());
         }
 
@@ -128,7 +126,6 @@ public:
             ValidatorKeys k{c, j};
             BEAST_EXPECT(k.configInvalid());
             BEAST_EXPECT(k.publicKey.size() == 0);
-            BEAST_EXPECT(k.secretKey.size() == 0);
             BEAST_EXPECT(k.manifest.empty());
         }
 
@@ -141,7 +138,6 @@ public:
 
             BEAST_EXPECT(k.configInvalid());
             BEAST_EXPECT(k.publicKey.size() == 0);
-            BEAST_EXPECT(k.secretKey.size() == 0);
             BEAST_EXPECT(k.manifest.empty());
         }
 
