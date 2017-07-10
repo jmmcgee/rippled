@@ -1376,9 +1376,7 @@ Consensus<Adaptor>::updateOurPositions()
             {
                 Proposal_t const& p = it.second.proposal();
                 if (p.position() == newID)
-                {
                     updateDisputes(it.first, result_->set);
-                }
             }
         }
 

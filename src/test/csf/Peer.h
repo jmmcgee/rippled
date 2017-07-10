@@ -206,7 +206,7 @@ struct Peer
         , id{i}
         , net{n}
         , unl(u)
-        , parms_{p}
+        , parms_(p)
     {
         ledgers[lastClosedLedger.id()] = lastClosedLedger;
     }
