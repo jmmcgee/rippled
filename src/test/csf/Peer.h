@@ -232,15 +232,16 @@ struct Peer
         LedgerOracle& o,
         BasicNetwork<Peer*>& n,
         UNL const& u,
-        Collector& c)
-        : consensus(s.clock(), *this, beast::Journal{})
+        Collector& c,
+        beast::Journal j)
+        : consensus(s.clock(), *this, j)
         , id{i}
         , key{id, 0}
         , oracle{o}
         , scheduler{s}
         , net{n}
         , unl(u)
-        , validations{ValidationParms{}, s.clock(), beast::Journal{}, *this}
+        , validations{ValidationParms{}, s.clock(), j, *this}
         , quorum{static_cast<std::size_t>(std::ceil(unl.size() * 0.8))}
         , parms_{p}
         , collector{c, id, s.clock()}

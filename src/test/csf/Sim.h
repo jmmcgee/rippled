@@ -27,15 +27,39 @@
 #include <test/csf/UNL.h>
 #include <test/csf/collectors.h>
 
+#include <iostream>
 namespace ripple {
 namespace test {
 namespace csf {
+
+
+class BasicSink : public beast::Journal::Sink
+{
+public:
+    BasicSink ()
+        : Sink (beast::severities::kDisabled, false)
+    {
+    }
+
+    void
+    write (beast::severities::Severity level,
+        std::string const& text) override
+    {
+        if (level < threshold())
+            return;
+
+        std::cout << text;
+    }
+};
 
 class Sim
 {
     static NullCollector nullCollector;
 
 public:
+    BasicSink sink;
+    beast::Journal j;
+
     LedgerOracle oracle;
 	Scheduler scheduler;
     BasicNetwork<Peer*> net;
@@ -62,11 +86,11 @@ public:
     */
     template <class Topology, class Collector>
     Sim(ConsensusParms parms, TrustGraph const& g, Topology const& top, Collector & collector)
-        : net{scheduler}
+        : j{sink}, net{scheduler}
     {
         peers.reserve(g.numPeers());
         for (std::uint32_t i = 0; i < g.numPeers(); ++i)
-            peers.emplace_back(i, parms, scheduler, oracle, net, g.unl(i), collector);
+            peers.emplace_back(i, parms, scheduler, oracle, net, g.unl(i), collector, j);
 
         for (std::uint32_t i = 0; i < peers.size(); ++i)
         {
