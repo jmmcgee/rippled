@@ -173,7 +173,8 @@ public:
     /** Retrieve the "wallet database" */
     virtual DatabaseCon& getWalletDB () = 0;
 
-    virtual LedgerIndex getMaxLedger() = 0;
+    /** Minimum sequence number for new ledgers */
+    virtual LedgerIndex getMinAllowedLedger() = 0;
 };
 
 std::unique_ptr <Application>

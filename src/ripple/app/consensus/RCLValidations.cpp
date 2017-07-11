@@ -185,12 +185,13 @@ handleNewValidation(Application& app,
 
     beast::Journal j = validations.journal();
 
-    // Do not consider out of sync validations after a restart
-    if (val->getFieldU32(sfLedgerSequence) <= app.getMaxLedger())
+    // Do not consider validations that are very old (possibly after a validator
+    // restarts but before it syncs with enough peers)
+    if (val->getFieldU32(sfLedgerSequence) <= app.getMinAllowedLedger())
     {
-        JLOG(j.debug()) << "Can't validate sequence <= maximum persisted: "
+        JLOG(j.debug()) << "Can't validate sequence <= minimum allowed: "
                          << val->getFieldU32(sfLedgerSequence)
-                         << " <= " << app.getMaxLedger();
+                         << " <= " << app.getMinAllowedLedger();
         return false;
     }
 

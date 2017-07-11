@@ -71,17 +71,6 @@ LedgerMaster::LedgerMaster (Application& app, Stopwatch& stopwatch,
     , mHeldTransactions (uint256 ())
     , mLedgerCleaner (detail::make_LedgerCleaner (
         app, *this, app_.journal("LedgerCleaner")))
-    , mLastValidateSeq (0)
-    , mAdvanceThread (false)
-    , mAdvanceWork (false)
-    , mFillInProgress (0)
-    , mPathFindThread (0)
-    , mPathFindNewRequest (false)
-    , mPubLedgerClose (0)
-    , mPubLedgerSeq (0)
-    , mValidLedgerSign (0)
-    , mValidLedgerSeq (0)
-    , mBuildingLedgerSeq (0)
     , standalone_ (app_.config().standalone())
     , fetch_depth_ (app_.getSHAMapStore ().clampFetchDepth (
         app_.config().FETCH_DEPTH))
@@ -221,9 +210,11 @@ LedgerMaster::setValidLedger(
 
     mValidLedger.set (l);
     mValidLedgerSign = signTime.time_since_epoch().count();
+    // Prevent fully validating a ledger much older than the last persisted
+    // fully validated ledger
     assert (mValidLedgerSeq ||
-            !app_.getMaxLedger() ||
-            l->info().seq + max_ledger_difference_ > app_.getMaxLedger());
+            !app_.getMinAllowedLedger() ||
+            l->info().seq + max_fully_validated_difference > app_.getMinAllowedLedger());
     mValidLedgerSeq = l->info().seq;
 
     app_.getOPs().updateLocalTx (*l);

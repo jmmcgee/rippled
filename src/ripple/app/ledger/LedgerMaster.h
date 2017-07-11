@@ -311,23 +311,23 @@ private:
     std::unique_ptr <detail::LedgerCleaner> mLedgerCleaner;
 
     uint256 mLastValidateHash;
-    std::uint32_t mLastValidateSeq;
+    std::uint32_t mLastValidateSeq = 0;
 
     // Publish thread is running.
-    bool                        mAdvanceThread;
+    bool                        mAdvanceThread = false;
 
     // Publish thread has work to do.
-    bool                        mAdvanceWork;
-    int                         mFillInProgress;
+    bool                        mAdvanceWork = false;
+    int                         mFillInProgress = 0;
 
-    int     mPathFindThread;    // Pathfinder jobs dispatched
-    bool    mPathFindNewRequest;
+    int     mPathFindThread = 0;    // Pathfinder jobs dispatched
+    bool    mPathFindNewRequest = false;
 
-    std::atomic <std::uint32_t> mPubLedgerClose;
-    std::atomic <LedgerIndex> mPubLedgerSeq;
-    std::atomic <std::uint32_t> mValidLedgerSign;
+    std::atomic <std::uint32_t> mPubLedgerClose{0};
+    std::atomic <LedgerIndex> mPubLedgerSeq{0};
+    std::atomic <std::uint32_t> mValidLedgerSign{0};
     std::atomic <LedgerIndex> mValidLedgerSeq {0};
-    std::atomic <LedgerIndex> mBuildingLedgerSeq;
+    std::atomic <LedgerIndex> mBuildingLedgerSeq{0};
 
     // The server is in standalone mode
     bool const standalone_;
@@ -344,7 +344,8 @@ private:
 
     std::uint32_t fetch_seq_;
 
-    LedgerIndex const max_ledger_difference_ {1000000};
+    // Maximum index gap between
+    LedgerIndex const max_fully_validated_difference {1000000};
 
 };
 

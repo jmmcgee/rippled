@@ -942,14 +942,14 @@ public:
             std::chrono::seconds {config_->getSize (siSweepInterval)});
     }
 
-    LedgerIndex getMaxLedger() override
+    LedgerIndex getMinAllowedLedger() override
     {
-        return maxLedger_;
+        return minAllowedLedger_;
     }
 
 
 private:
-    std::atomic<LedgerIndex> maxLedger_ {0};
+    std::atomic<LedgerIndex> minAllowedLedger_ {0};
 
     void addTxnSeqField();
     void addValidationSeqFields();
@@ -968,7 +968,6 @@ private:
         bool replay,
         bool isFilename);
 
-    void setMaxLedger();
 };
 
 //------------------------------------------------------------------------------
@@ -1140,7 +1139,20 @@ bool ApplicationImp::setup()
             getWalletDB (), "PublisherManifests");
 
         m_networkOPs->setValidationKeys (valSecret, valPublic);
-        setMaxLedger();
+
+        {
+            boost::optional<LedgerIndex> seq;
+            {
+                auto db = getLedgerDB().checkoutDb();
+                *db << "SELECT MAX(LedgerSeq) FROM Ledgers;", soci::into(seq);
+            }
+            if (!seq)
+                minAllowedLedger_ = 0;
+            else
+                minAllowedLedger_ = *seq;
+
+            JLOG(m_journal.trace()) << "Max persisted ledger is " << minAllowedLedger_;
+        }
 
         // Setup trusted validators
         if (!validators_->load (
@@ -1962,22 +1974,6 @@ bool ApplicationImp::updateTables ()
 
     return true;
 }
-
-void ApplicationImp::setMaxLedger()
-{
-    boost::optional <LedgerIndex> seq;
-    {
-        auto db = getLedgerDB().checkoutDb();
-        *db << "SELECT MAX(LedgerSeq) FROM Ledgers;", soci::into(seq);
-    }
-    if (!seq)
-        maxLedger_= 0;
-    else
-        maxLedger_ = *seq;
-
-    JLOG (m_journal.trace()) << "Max persisted ledger is " << maxLedger_;
-}
-
 
 //------------------------------------------------------------------------------
 
