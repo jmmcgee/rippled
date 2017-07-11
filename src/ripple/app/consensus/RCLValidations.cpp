@@ -185,6 +185,15 @@ handleNewValidation(Application& app,
 
     beast::Journal j = validations.journal();
 
+    // Do not consider out of sync validations after a restart
+    if (val->getFieldU32(sfLedgerSequence) <= app.getMaxLedger())
+    {
+        JLOG(j.debug()) << "Can't validate sequence <= maximum persisted: "
+                         << val->getFieldU32(sfLedgerSequence)
+                         << " <= " << app.getMaxLedger();
+        return false;
+    }
+
     // Do not process partial validations.
     if (!val->isFull())
     {

@@ -221,6 +221,9 @@ LedgerMaster::setValidLedger(
 
     mValidLedger.set (l);
     mValidLedgerSign = signTime.time_since_epoch().count();
+    assert (mValidLedgerSeq ||
+            !app_.getMaxLedger() ||
+            l->info().seq + max_ledger_difference_ > app_.getMaxLedger());
     mValidLedgerSeq = l->info().seq;
 
     app_.getOPs().updateLocalTx (*l);

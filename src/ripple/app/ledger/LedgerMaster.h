@@ -35,6 +35,7 @@
 #include <ripple/protocol/STValidation.h>
 #include <ripple/beast/insight/Collector.h>
 #include <ripple/core/Stoppable.h>
+#include <ripple/protocol/Protocol.h>
 #include <ripple/beast/utility/PropertyStream.h>
 #include <mutex>
 
@@ -323,10 +324,10 @@ private:
     bool    mPathFindNewRequest;
 
     std::atomic <std::uint32_t> mPubLedgerClose;
-    std::atomic <std::uint32_t> mPubLedgerSeq;
+    std::atomic <LedgerIndex> mPubLedgerSeq;
     std::atomic <std::uint32_t> mValidLedgerSign;
-    std::atomic <std::uint32_t> mValidLedgerSeq;
-    std::atomic <std::uint32_t> mBuildingLedgerSeq;
+    std::atomic <LedgerIndex> mValidLedgerSeq {0};
+    std::atomic <LedgerIndex> mBuildingLedgerSeq;
 
     // The server is in standalone mode
     bool const standalone_;
@@ -342,6 +343,8 @@ private:
     TaggedCache<uint256, Blob> fetch_packs_;
 
     std::uint32_t fetch_seq_;
+
+    LedgerIndex const max_ledger_difference_ {1000000};
 
 };
 

@@ -52,10 +52,13 @@
 #include <ripple/overlay/Cluster.h>
 #include <ripple/overlay/make_Overlay.h>
 #include <ripple/protocol/STParsedJSON.h>
+#include <ripple/protocol/Protocol.h>
 #include <ripple/resource/Fees.h>
 #include <ripple/beast/asio/io_latency_probe.h>
 #include <ripple/beast/core/LexicalCast.h>
 #include <fstream>
+#include <sstream>
+#include <iostream>
 
 namespace ripple {
 
@@ -76,7 +79,7 @@ private:
     beast::Journal j_;
 
     // missing node handler
-    std::uint32_t maxSeq = 0;
+    LedgerIndex maxSeq = 0;
     std::mutex maxSeqLock;
 
     void acquire (
@@ -939,8 +942,15 @@ public:
             std::chrono::seconds {config_->getSize (siSweepInterval)});
     }
 
+    LedgerIndex getMaxLedger() override
+    {
+        return maxLedger_;
+    }
+
 
 private:
+    std::atomic<LedgerIndex> maxLedger_ {0};
+
     void addTxnSeqField();
     void addValidationSeqFields();
     bool updateTables ();
@@ -957,6 +967,8 @@ private:
         std::string const& ledgerID,
         bool replay,
         bool isFilename);
+
+    void setMaxLedger();
 };
 
 //------------------------------------------------------------------------------
@@ -1128,6 +1140,7 @@ bool ApplicationImp::setup()
             getWalletDB (), "PublisherManifests");
 
         m_networkOPs->setValidationKeys (valSecret, valPublic);
+        setMaxLedger();
 
         // Setup trusted validators
         if (!validators_->load (
@@ -1949,6 +1962,22 @@ bool ApplicationImp::updateTables ()
 
     return true;
 }
+
+void ApplicationImp::setMaxLedger()
+{
+    boost::optional <LedgerIndex> seq;
+    {
+        auto db = getLedgerDB().checkoutDb();
+        *db << "SELECT MAX(LedgerSeq) FROM Ledgers;", soci::into(seq);
+    }
+    if (!seq)
+        maxLedger_= 0;
+    else
+        maxLedger_ = *seq;
+
+    JLOG (m_journal.trace()) << "Max persisted ledger is " << maxLedger_;
+}
+
 
 //------------------------------------------------------------------------------
 

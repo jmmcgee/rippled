@@ -24,6 +24,7 @@
 #include <ripple/shamap/TreeNodeCache.h>
 #include <ripple/basics/TaggedCache.h>
 #include <ripple/core/Config.h>
+#include <ripple/protocol/Protocol.h>
 #include <ripple/beast/utility/PropertyStream.h>
 #include <memory>
 #include <mutex>
@@ -171,6 +172,8 @@ public:
 
     /** Retrieve the "wallet database" */
     virtual DatabaseCon& getWalletDB () = 0;
+
+    virtual LedgerIndex getMaxLedger() = 0;
 };
 
 std::unique_ptr <Application>

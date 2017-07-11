@@ -841,7 +841,8 @@ RCLConsensus::validate(RCLCxLedger const& ledger, bool proposing)
     v->setTrusted();
     // suppress it if we receive it - FIXME: wrong suppression
     app_.getHashRouter().addSuppression(signingHash);
-    handleNewValidation(app_, v, "local");
+    if (! handleNewValidation(app_, v, "local"))
+        return;
     Blob validation = v->getSerialized();
     protocol::TMValidation val;
     val.set_validation(&validation[0], validation.size());
@@ -910,9 +911,8 @@ RCLConsensus::startRound(
     RCLCxLedger::ID const& prevLgrId,
     RCLCxLedger const& prevLgr)
 {
-    // We have a key, and we have some idea what the ledger is
-    validating_ =
-        !app_.getOPs().isNeedNetworkLedger() && (valPublic_.size() != 0);
+    // We have a key
+    validating_ = valPublic_.size() != 0;
 
     // propose only if we're in sync with the network (and validating)
     bool proposing =
