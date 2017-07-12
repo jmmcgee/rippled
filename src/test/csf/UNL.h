@@ -232,6 +232,17 @@ public:
     */
     static TrustGraph
     makeComplete(int size);
+
+    /** Generate a trust-graph where each node i trusts nodes `[i,i+N]`
+     *
+        Generates a trust graph where peers turst each other in a ring such that
+        each peer `i` trusts peers `i`, `i+1`, ..., `i+neighbors`.
+
+        @param size The number of nodes in the trust graph
+        @param neighbors the number of peers a given node trusts.
+    */
+    static TrustGraph
+    makeRingDirected(int size, int neighbors);
 };
 
 //< Make the TrustGraph into a topology with delays given by DelayModel

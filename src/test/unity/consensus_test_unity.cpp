@@ -17,6 +17,7 @@
 */
 //==============================================================================
 
+#include <test/consensus/RingDirected_test.cpp>
 #include <test/consensus/ByzantineFailureSim_test.cpp>
 #include <test/consensus/ClockSkewSim_test.cpp>
 #include <test/consensus/Consensus_test.cpp>
