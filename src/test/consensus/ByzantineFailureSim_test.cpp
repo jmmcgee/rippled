@@ -54,7 +54,7 @@ class ByzantineFailureSim_test : public beast::unit_test::suite
         for (TrustGraph::ForkInfo const& fi : tg.forkablePairs(0.8))
         {
             std::cout << "Can fork N" << fi.nodeA << " " << unls[fi.nodeA]
-                      << " " << fi.nodeB << " N" << unls[fi.nodeB]
+                      << " N" << fi.nodeB << " " << unls[fi.nodeB]
                       << " overlap " << fi.overlap << " required "
                       << fi.required << "\n";
         };
