@@ -16,18 +16,26 @@
     OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 */
 //==============================================================================
+#ifndef RIPPLE_TEST_CSF_ANALYSIS_H_INCLUDED
+#define RIPPLE_TEST_CSF_ANALYSIS_H_INCLUDED
 
-#include <test/csf/analysis.h>
-#include <test/csf/BasicNetwork.h>
-#include <test/csf/Histogram.h>
-#include <test/csf/Peer.h>
-#include <test/csf/Proposal.h>
-#include <test/csf/Scheduler.h>
-#include <test/csf/Sim.h>
-#include <test/csf/SimTime.h>
-#include <test/csf/Tx.h>
-#include <test/csf/UNL.h>
-#include <test/csf/collectors.h>
-#include <test/csf/events.h>
-#include <test/csf/ledgers.h>
-#include <test/csf/submitters.h>
+#include <test/csf.h>
+
+namespace ripple {
+namespace test {
+namespace csf {
+
+struct StaticAnalysis
+{
+    static void
+    preFork(Sim const &sim);
+
+    static void
+    postFork(Sim const &sim);
+};
+
+} // ripple
+} // test
+} // csf
+
+#endif //RIPPLE_TEST_CSF_ANALYSIS_H_INCLUDED

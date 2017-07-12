@@ -125,11 +125,18 @@ TrustGraph::makeRingDirected(int size, int neighbors)
     std::vector<UNL> UNLs(size);
     std::vector<int> assignments(size);
 
+    if(neighbors > size - 1)
+        neighbors = size - 1; // graph will be same as makeComplete(size)
+
     // UNL i contains nodes i, i+1, ... i+neighbors
     for(uint32_t id = 0; id < size; id++)
-        for(uint32_t peer_id = id; peer_id < neighbors && peer_id < size;
-                (id + peer_id++) % size)
+    {
+        for(uint32_t i = 0; i < neighbors; i++)
+        {
+            uint32_t peer_id = (id + i) % size;
             UNLs[id].insert(peer_id);
+        }
+    }
 
     // each node has its own UNL
     std::iota(assignments.begin(), assignments.end(), 0);

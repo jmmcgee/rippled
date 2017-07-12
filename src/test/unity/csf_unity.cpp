@@ -25,3 +25,4 @@
 #include <test/csf/impl/UNL.cpp>
 #include <test/csf/impl/ledgers.cpp>
 #include <test/csf/impl/Sim.cpp>
+#include <test/csf/impl/analysis.cpp>

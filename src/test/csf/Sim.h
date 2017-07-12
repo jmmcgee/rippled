@@ -38,8 +38,11 @@ class Sim
 public:
     LedgerOracle oracle;
 	Scheduler scheduler;
-    BasicNetwork<Peer*> net;
+    ConsensusParms parms_;
+
     std::vector<Peer> peers;
+    BasicNetwork<Peer*> net;
+    TrustGraph tg_;
 
     /** Create a simulator for the given trust graph and network topology.
 
@@ -62,7 +65,7 @@ public:
     */
     template <class Topology, class Collector>
     Sim(ConsensusParms parms, TrustGraph const& g, Topology const& top, Collector & collector)
-        : net{scheduler}
+        : parms_{parms}, net{scheduler}, tg_{g}
     {
         peers.reserve(g.numPeers());
         for (std::uint32_t i = 0; i < g.numPeers(); ++i)

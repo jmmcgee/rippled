@@ -18,16 +18,36 @@
 //==============================================================================
 
 #include <test/csf/analysis.h>
-#include <test/csf/BasicNetwork.h>
-#include <test/csf/Histogram.h>
-#include <test/csf/Peer.h>
-#include <test/csf/Proposal.h>
-#include <test/csf/Scheduler.h>
 #include <test/csf/Sim.h>
-#include <test/csf/SimTime.h>
-#include <test/csf/Tx.h>
 #include <test/csf/UNL.h>
-#include <test/csf/collectors.h>
-#include <test/csf/events.h>
-#include <test/csf/ledgers.h>
-#include <test/csf/submitters.h>
+
+namespace ripple {
+namespace test {
+namespace csf {
+
+void
+StaticAnalysis::preFork(Sim const & sim)
+{
+    TrustGraph const & tg = sim.tg_;
+    double const & quorum = sim.parms_.minCONSENSUS_PCT / 100.;
+    for (TrustGraph::ForkInfo const& fi : tg.forkablePairs(quorum))
+    {
+        std::cout << "Can fork N" << fi.nodeA << " " << tg.unl(fi.nodeA)
+                  << " N" << fi.nodeB << " " << tg.unl(fi.nodeB)
+                  << " overlap " << fi.overlap << " required "
+                  << fi.required << "\n";
+    };
+}
+
+void
+StaticAnalysis::postFork(Sim const & sim)
+{
+    std::cout << "Num Forks: " << sim.forks() << "\n";
+    std::cout << "Fully synchronized: " << std::boolalpha
+              << sim.synchronized() << "\n";
+}
+}
+
+} // csf
+} //ripple
+

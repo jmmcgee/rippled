@@ -35,35 +35,39 @@ public:
         using namespace std::chrono;
 
         ConsensusParms parms;
-        auto tg = TrustGraph::makeRingDirected(5, 4);
-        Sim sim(
-                parms,
-                tg,
-                topology(
-                        tg,
-                        fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}));
+        auto tg = TrustGraph::makeRingDirected(5, 3);
+        StreamCollector sc{std::cout};
+
+        Sim sim(parms, tg,
+                topology(tg, fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}),
+                sc);
+
+        // run pre-fork analysis first to determine if fork-able
+        StaticAnalysis::preFork(sim);
 
         // everyone submits their own ID as a TX and relay it to peers
         for (auto& p : sim.peers)
             p.submit(Tx(static_cast<std::uint32_t>(p.id)));
 
-        sim.run(10);
+        sim.run(5);
 
         // All peers are in sync
-        if (BEAST_EXPECT(sim.synchronized()))
+        if (sim.synchronized())
         {
             // Inspect the first node's state
             auto const & lcl = sim.peers.front().lastClosedLedger.get();
             BEAST_EXPECT(lcl.id() == sim.peers.front().prevLedgerID());
-            BEAST_EXPECT(lcl.seq() == Ledger::Seq{10});
+            BEAST_EXPECT(lcl.seq() == Ledger::Seq{5});
             // All peers proposed
             BEAST_EXPECT(
-                    sim.peers.front().prevProposers() == sim.peers.size() - 1);
+                    sim.peers.front().prevProposers() == sim.peers.size());
             // All transactions were accepted
             for (std::uint32_t i = 0; i < sim.peers.size(); ++i)
                 BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
         }
 
+        // run post-fork analysis to see how we did
+        StaticAnalysis::postFork(sim);
     }
 
     void
