@@ -4531,6 +4531,12 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\collectors.h">
     </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\Digraph.h">
+    </ClInclude>
+    <ClCompile Include="..\..\src\test\csf\Digraph_test.cpp">
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
+      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
+    </ClCompile>
     <ClInclude Include="..\..\src\test\csf\events.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Histogram.h">
