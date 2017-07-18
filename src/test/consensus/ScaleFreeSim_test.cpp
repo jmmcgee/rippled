@@ -20,6 +20,7 @@
 #include <ripple/beast/clock/manual_clock.h>
 #include <ripple/beast/unit_test.h>
 #include <test/csf.h>
+#include <iostream>
 #include <utility>
 
 namespace ripple {
@@ -34,6 +35,8 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         using namespace std::chrono;
         using namespace csf;
 
+        std::cout << "running ScaleFreeSim_test::run()..." << std::endl;
+
         // Generate a quasi-random scale free network and simulate consensus
         // as we vary transaction submission rates
 
@@ -41,19 +44,25 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         // Currently This simulation is a work in progress and is being used to
         // explore the best design for the simulation framework
 
-        int N = 100;  // Peers
+        int N = 50;  // Peers
 
         int numUNLs = 15;  //  UNL lists
         int minUNLSize = N / 4, maxUNLSize = N / 2;
 
         std::mt19937_64 rng;
+        PowerLawDistribution rankPDF{1,3};
+
+        std::vector<double> weights(N);
+        std::generate(
+                weights.begin(), weights.end(), [&]() { return rankPDF(rng); });
 
         auto tg = TrustGraph::makeRandomRanked(
             N,
             numUNLs,
-            PowerLawDistribution{1, 3},
+            rankPDF,
             std::uniform_int_distribution<>{minUNLSize, maxUNLSize},
-            rng);
+            rng,
+            weights);
 
         TxCollector txCollector;
         LedgerCollector ledgerCollector;
@@ -71,15 +80,20 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         sim.run(1);
 
         // Run for 10 minues, submitting 100 tx/second
-        std::chrono::nanoseconds simDuration = 10min;
+        std::chrono::nanoseconds simDuration = 3min;
         std::chrono::nanoseconds quiet = 10s;
         Rate rate{100, 1000ms};
 
         // txs, start/stop/step, target
+
+        std::mt19937_64 rngSel(N % 17);
+        Selector <Peer, std::mt19937_64> sel(sim.peers,
+                                             weights,
+                                             rngSel);
         auto txSubmitter = submitter(Fixed{rate},
                           sim.scheduler.now() + quiet,
                           sim.scheduler.now() + (simDuration - quiet),
-                          sim.peers.front(),
+                          sel,
                           sim.scheduler,
                           rng);
 

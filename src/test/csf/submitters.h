@@ -72,20 +72,21 @@ public:
     Submits successive transactions beginning at start, then spaced according
     to succesive calls of rate.next(), until stop.
 */
-template <class Rate, class Generator>
+template <class Rate, class Generator, class Selector>
 class Submitter
 {
     Rate rate_;
     SimTime stop_;
     std::uint32_t nextID_ = 0;
-    Peer & target_;
+    //Peer & target_;
+    Selector& selector_;
     Scheduler & scheduler_;
     Generator & g_;
 
     void
     submit()
     {
-        target_.submit(Tx{nextID_++});
+        selector_().submit(Tx{nextID_++});
         if (scheduler_.now() < stop_)
             scheduler_.in(rate_.next(g_), [&]() { submit(); });
     }
@@ -95,26 +96,26 @@ public:
         Rate rate,
         SimTime start,
         SimTime end,
-        Peer & t,
+        Selector && selector,
         Scheduler & s,
         Generator & g)
-        : rate_{rate}, stop_{end}, target_{t}, scheduler_{s}, g_{g}
+        : rate_{rate}, stop_{end}, selector_{selector}, scheduler_{s}, g_{g}
     {
         scheduler_.at(start, [&]() { submit(); });
     }
 };
 
-template <class Rate, class Generator>
-Submitter<Rate, Generator>
+template <class Rate, class Generator, class Selector>
+Submitter<Rate, Generator, Selector>
 submitter(
     Rate rate,
     SimTime start,
     SimTime end,
-    Peer& t,
+    Selector&& sel,
     Scheduler& s,
     Generator& g)
 {
-    return Submitter<Rate, Generator>(rate, start ,end, t, s, g);
+    return Submitter<Rate, Generator, Selector>(rate, start ,end, sel, s, g);
 }
 
 }  // namespace csf

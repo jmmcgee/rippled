@@ -57,6 +57,49 @@ random_weighted_shuffle(std::vector<T> v, std::vector<double> w, G& g)
     return v;
 }
 
+template<class T, class Generator>
+T&
+select(std::vector<T> const& v, std::vector<double> const& w, Generator& g)
+{
+    std::discrete_distribution<> dd(w.begin(), w.end());
+    auto idx = dd(g);
+    return v[idx];
+}
+
+template <class T, class Generator>
+class Selector
+{
+    std::discrete_distribution<> dd_;
+    std::vector<T>& v_;
+    Generator g_;
+
+public:
+    Selector(std::vector<T>& v, std::vector<double>& w, Generator& g)
+      : dd_{w.begin(), w.end()}, v_{v}, g_{g}
+    {
+    }
+
+    T&
+    select()
+    {
+        auto idx = dd_(g_);
+        return v_[idx];
+    }
+
+    T&
+    operator()()
+    {
+        return select();
+    }
+};
+
+template < typename T, typename Generator>
+Selector<T,Generator>
+selector(std::vector<T>& v, std::vector<double>& w, Generator& g)
+{
+    return Selector<T,Generator>(v,w,g);
+};
+
 /** Power-law distribution with PDF
 
         P(x) = (x/xmin)^-a
@@ -184,16 +227,21 @@ public:
         int numUNLs,
         RankPDF rankPDF,
         SizePDF unlSizePDF,
-        Generator& g)
+        Generator& g,
+        std::vector<double> weights = {})
     {
         // 1. Generate ranks
-        std::vector<double> weights(size);
-        std::generate(
-            weights.begin(), weights.end(), [&]() { return rankPDF(g); });
+        if(weights.size() != size)
+        {
+            weights.resize(size);
+            std::generate(
+                    weights.begin(), weights.end(),
+                    [&]() { return rankPDF(g); });
+        }
 
         // 2. Generate UNLs based on sampling without replacement according
         //    to weights
-        std::vector<UNL> unls(numUNLs);
+        std::vector<UNL> unls(size);
         std::generate(unls.begin(), unls.end(), [&]() {
             std::vector<std::uint32_t> ids(size);
             std::iota(ids.begin(), ids.end(), 0);
