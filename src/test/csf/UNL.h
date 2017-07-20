@@ -20,6 +20,7 @@
 #ifndef RIPPLE_TEST_CSF_UNL_H_INCLUDED
 #define RIPPLE_TEST_CSF_UNL_H_INCLUDED
 
+#include <test/csf/random.h>
 #include <boost/container/flat_set.hpp>
 #include <boost/optional.hpp>
 #include <chrono>
@@ -30,61 +31,6 @@
 namespace ripple {
 namespace test {
 namespace csf {
-
-/** Return a randomly shuffled copy of vector based on weights w.
-
-    @param v  The set of values
-    @param w  The set of weights of each value
-    @param g  A pseudo-random number generator
-    @return A vector with entries randomly sampled without replacement
-            from the original vector based on the provided weights.
-            I.e.  res[0] comes from sample v[i] with weight w[i]/sum_k w[k]
-*/
-template <class T, class G>
-std::vector<T>
-random_weighted_shuffle(std::vector<T> v, std::vector<double> w, G& g)
-{
-    using std::swap;
-
-    for (int i = 0; i < v.size() - 1; ++i)
-    {
-        // pick a random item weighted by w
-        std::discrete_distribution<> dd(w.begin() + i, w.end());
-        auto idx = dd(g);
-        std::swap(v[i], v[idx]);
-        std::swap(w[i], w[idx]);
-    }
-    return v;
-}
-
-/** Power-law distribution with PDF
-
-        P(x) = (x/xmin)^-a
-
-    for a >= 1 and xmin >= 1
- */
-class PowerLawDistribution
-{
-    double xmin_;
-    double a_;
-    double inv_;
-    std::uniform_real_distribution<double> uf_{0, 1};
-
-public:
-    PowerLawDistribution(double xmin, double a) : xmin_{xmin}, a_{a}
-    {
-        inv_ = 1.0 / (1.0 - a_);
-    }
-
-    template <class Generator>
-    inline double
-    operator()(Generator& g)
-    {
-        // use inverse transform of CDF to sample
-        // CDF is P(X <= x): 1 - (x/xmin)^(1-a)
-        return xmin_ * std::pow(1 - uf_(g), inv_);
-    }
-};
 
 //< A unique node list defines a set of trusted peers used in consensus
 using UNL = boost::container::flat_set<std::uint32_t>;

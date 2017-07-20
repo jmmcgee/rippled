@@ -23,8 +23,7 @@
 #include <test/csf/Scheduler.h>
 #include <test/csf/Peer.h>
 #include <test/csf/Tx.h>
-#include <random>
-
+#include <type_traits>
 namespace ripple {
 namespace test {
 namespace csf {
@@ -34,87 +33,92 @@ struct Rate
 {
     std::size_t count;
     SimDuration duration;
-};
 
-class Fixed
-{
-    SimDuration next_;
-public:
-    Fixed(Rate rate) : next_{rate.duration/rate.count} {}
-
-    template <class Generator>
-    SimDuration
-    next(Generator & ) const
+    double
+    inv() const
     {
-        return next_;
-    }
-};
-
-class Poisson
-{
-    std::exponential_distribution<double> dist;
-
-public:
-    Poisson(Rate rate) : dist{double(rate.count)/rate.duration.count()}
-    {
-    }
-
-    template <class Generator>
-    SimDuration
-    next(Generator & g) const
-    {
-        return SimDuration(static_cast<SimDuration::rep>(dist(g)));
+        return duration.count()/double(count);
     }
 };
 
 /** Submits transactions to a specified peer
 
     Submits successive transactions beginning at start, then spaced according
-    to succesive calls of rate.next(), until stop.
+    to succesive calls of distribution(), until stop.
+
+    @tparam Distribution is a `UniformRandomBitGenerator` from the STL that
+            is usesd by random distributions to generate random samples
+    @tparam Generator is a object with member
+
+            T operator()(Generator &g)
+
+            which generates the delay T in SimDuration units to the next
+            transaction. For the current definition of SimDuration, this is
+            currently the number of nanoseconds. Submitter internally casts
+            arithmetic T to SimDuration::rep units to allow using standard
+            library distributions as a Distribution.
 */
-template <class Rate, class Generator>
+template <class Distribution, class Generator>
 class Submitter
 {
-    Rate rate_;
+    Distribution dist_;
     SimTime stop_;
     std::uint32_t nextID_ = 0;
     Peer & target_;
     Scheduler & scheduler_;
     Generator & g_;
 
+    //------------------------
+    // Convert generated durations to SimDuration
+    static SimDuration
+    asDuration(SimDuration d)
+    {
+        return d;
+    }
+
+    template <class T>
+    static
+    std::enable_if_t<std::is_arithmetic<T>::value, SimDuration>
+    asDuration(T t)
+    {
+        return SimDuration{static_cast<SimDuration::rep>(t)};
+    }
+
     void
     submit()
     {
         target_.submit(Tx{nextID_++});
         if (scheduler_.now() < stop_)
-            scheduler_.in(rate_.next(g_), [&]() { submit(); });
+        {
+            scheduler_.in(asDuration(dist_(g_)), [&]() { submit(); });
+        }
     }
 
 public:
     Submitter(
-        Rate rate,
+        Distribution dist,
         SimTime start,
         SimTime end,
         Peer & t,
         Scheduler & s,
         Generator & g)
-        : rate_{rate}, stop_{end}, target_{t}, scheduler_{s}, g_{g}
+        : dist_{dist}, stop_{end}, target_{t}, scheduler_{s}, g_{g}
     {
         scheduler_.at(start, [&]() { submit(); });
     }
 };
 
-template <class Rate, class Generator>
-Submitter<Rate, Generator>
+template <class Distribution, class Generator>
+Submitter<Distribution, Generator>
 submitter(
-    Rate rate,
+    Distribution dist,
     SimTime start,
     SimTime end,
     Peer& t,
     Scheduler& s,
     Generator& g)
 {
-    return Submitter<Rate, Generator>(rate, start ,end, t, s, g);
+    return Submitter<Distribution, Generator>(dist, start ,end, t, s, g);
 }
 
 }  // namespace csf

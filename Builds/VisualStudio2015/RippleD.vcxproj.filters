@@ -5286,7 +5286,7 @@
     <ClInclude Include="..\..\src\test\csf\collectors.h">
       <Filter>test\csf</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\Digraph.h">
+    <ClInclude Include="..\..\src\test\csf\digraph.h">
       <Filter>test\csf</Filter>
     </ClInclude>
     <ClCompile Include="..\..\src\test\csf\Digraph_test.cpp">
@@ -5317,6 +5317,9 @@
       <Filter>test\csf</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Proposal.h">
+      <Filter>test\csf</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\random.h">
       <Filter>test\csf</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Scheduler.h">

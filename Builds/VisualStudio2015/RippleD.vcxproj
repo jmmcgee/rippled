@@ -4531,7 +4531,7 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\collectors.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\Digraph.h">
+    <ClInclude Include="..\..\src\test\csf\digraph.h">
     </ClInclude>
     <ClCompile Include="..\..\src\test\csf\Digraph_test.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
@@ -4562,6 +4562,8 @@
     <ClInclude Include="..\..\src\test\csf\Peer.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Proposal.h">
+    </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\random.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Scheduler.h">
     </ClInclude>

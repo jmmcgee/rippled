@@ -71,12 +71,12 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         sim.run(1);
 
         // Run for 10 minues, submitting 100 tx/second
-        std::chrono::nanoseconds simDuration = 10min;
-        std::chrono::nanoseconds quiet = 10s;
+        SimDuration simDuration = 10min;
+        SimDuration quiet = 10s;
         Rate rate{100, 1000ms};
 
         // txs, start/stop/step, target
-        auto txSubmitter = submitter(Fixed{rate},
+        auto txSubmitter = submitter(ConstantDistribution{rate.inv()},
                           sim.scheduler.now() + quiet,
                           sim.scheduler.now() + (simDuration - quiet),
                           sim.peers.front(),
