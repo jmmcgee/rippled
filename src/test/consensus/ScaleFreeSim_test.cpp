@@ -25,6 +25,70 @@
 namespace ripple {
 namespace test {
 
+namespace csf
+{
+/** Generate a random trust graph based on random ranking of peers
+
+    Generate a random trust graph by
+
+        1. Randomly ranking the peers acording to RankPDF
+        2. Generating `numUNL` random UNLs by sampling without replacement
+            from the ranked nodes.
+        3. Restricting the size of the random UNLs according to SizePDF
+
+    @param size The number of nodes in the trust graph
+    @param numUNLs The number of UNLs to create
+    @param rankPDF Generates random positive real numbers to use as ranks
+    @param unlSizePDF Generates random integeres between (0,size-1) to
+                        restrict the size of generated PDF
+    @param Generator The uniform random bit generator to use
+
+    @note RankPDF/SizePDF can model the full RandomDistribution concept
+            defined in the STL, but for the purposes of this function need
+            only provide:
+
+                auto operator()(Generator & g)
+
+            which should return the random sample.
+
+
+*/
+template <class RankPDF, class SizePDF, class Generator>
+void
+randomRankedTrust(
+    PeerGroup & peers,
+    int numUNLs,
+    RankPDF rankPDF,
+    SizePDF unlSizePDF,
+    Generator& g)
+{
+    std::size_t const size = peers.size();
+
+    // 1. Generate ranks
+    std::vector<double> weights(size);
+    std::generate(
+        weights.begin(), weights.end(), [&]() { return rankPDF(g); });
+
+    // 2. Generate UNLs based on sampling without replacement according
+    //    to weights.
+    std::vector<PeerGroup> unls(numUNLs);
+    std::vector<Peer*> rawPeers(peers.begin(), peers.end());
+    std::generate(unls.begin(), unls.end(), [&]() {
+        std::vector<Peer*> res =
+            random_weighted_shuffle(rawPeers, weights, g);
+        res.resize(unlSizePDF(g));
+        return PeerGroup(std::move(res));
+    });
+
+    // 3. Assign trust
+    std::uniform_int_distribution<int> u(0, numUNLs - 1);
+    for(auto & peer : peers)
+    {
+        for(auto & target : unls[u(g)])
+            peer->trust(*target);
+    }
+}
+}
 
 class ScaleFreeSim_test : public beast::unit_test::suite
 {
@@ -33,7 +97,6 @@ class ScaleFreeSim_test : public beast::unit_test::suite
     {
         using namespace std::chrono;
         using namespace csf;
-
         // Generate a quasi-random scale free network and simulate consensus
         // as we vary transaction submission rates
 
@@ -48,38 +111,36 @@ class ScaleFreeSim_test : public beast::unit_test::suite
 
         std::mt19937_64 rng;
 
-        auto tg = TrustGraph::makeRandomRanked(
-            N,
-            numUNLs,
+        ConsensusParms parms;
+        Sim sim;
+        PeerGroup network = sim.createGroup(N);
+        randomRankedTrust(network, numUNLs,
             PowerLawDistribution{1, 3},
             std::uniform_int_distribution<>{minUNLSize, maxUNLSize},
             rng);
 
+        network.connectFromTrust(
+            round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
+
         TxCollector txCollector;
         LedgerCollector ledgerCollector;
-        ConsensusParms parms;
-        auto colls = collectors(txCollector, ledgerCollector);
 
-        Sim sim{
-            parms,
-            tg,
-            topology(
-                tg, fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}),
-            colls};
+        auto colls = collectors(txCollector, ledgerCollector);
+        sim.collectors.add(colls);
 
         // Initial round to set prior state
         sim.run(1);
 
         // Run for 10 minues, submitting 100 tx/second
-        SimDuration simDuration = 10min;
-        SimDuration quiet = 10s;
+        std::chrono::nanoseconds simDuration = 10min;
+        std::chrono::nanoseconds quiet = 10s;
         Rate rate{100, 1000ms};
 
         // txs, start/stop/step, target
         auto txSubmitter = submitter(ConstantDistribution{rate.inv()},
                           sim.scheduler.now() + quiet,
                           sim.scheduler.now() + (simDuration - quiet),
-                          sim.peers.front(),
+                          *(*network.begin()),
                           sim.scheduler,
                           rng);
 
@@ -91,7 +152,7 @@ class ScaleFreeSim_test : public beast::unit_test::suite
 
         // TODO: Clean up this formatting mess!!
 
-        log << "Peers: " << sim.peers.size() << std::endl;
+        log << "Peers: " << network.size() << std::endl;
         log << "Simulated Duration: "
             << duration_cast<milliseconds>(simDuration).count()
             << " ms" << std::endl;

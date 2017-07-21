@@ -23,8 +23,6 @@ namespace ripple {
 namespace test {
 namespace csf {
 
-NullCollector Sim::nullCollector{};
-
 void
 Sim::run(int ledgers)
 {

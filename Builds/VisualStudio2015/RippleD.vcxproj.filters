@@ -5286,7 +5286,7 @@
     <ClInclude Include="..\..\src\test\csf\collectors.h">
       <Filter>test\csf</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\digraph.h">
+    <ClInclude Include="..\..\src\test\csf\Digraph.h">
       <Filter>test\csf</Filter>
     </ClInclude>
     <ClCompile Include="..\..\src\test\csf\Digraph_test.cpp">
@@ -5305,9 +5305,6 @@
       <Filter>test\csf\impl</Filter>
     </ClCompile>
     <ClCompile Include="..\..\src\test\csf\impl\Sim.cpp">
-      <Filter>test\csf\impl</Filter>
-    </ClCompile>
-    <ClCompile Include="..\..\src\test\csf\impl\UNL.cpp">
       <Filter>test\csf\impl</Filter>
     </ClCompile>
     <ClInclude Include="..\..\src\test\csf\ledgers.h">
@@ -5337,10 +5334,10 @@
     <ClInclude Include="..\..\src\test\csf\submitters.h">
       <Filter>test\csf</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\Tx.h">
+    <ClInclude Include="..\..\src\test\csf\TrustGraph.h">
       <Filter>test\csf</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\UNL.h">
+    <ClInclude Include="..\..\src\test\csf\Tx.h">
       <Filter>test\csf</Filter>
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Validation.h">

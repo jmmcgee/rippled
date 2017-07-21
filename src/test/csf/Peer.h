@@ -28,7 +28,7 @@
 #include <test/csf/CollectorRef.h>
 #include <test/csf/Scheduler.h>
 #include <test/csf/Tx.h>
-#include <test/csf/UNL.h>
+#include <test/csf/TrustGraph.h>
 #include <test/csf/Validation.h>
 #include <test/csf/events.h>
 #include <test/csf/ledgers.h>
@@ -38,47 +38,62 @@ namespace test {
 namespace csf {
 
 namespace bc = boost::container;
-class PeerPosition
-{
-public:
-    PeerPosition(Proposal const& p) : proposal_(p)
-    {
-    }
 
-    Proposal const&
-    proposal() const
-    {
-        return proposal_;
-    }
+/** A single peer in the simulation.
 
-    Json::Value
-    getJson() const
-    {
-        return proposal_.getJson();
-    }
+    This is the main work-horse of the consensus simulation framework and is
+    where many other components are integrated. The peer
 
-private:
-    Proposal proposal_;
-};
-
-/** Simulated delays in internal peer processing.
- */
-struct SimDelays
-{
-    //! Delay in consensus calling doAccept to accepting and issuing validation
-    std::chrono::milliseconds ledgerAccept{0};
-
-    //! Delay in processing validations from remote peers
-    std::chrono::milliseconds recvValidation{0};
-};
-
-/** Represents a single node participating in the consensus process.
-    It implements the Callbacks required by Consensus.
+     - Implements the Callbacks required by Consensus
+     - Manages trust & network connections with other peers
+     - Issues events back to the simulation based on its actions
+     - Exposes most internal state for forcibly simulation unusual scenarios
 */
 struct Peer
 {
-    // Generic Validations policy that saves stale/flushed data into
-    // a StaleData instance.
+    /** Basic wrapper of a proposed position taken by a peer.
+
+        For real consensus, this would add additional data for serialization
+        and signing. For simulation, nothing extra is needed.
+    */
+    class Position
+    {
+    public:
+        Position(Proposal const& p) : proposal_(p)
+        {
+        }
+
+        Proposal const&
+        proposal() const
+        {
+            return proposal_;
+        }
+
+        Json::Value
+        getJson() const
+        {
+            return proposal_.getJson();
+        }
+
+    private:
+        Proposal proposal_;
+    };
+
+
+    /** Simulated delays in internal peer processing.
+     */
+    struct ProcessingDelays
+    {
+        //! Delay in consensus calling doAccept to accepting and issuing
+        //! validation
+        std::chrono::milliseconds ledgerAccept{0};
+
+        //! Delay in processing validations from remote peers
+        std::chrono::milliseconds recvValidation{0};
+    };
+
+    /** Generic Validations policy that simply ignores recently stale validations
+    */
     class StalePolicy
     {
         Peer& p_;
@@ -105,7 +120,8 @@ struct Peer
         }
     };
 
-    // Non-locking mutex to avoid locks in generic Validations
+    /** Non-locking mutex to avoid locks in generic Validations
+    */
     struct NotAMutex
     {
         void
@@ -119,52 +135,25 @@ struct Peer
         }
     };
 
-    /** Helper to simplify a peer notifying a collector */
-    class WrappedCollector
-    {
-        using clock_type = beast::manual_clock<std::chrono::steady_clock>;
-        CollectorRef collector_;
-        NodeID id_;
-        clock_type& clock_;
-        using Ledger_t = Ledger;
 
-    public:
-        using NodeID_t = NodeID;
-        template <class Collector>
-        WrappedCollector(Collector& collector, NodeID id, clock_type& clock)
-            : collector_{collector}, id_{id}, clock_{clock}
-        {
-        }
-        using TxSet_t = TxSet;
-        WrappedCollector(WrappedCollector const&) = delete;
-        WrappedCollector&
-        operator=(WrappedCollector const&) = delete;
-        using PeerPosition_t = PeerPosition;
-        WrappedCollector(WrappedCollector&&) = default;
-        WrappedCollector&
-        operator=(WrappedCollector&&) = default;
-
-        template <class Event>
-        void
-        on(Event const& e)
-        {
-            collector_.on(id_, clock_.now(), e);
-        }
-    };
-
+    //! Type definitions for generic consensus
     using Ledger_t = Ledger;
     using NodeID_t = NodeID;
     using TxSet_t = TxSet;
-    using PeerPosition_t = PeerPosition;
+    using PeerPosition_t = Position;
     using Result = ConsensusResult<Peer>;
 
+    //! Logging support that prefixes the peer ID
     beast::WrappedSink sink;
     beast::Journal j;
 
+    //! Generic consensus
     Consensus<Peer> consensus;
 
-    //! Our unique ID and current signing key
+    //! Our unique ID
     NodeID id;
+
+    //! Current signing key
     NodeKey key;
 
     //! The oracle that manages unique ledgers
@@ -176,8 +165,8 @@ struct Peer
     //! Handle to network for sending messages
     BasicNetwork<Peer*>& net;
 
-    //! UNL of trusted peers
-    UNL unl;
+    //! Handle to Trust graph of network
+    TrustGraph<Peer*>& trustGraph;
 
     //! openTxs that haven't been closed in a ledger yet
     TxSetType openTxs;
@@ -188,7 +177,7 @@ struct Peer
     //! Ledgers this node has closed or loaded from the network
     hash_map<Ledger::ID, Ledger> ledgers;
 
-    //! Validationss from trusted nodes
+    //! Validations from trusted nodes
     Validations<StalePolicy, Validation, NotAMutex> validations;
 
     //! The most recent ledger that has been fully validated by the network
@@ -197,45 +186,47 @@ struct Peer
     //! Map from Ledger::ID to vector of Positions with that ledger
     //! as the prior ledger
     bc::flat_map<Ledger::ID, std::vector<Proposal>> peerPositions;
+    //! TxSet associated with a TxSet::ID
     bc::flat_map<TxSet::ID, TxSet> txSets;
 
-    //! The number of ledgers this
+    //! The number of ledgers this peer has completed
     int completedLedgers = 0;
+    //! The number of ledges this peer should complete before stopping to run
     int targetLedgers = std::numeric_limits<int>::max();
 
-    //! Skew samples from the network clock; to be refactored into a
-    //! clock time once it is provided separately from the network.
+    //! Skew samples from the network clock
     std::chrono::seconds clockSkew{0};
 
     //! Simulated delays to use for internal processing
-    SimDelays delays;
+    ProcessingDelays delays;
 
     //! Whether to simulate running as validator or just consensus observer
     bool runAsValidator = true;
 
-    std::size_t prevProposers_ = 0;
-    std::chrono::milliseconds prevRoundTime_;
+    //TODO: Consider removing these two, they are only a convenience for tests
+    // Number of proposers in the prior round
+    std::size_t prevProposers = 0;
+    // Duration of prior round
+    std::chrono::milliseconds prevRoundTime;
 
     // Quorum of validations needed for a ledger to be fully validated
     // TODO: Use the logic in ValidatorList to set this
+    std::size_t quorum = 0;
 
-    std::size_t quorum;
     // Simulation parameters
-    ConsensusParms parms_;
+    ConsensusParms consensusParms;
 
-    //! The collector to report events to
-    WrappedCollector collector;
+    //! The collectors to report events to
+    CollectorRefs & collectors;
 
     //! All peers start from the default constructed ledger
-    template <class Collector>
     Peer(
         std::uint32_t i,
-        ConsensusParms p,
         Scheduler& s,
         LedgerOracle& o,
         BasicNetwork<Peer*>& n,
-        UNL const& u,
-        Collector& c,
+        TrustGraph<Peer*> & tg,
+        CollectorRefs & c,
         beast::Journal jIn)
         : sink(jIn, "Peer " + std::to_string(i) + ": ")
         , j(sink)
@@ -245,14 +236,59 @@ struct Peer
         , oracle{o}
         , scheduler{s}
         , net{n}
-        , unl(u)
+        , trustGraph(tg)
         , validations{ValidationParms{}, s.clock(), j, *this}
-        , quorum{static_cast<std::size_t>(std::ceil(unl.size() * 0.8))}
-        , parms_{p}
-        , collector{c, id, s.clock()}
+        , collectors{c}
     {
         ledgers[lastClosedLedger.get().id()] = lastClosedLedger.get();
+
+        // nodes always trust themselves . . SHOULD THEY?
+        trustGraph.trust(this, this);
     }
+
+    //--------------------------------------------------------------------------
+    // Trust and Network members
+    void
+    trust(Peer & o)
+    {
+        trustGraph.trust(this, &o);
+    }
+
+    void
+    untrust(Peer & o)
+    {
+        trustGraph.untrust(this, &o);
+    }
+
+    bool
+    trusts(Peer & o)
+    {
+        return trustGraph.trusts(this, &o);
+    }
+
+    bool
+    trusts(NodeID const & oId)
+    {
+        for(auto const & p : trustGraph.trustedPeers(this))
+            if(p->id == oId)
+                return true;
+        return false;
+    }
+
+    bool
+    connect(Peer & o, SimDuration dur)
+    {
+        return net.connect(this, &o, dur);
+    }
+
+    bool
+    disconnect(Peer & o)
+    {
+        return net.disconnect(this, &o);
+    }
+
+    //--------------------------------------------------------------------------
+    // Generic Consensus members
 
     Ledger const*
     acquireLedger(Ledger::ID const& ledgerHash)
@@ -319,7 +355,7 @@ struct Peer
         NetClock::time_point closeTime,
         ConsensusMode mode)
     {
-        collector.on(CloseLedger{prevLedger, openTxs});
+        issue(CloseLedger{prevLedger, openTxs});
 
         return Result(
             TxSet{openTxs},
@@ -368,9 +404,9 @@ struct Peer
                 result.position.closeTime());
             ledgers[newLedger.id()] = newLedger;
 
-            collector.on(AcceptLedger{newLedger, lastClosedLedger.get()});
-            prevProposers_ = result.proposers;
-            prevRoundTime_ = result.roundTime.read();
+            issue(AcceptLedger{newLedger, lastClosedLedger.get()});
+            prevProposers = result.proposers;
+            prevRoundTime = result.roundTime.read();
             lastClosedLedger.switchTo(now(), newLedger);
 
             auto it = std::remove_if(
@@ -440,7 +476,7 @@ struct Peer
 
         if (netLgr != ledgerID)
         {
-            collector.on(WrongPrevLedger{ledgerID, netLgr});
+            issue(WrongPrevLedger{ledgerID, netLgr});
         }
         return netLgr;
     }
@@ -454,20 +490,24 @@ struct Peer
     ConsensusParms const&
     parms() const
     {
-        return parms_;
+        return consensusParms;
+    }
+
+    // Not interested in tracking consensus mode changes
+    void
+    onModeChange(ConsensusMode, ConsensusMode)
+    {
     }
 
     //-------------------------------------------------------------------------
-    // non-callback helpers
-
-    // Generic overlay points
+    // Simulation members
 
     // Receive a message from a specific peer
     template <class T>
     void
     receive(NodeID from, T const& t)
     {
-        collector.on(Receive<T>{from, t});
+        issue(Receive<T>{from, t});
 
         handle(t);
     }
@@ -477,16 +517,16 @@ struct Peer
     void
     relay(T const& t)
     {
-        collector.on(Relay<T>{t});
+        issue(Relay<T>{t});
         for (auto const& link : net.links(this))
             net.send(this, link.to, [ msg = t, to = link.to, id = this->id ] {
                 to->receive(id, msg);
             });
     }
 
-    // Unwrap the peerPosition before relaying
+    // Unwrap the Position before relaying
     void
-    relay(PeerPosition const & p)
+    relay(Position const & p)
     {
         relay(p.proposal());
     }
@@ -495,7 +535,7 @@ struct Peer
     void
     handle(Proposal const& p)
     {
-        if (unl.find(static_cast<std::uint32_t>(p.nodeID())) == unl.end())
+        if(!trusts(p.nodeID()))
             return;
 
         // TODO: Supress repeats more efficiently
@@ -504,7 +544,7 @@ struct Peer
             return;
 
         dest.push_back(p);
-        consensus.peerProposal(now(), PeerPosition{p});
+        consensus.peerProposal(now(), Position{p});
     }
 
     void
@@ -545,19 +585,18 @@ struct Peer
     void
     handle(Validation const& v)
     {
-        if (unl.find(static_cast<std::uint32_t>(v.nodeID())) != unl.end())
-        {
-            schedule(
-                delays.recvValidation, [&, v]() { addTrustedValidation(v); });
-        }
+        if (!trusts(v.nodeID()))
+            return;
+
+        schedule(delays.recvValidation, [&, v]() { addTrustedValidation(v); });
     }
 
-    // Receive (handle) a locally submitted transaction
+    //  A locally submitted transaction
     void
     submit(Tx const& tx)
     {
         // Received this from ourselves
-        collector.on(Receive<Tx>{id, tx});
+        issue(Receive<Tx>{id, tx});
         handle(tx);
     }
 
@@ -581,7 +620,7 @@ struct Peer
         Ledger::ID bestLCL =
             getPreferredLedger(lastClosedLedger.get().id(), valDistribution);
 
-        collector.on(StartRound{bestLCL, lastClosedLedger.get()});
+        issue(StartRound{bestLCL, lastClosedLedger.get()});
 
         // TODO:
         //  - Get dominant peer ledger if no validated available?
@@ -628,27 +667,11 @@ struct Peer
     }
 
     Ledger::ID
-    prevLedgerID()
+    prevLedgerID() const
     {
         return consensus.prevLedgerID();
     }
 
-    std::size_t
-    prevProposers()
-    {
-        return prevProposers_;
-    }
-
-    std::chrono::milliseconds
-    prevRoundTime()
-    {
-        return prevRoundTime_;
-    }
-
-    // Not interested in tracking consensus mode
-    void onModeChange(ConsensusMode, ConsensusMode)
-    {
-    }
 
     void
     checkFullyValidated(Ledger const& ledger)
@@ -658,14 +681,22 @@ struct Peer
             return;
 
         auto count = validations.numTrustedForLedger(ledger.id());
+        auto numTrustedPeers = trustGraph.graph().outDegree(this);
+        quorum = static_cast<std::size_t>(std::ceil(numTrustedPeers * 0.8));
         if (count >= quorum)
         {
-            collector.on(
-                FullyValidateLedger{ledger, fullyValidatedLedger.get()});
+            issue(FullyValidateLedger{ledger, fullyValidatedLedger.get()});
             fullyValidatedLedger.switchTo(now(), ledger);
         }
     }
 
+    template <class E>
+    void
+    issue(E const & event)
+    {
+        // Use the scheduler time and not the peer's local time
+        collectors.on(id, scheduler.now(), event);
+    }
 
     // Injects a specific transaction when generating the ledger following
     // the provided sequence.  This allows simulating a byzantine failure in
@@ -688,7 +719,215 @@ struct Peer
     }
 };
 
+/** A group of simulation Peers
+
+    A PeerGroup is a convenient handle for logically grouping peers together,
+    and then creating trust or network relations for the group at large. Peer
+    groups may also be combined to build out more complex structures.
+*/
+class PeerGroup
+{
+    using peers_type = std::vector<Peer*>;
+    peers_type peers_;
+public:
+    using iterator = peers_type::iterator;
+    using const_iterator = peers_type::const_iterator;
+    using reference = peers_type::reference;
+    using const_reference = peers_type::const_reference;
+
+    PeerGroup() = default;
+    PeerGroup(PeerGroup const&) = default;
+    PeerGroup(Peer* peer) : peers_{1, peer}
+    {
+    }
+    PeerGroup(std::vector<Peer*>&& peers) : peers_{std::move(peers)}
+    {
+        std::sort(peers_.begin(), peers_.end());
+    }
+    PeerGroup(std::vector<Peer*> const& peers) : peers_{peers}
+    {
+        std::sort(peers_.begin(), peers_.end());
+    }
+
+    PeerGroup(std::set<Peer*> const& peers) : peers_{peers.begin(), peers.end()}
+    {
+
+    }
+
+    iterator
+    begin()
+    {
+        return peers_.begin();
+    }
+
+    iterator
+    end()
+    {
+        return peers_.end();
+    }
+
+    const_iterator
+    begin() const
+    {
+        return peers_.begin();
+    }
+
+    const_iterator
+    end() const
+    {
+        return peers_.end();
+    }
+
+    const_reference
+    operator[](std::size_t i) const
+    {
+        return peers_[i];
+    }
+
+    bool
+    exists(Peer const * p)
+    {
+        return std::find(peers_.begin(), peers_.end(), p) != peers_.end();
+    }
+
+    std::size_t
+    size() const
+    {
+        return peers_.size();
+    }
+
+    void
+    trust(PeerGroup const & o)
+    {
+        for(Peer * p : peers_)
+        {
+            for (Peer * target : o.peers_)
+            {
+                p->trust(*target);
+            }
+        }
+    }
+
+    void
+    untrust(PeerGroup const & o)
+    {
+        for(Peer * p : peers_)
+        {
+            for (Peer * target : o.peers_)
+            {
+                p->untrust(*target);
+            }
+        }
+    }
+
+    void
+    connect(PeerGroup const& o, SimDuration delay)
+    {
+        for(Peer * p : peers_)
+        {
+            for (Peer * target : o.peers_)
+            {
+                // cannot send messages to self over network
+                if(p != target)
+                    p->connect(*target, delay);
+            }
+        }
+    }
+
+    void
+    disconnect(PeerGroup const &o)
+    {
+        for(Peer * p : peers_)
+        {
+            for (Peer * target : o.peers_)
+            {
+                p->disconnect(*target);
+            }
+        }
+    }
+
+    void
+    trustAndConnect(PeerGroup const & o, SimDuration delay)
+    {
+        trust(o);
+        connect(o, delay);
+    }
+
+    void
+    connectFromTrust(SimDuration delay)
+    {
+        for (Peer * peer : peers_)
+        {
+            for (Peer * to : peer->trustGraph.trustedPeers(peer))
+            {
+                peer->connect(*to, delay);
+            }
+        }
+    }
+
+    friend
+    PeerGroup
+    operator+(PeerGroup const & a, PeerGroup const & b)
+    {
+        PeerGroup res;
+        std::set_union(
+            a.peers_.begin(),
+            a.peers_.end(),
+            b.peers_.begin(),
+            b.peers_.end(),
+            std::back_inserter(res.peers_));
+        return res;
+    }
+
+    friend
+    PeerGroup
+    operator+(PeerGroup && a, PeerGroup const & b)
+    {
+        PeerGroup res{std::move(a.peers_)};
+        std::set_union(
+            a.peers_.begin(),
+            a.peers_.end(),
+            b.peers_.begin(),
+            b.peers_.end(),
+            std::back_inserter(res.peers_));
+        return res;
+    }
+
+    friend
+    PeerGroup
+    operator-(PeerGroup const & a, PeerGroup const & b)
+    {
+        PeerGroup res;
+
+        std::set_difference(
+            a.peers_.begin(),
+            a.peers_.end(),
+            b.peers_.begin(),
+            b.peers_.end(),
+            std::back_inserter(res.peers_));
+
+        return res;
+    }
+
+    friend std::ostream&
+    operator<<(std::ostream& o, PeerGroup const& t)
+    {
+        o << "{";
+        bool first = true;
+        for (Peer const* p : t)
+        {
+            if(!first)
+                o << ", ";
+            first = false;
+            o << p->id;
+        }
+        o << "}";
+        return o;
+    }
+};
+
 }  // namespace csf
 }  // namespace test
 }  // namespace ripple
 #endif
+

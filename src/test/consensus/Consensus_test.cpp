@@ -78,7 +78,6 @@ public:
         ConsensusParms p;
         beast::Journal j;
 
-
         // Not enough time has elapsed
         BEAST_EXPECT(
             ConsensusState::No ==
@@ -118,27 +117,27 @@ public:
         using namespace std::chrono_literals;
         using namespace csf;
 
-        ConsensusParms parms;
-        auto tg = TrustGraph::makeComplete(1);
-        Sim s(parms, tg, topology(tg, fixed{parms.ledgerGRANULARITY}));
-        s.sink.threshold(beast::severities::kTrace);
-        auto& p = s.peers[0];
-
-        p.targetLedgers = 1;
-        p.start();
-        p.submit(Tx{1});
+        Sim s;
+        PeerGroup peers = s.createGroup(1);
+        for (Peer* peer : peers)
+        {
+            peer->targetLedgers = 1;
+            peer->start();
+            peer->submit(Tx{1});
+        }
 
         s.scheduler.step();
 
         // Inspect that the proper ledger was created
-        auto const & lcl =p.lastClosedLedger.get();
-        BEAST_EXPECT(p.prevLedgerID() == lcl.id());
-        BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
-        BEAST_EXPECT(lcl.txs().size() == 1);
-        BEAST_EXPECT(
-            lcl.txs().find(Tx{1}) !=
-            lcl.txs().end());
-        BEAST_EXPECT(p.prevProposers() == 0);
+        for (Peer const* p : peers)
+        {
+            auto const& lcl = p->lastClosedLedger.get();
+            BEAST_EXPECT(p->prevLedgerID() == lcl.id());
+            BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
+            BEAST_EXPECT(lcl.txs().size() == 1);
+            BEAST_EXPECT(lcl.txs().find(Tx{1}) != lcl.txs().end());
+            BEAST_EXPECT(p->prevProposers == 0);
+        }
     }
 
     void
@@ -148,30 +147,34 @@ public:
         using namespace std::chrono;
 
         ConsensusParms parms;
-        auto tg = TrustGraph::makeComplete(5);
-        Sim sim(
-            parms,
-            tg,
-            topology(
-                tg,
-                fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}));
+        Sim sim;
+        PeerGroup peers = sim.createGroup(5);
+
+        // Fully connect the peers
+        peers.trustAndConnect(
+            peers, round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
 
         // everyone submits their own ID as a TX and relay it to peers
-        for (auto& p : sim.peers)
-            p.submit(Tx(static_cast<std::uint32_t>(p.id)));
+        for (Peer * p : peers)
+            p->submit(Tx(static_cast<std::uint32_t>(p->id)));
 
-        // Verify all peers have the same LCL and it has all the Txs
         sim.run(1);
-        for (auto& p : sim.peers)
+
+        // All peers are in sync
+        if (BEAST_EXPECT(sim.synchronized()))
         {
-            auto const & lcl = p.lastClosedLedger.get();
-            BEAST_EXPECT(lcl.id() == p.prevLedgerID());
-            BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
-            BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
-            for (std::uint32_t i = 0; i < sim.peers.size(); ++i)
-                BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
-            // Matches peer 0 ledger
-            BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.get().txs());
+            for (Peer const* peer : peers)
+            {
+                // Inspect the first node's state
+                auto const& lcl = peer->lastClosedLedger.get();
+                BEAST_EXPECT(lcl.id() == peer->prevLedgerID());
+                BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
+                // All peers proposed
+                BEAST_EXPECT(peer->prevProposers == peers.size() - 1);
+                // All transactions were accepted
+                for (std::uint32_t i = 0; i < peers.size(); ++i)
+                    BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
+            }
         }
     }
 
@@ -188,44 +191,51 @@ public:
         // Test when a slow peer doesn't delay a consensus quorum (4/5 agree)
         {
             ConsensusParms parms;
-            auto tg = TrustGraph::makeComplete(5);
+            Sim sim;
+            PeerGroup slow = sim.createGroup(1);
+            PeerGroup fast = sim.createGroup(4);
+            PeerGroup network = fast + slow;
 
-            // Peers 0 is slow, 1-4 are fast
-            // This choice is based on parms.minCONSENSUS_PCT of 80
-            Sim sim(parms, tg, topology(tg, [&](std::uint32_t i, std::uint32_t j) {
-                        auto delayFactor = (i == 0 || j == 0) ? 1.1 : 0.2;
-                        return round<milliseconds>(
-                            delayFactor * parms.ledgerGRANULARITY);
-                    }));
+            // Fully connected trust graph
+            network.trust(network);
+
+            // Fast and slow network connections
+            fast.connect(
+                fast, round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
+
+            slow.connect(
+                fast, round<milliseconds>(1.1 * parms.ledgerGRANULARITY));
 
             // All peers submit their own ID as a transaction and relay it
             // to peers
-            for (auto& p : sim.peers)
-            {
-                p.submit(Tx{static_cast<std::uint32_t>(p.id)});
-            }
+            for (Peer* peer : network)
+                peer->submit(Tx{static_cast<std::uint32_t>(peer->id)});
 
             sim.run(1);
 
             // Verify all peers have same LCL but are missing transaction 0
-            // which was not received by all peers before the ledger closed
-            for (auto& p : sim.peers)
+            // All peers are in sync even with a slower peer 0
+            if (BEAST_EXPECT(sim.synchronized()))
             {
-                auto const & lcl = p.lastClosedLedger.get();
-                BEAST_EXPECT(lcl.id() == p.prevLedgerID());
-                BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
+                for (Peer* peer : network)
+                {
+                    auto const& lcl = peer->lastClosedLedger.get();
+                    BEAST_EXPECT(lcl.id() == peer->prevLedgerID());
+                    BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
 
-                BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
-                BEAST_EXPECT(p.prevRoundTime() == sim.peers[0].prevRoundTime());
+                    BEAST_EXPECT(peer->prevProposers == network.size() - 1);
+                    BEAST_EXPECT(
+                        peer->prevRoundTime == network[0]->prevRoundTime);
 
-                BEAST_EXPECT(lcl.txs().find(Tx{0}) == lcl.txs().end());
-                for (std::uint32_t i = 2; i < sim.peers.size(); ++i)
-                    BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
-                // Matches peer 0 ledger
-                BEAST_EXPECT(lcl.txs() == sim.peers[0].lastClosedLedger.get().txs());
+                    BEAST_EXPECT(lcl.txs().find(Tx{0}) == lcl.txs().end());
+                    for (std::uint32_t i = 2; i < network.size(); ++i)
+                        BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
+
+                    // Tx 0 didn't make it
+                    BEAST_EXPECT(
+                        peer->openTxs.find(Tx{0}) != peer->openTxs.end());
+                }
             }
-            BEAST_EXPECT(
-                sim.peers[0].openTxs.find(Tx{0}) != sim.peers[0].openTxs.end());
         }
 
         // Test when the slow peers delay a consensus quorum (4/6  agree)
@@ -237,87 +247,96 @@ public:
             for (auto isParticipant : {true, false})
             {
                 ConsensusParms parms;
-                auto tg = TrustGraph::makeComplete(6);
 
-                // Peers 0,1 are slow, 2-5 are fast
-                // This choice is based on parms.minCONSENSUS_PCT of 80
-                Sim sim(
-                    parms, tg, topology(tg, [&](std::uint32_t i, std::uint32_t j) {
-                        auto delayFactor = (i <= 1 || j <= 1) ? 1.1 : 0.2;
-                        return round<milliseconds>(
-                            delayFactor * parms.ledgerGRANULARITY);
-                    }));
+                Sim sim;
+                PeerGroup slow = sim.createGroup(2);
+                PeerGroup fast = sim.createGroup(4);
+                PeerGroup network = fast + slow;
 
-                sim.peers[0].runAsValidator = isParticipant;
-                sim.peers[1].runAsValidator = isParticipant;
+                // Fully connected trust graph
+                network.trust(network);
+
+                // Fast and slow network connections
+                fast.connect(
+                    fast, round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
+
+                slow.connect(
+                    fast, round<milliseconds>(1.1 * parms.ledgerGRANULARITY));
+
+                for (Peer* peer : slow)
+                    peer->runAsValidator = isParticipant;
 
                 // All peers submit their own ID as a transaction and relay it
                 // to peers
-                for (auto& p : sim.peers)
-                {
-                    p.submit(Tx{static_cast<std::uint32_t>(p.id)});
-                }
+                for (Peer* peer : network)
+                    peer->submit(Tx{static_cast<std::uint32_t>(peer->id)});
 
                 sim.run(1);
 
-                // Verify all peers have same LCL but are missing transaction 0
-                // which was not received by all peers before the ledger closed
-                for (auto& p : sim.peers)
+                if (BEAST_EXPECT(sim.synchronized()))
                 {
-                    auto const & lcl = p.lastClosedLedger.get();
-                    BEAST_EXPECT(lcl.id() == p.prevLedgerID());
-                    BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
-
-                    // If peer 0,1 are participating
-                    if (isParticipant)
+                    // Verify all peers have same LCL but are missing
+                    // transaction 0,1 which was not received by all peers before
+                    // the ledger closed
+                    for (Peer* peer : network)
                     {
-                        BEAST_EXPECT(p.prevProposers() == sim.peers.size() - 1);
+                        // Closed ledger has all but transaction 0,1
+                        auto const& lcl = peer->lastClosedLedger.get();
+                        BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
+                        BEAST_EXPECT(lcl.txs().find(Tx{0}) == lcl.txs().end());
+                        for (std::uint32_t i = slow.size(); i < network.size();
+                             ++i)
+                            BEAST_EXPECT(
+                                lcl.txs().find(Tx{i}) != lcl.txs().end());
+
+                        // Tx 0-1 didn't make it
+                        BEAST_EXPECT(
+                            peer->openTxs.find(Tx{0}) != peer->openTxs.end());
+                        BEAST_EXPECT(
+                            peer->openTxs.find(Tx{1}) != peer->openTxs.end());
+                    }
+
+                    Peer* slowPeer = *slow.begin();
+
+                    BEAST_EXPECT(
+                        slowPeer->prevProposers ==
+                        network.size() - slow.size());
+
+                    for (Peer* peer : fast)
+                    {
                         // Due to the network link delay settings
                         //    Peer 0 initially proposes {0}
                         //    Peer 1 initially proposes {1}
                         //    Peers 2-5 initially propose {2,3,4,5}
-                        // Since peers 2-5 agree, 4/6 > the initial 50%
-                        // threshold on disputed transactions, so Peer 0 and 1
-                        // change their position to match peers 2-5 and declare
-                        // consensus now that 5/6 proposed positions match
-                        // (themselves and peers 2-5).
+                        // Since peers 2-5 agree, 4/6 > the initial 50% needed
+                        // to include a disputed transaction, so Peer 0/1 switch
+                        // to agree with those peers.  It then closes with an
+                        // 80% quorum of agreeing positions (5/6) match
                         //
                         // Peers 2-5 do not change position, since tx 0 or tx 1
                         // have less than the 50% initial threshold.  They also
                         // cannot declare consensus, since 4/6 < 80% threshold
-                        // agreement on current positions.  Instead, they have
-                        // to wait an additional timerEntry call for the updated
-                        // peer 0 and peer 1 positions to arrive.  Once they do,
-                        // now peers 2-5 see complete agreement and declare
-                        // consensus
-                        if (p.id > NodeID{1})
+                        // ..).  They therefore need an additional timer period
+                        // to see the updated positions from Peer 0 & 1.
+
+                        if (isParticipant)
+                        {
                             BEAST_EXPECT(
-                                p.prevRoundTime() >
-                                sim.peers[0].prevRoundTime());
-                    }
-                    else  // peer 0,1 are not participating
-                    {
-                        auto const proposers = p.prevProposers();
-                        if (p.id <= NodeID{1})
-                            BEAST_EXPECT(proposers == sim.peers.size() - 2);
+                                peer->prevProposers == network.size() - 1);
+                            BEAST_EXPECT(
+                                peer->prevRoundTime > slowPeer->prevRoundTime);
+                        }
                         else
-                            BEAST_EXPECT(proposers == sim.peers.size() - 3);
-
-                        // so all peers should have closed together
-                        BEAST_EXPECT(
-                            p.prevRoundTime() == sim.peers[0].prevRoundTime());
+                        {
+                            BEAST_EXPECT(
+                                peer->prevProposers == fast.size() - 1);
+                            // so all peers should have closed together
+                            BEAST_EXPECT(
+                                peer->prevRoundTime == slowPeer->prevRoundTime);
+                        }
                     }
-
-                    BEAST_EXPECT(lcl.txs().find(Tx{0}) == lcl.txs().end());
-                    for (std::uint32_t i = 2; i < sim.peers.size(); ++i)
-                        BEAST_EXPECT(lcl.txs().find(Tx{i}) != lcl.txs().end());
-                    // Matches peer 0 ledger
-                    BEAST_EXPECT(
-                        lcl.txs() == sim.peers[0].lastClosedLedger.get().txs());
                 }
-                BEAST_EXPECT(
-                    sim.peers[0].openTxs.find(Tx{0}) !=
-                    sim.peers[0].openTxs.end());
+
             }
         }
     }
@@ -353,31 +372,37 @@ public:
         // actual close time.
 
         ConsensusParms parms;
-        auto tg = TrustGraph::makeComplete(6);
-        Sim sim(
-            parms,
-            tg,
-            topology(
-                tg,
-                fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}));
+        Sim sim;
+
+        PeerGroup groupA = sim.createGroup(2);
+        PeerGroup groupB = sim.createGroup(2);
+        PeerGroup groupC = sim.createGroup(2);
+        PeerGroup network = groupA + groupB + groupC;
+
+        network.trust(network);
+        network.connect(
+            network, round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
 
         // Run consensus without skew until we have a short close time
         // resolution
-        while (sim.peers.front().lastClosedLedger.get().closeTimeResolution() >=
+        Peer* firstPeer = *groupA.begin();
+        while (firstPeer->lastClosedLedger.get().closeTimeResolution() >=
                parms.proposeFRESHNESS)
             sim.run(1);
 
-        // Introduce a shift on the time of half the peers
-        sim.peers[0].clockSkew = parms.proposeFRESHNESS / 2;
-        sim.peers[1].clockSkew = parms.proposeFRESHNESS / 2;
-        sim.peers[2].clockSkew = parms.proposeFRESHNESS;
-        sim.peers[3].clockSkew = parms.proposeFRESHNESS;
+        // Introduce a shift on the time of 2/3 of peers
+        for (Peer* peer : groupA)
+            peer->clockSkew = parms.proposeFRESHNESS / 2;
+        for (Peer* peer : groupB)
+            peer->clockSkew = parms.proposeFRESHNESS;
 
-        // Verify all peers have the same LCL and it has all the Txs
         sim.run(1);
-        for (auto& p : sim.peers)
+
+        // All nodes agreed to disagree on the close time
+        if (BEAST_EXPECT(sim.synchronized()))
         {
-            BEAST_EXPECT(!p.lastClosedLedger.get().closeAgree());
+            for (Peer* peer : network)
+                BEAST_EXPECT(!peer->lastClosedLedger.get().closeAgree());
         }
     }
 
@@ -391,13 +416,13 @@ public:
 
         ConsensusParms parms;
 
-
         // Vary the time it takes to process validations to exercise detecting
         // the wrong LCL at different phases of consensus
         for (auto validationDelay : {0ms, parms.ledgerMIN_CLOSE})
         {
             // Consider 10 peers:
-            // 0 1    2 3 4    5 6 7 8 9
+            // 0 1         2 3 4       5 6 7 8 9
+            // minority   majorityA   majorityB
             //
             // Nodes 0-1 trust nodes 0-4
             // Nodes 2-9 trust nodes 2-9
@@ -413,35 +438,35 @@ public:
             // resume consensus and eventually generate the dominant network
             // ledger
 
-            std::vector<UNL> unls;
-            unls.push_back({2, 3, 4, 5, 6, 7, 8, 9});
-            unls.push_back({0, 1, 2, 3, 4});
-            std::vector<int> membership(10, 0);
-            membership[0] = 1;
-            membership[1] = 1;
+            Sim sim;
 
-            TrustGraph tg{unls, membership};
+            PeerGroup minority = sim.createGroup(2);
+            PeerGroup majorityA = sim.createGroup(3);
+            PeerGroup majorityB = sim.createGroup(5);
 
-            // This topology can fork, which is why we are using it for this
-            // test.
-            BEAST_EXPECT(tg.canFork(parms.minCONSENSUS_PCT / 100.));
+            PeerGroup majority = majorityA + majorityB;
+            PeerGroup network = minority + majority;
 
-            auto netDelay = round<milliseconds>(0.2 * parms.ledgerGRANULARITY);
-            Sim sim(parms, tg, topology(tg, fixed{netDelay}));
+            SimDuration delay =
+                round<milliseconds>(0.2 * parms.ledgerGRANULARITY);
+            minority.trustAndConnect(minority + majorityA, delay);
+            majority.trustAndConnect(majority, delay);
+
+            // This topology can potentially fork, which is why we are using it
+            // for this test.
+            BEAST_EXPECT(sim.trustGraph.canFork(parms.minCONSENSUS_PCT / 100.));
 
             // initial round to set prior state
             sim.run(1);
 
             // Nodes in smaller UNL have seen tx 0, nodes in other unl have seen
             // tx 1
-            for (auto& p : sim.peers)
-            {
-                p.delays.recvValidation= validationDelay;
-                if (unls[1].find(static_cast<std::uint32_t>(p.id)) != unls[1].end())
-                    p.openTxs.insert(Tx{0});
-                else
-                    p.openTxs.insert(Tx{1});
-            }
+            for (Peer* peer : network)
+                peer->delays.recvValidation = validationDelay;
+            for (Peer* peer : (minority + majorityA))
+                peer->openTxs.insert(Tx{0});
+            for (Peer* peer : majorityB)
+                peer->openTxs.insert(Tx{1});
 
             // Run for additional rounds
             // With no validation delay, only 2 more rounds are needed.
@@ -469,33 +494,34 @@ public:
             // synchronized because nodes 0 and 1 are running one ledger behind
             if (BEAST_EXPECT(sim.forks() == 1))
             {
-                for(auto const & peer : sim.peers)
+                for(Peer const* peer : majority)
                 {
-                    if(peer.id >= NodeID{2})
+                    // No jumps
+                    BEAST_EXPECT(peer->fullyValidatedLedger.jumps().empty());
+                    BEAST_EXPECT(peer->lastClosedLedger.jumps().empty());
+                }
+                for(Peer const* peer : minority)
+                {
+                    // last closed ledger jump between chains
                     {
-                        // No jumps
-                        BEAST_EXPECT(peer.fullyValidatedLedger.jumps().empty());
-                        BEAST_EXPECT(peer.lastClosedLedger.jumps().empty());
-                    }
-                    else
-                    {
-                        // last closed ledger jump between chains
+                        if (BEAST_EXPECT(
+                                peer->lastClosedLedger.jumps().size() == 1))
                         {
-                            BEAST_EXPECT(
-                                peer.lastClosedLedger.jumps().size() == 1);
                             LedgerState::Jump const& jump =
-                                peer.lastClosedLedger.jumps().front();
+                                peer->lastClosedLedger.jumps().front();
                             // Jump is to a different chain
                             BEAST_EXPECT(jump.from.seq() <= jump.to.seq());
                             BEAST_EXPECT(
                                 !sim.oracle.isAncestor(jump.from, jump.to));
                         }
-                        // fully validted jump forward in same chain
+                    }
+                    // fully validted jump forward in same chain
+                    {
+                        if (BEAST_EXPECT(
+                                peer->fullyValidatedLedger.jumps().size() == 1))
                         {
-                            BEAST_EXPECT(
-                                peer.fullyValidatedLedger.jumps().size() == 1);
                             LedgerState::Jump const& jump =
-                                peer.fullyValidatedLedger.jumps().front();
+                                peer->fullyValidatedLedger.jumps().front();
                             // Jump is to a different chain with same seq
                             BEAST_EXPECT(jump.from.seq() < jump.to.seq());
                             BEAST_EXPECT(
@@ -512,44 +538,41 @@ public:
             // crashed, in which switchLCL switched from establish to open
             // phase, but still processed the establish phase logic.
 
-            // Node 0 will accept an initial ledger A, but all other nodes
+            // Loner node will accept an initial ledger A, but all other nodes
             // accept ledger B a bit later.  By delaying the time it takes
-            // to process a validation, node 0 will detect the wrongLCL after it
-            // is already in the establish phase of the next round.
+            // to process a validation, loner node will detect the wrongLCL
+            // after it is already in the establish phase of the next round.
 
-            // UNL:
-            //  - Node 0 trusts nodes 0-3
-            //  - All other nodes trust all nodes
-            std::vector<UNL> unls;
-            unls.push_back({0, 1, 2, 3});
-            unls.push_back({0, 1, 2, 3, 4, 5, 6, 7, 8, 9});
-            std::vector<int> membership = {0, 1, 1, 1, 1, 1, 1, 1, 1, 1};
-            TrustGraph tg{unls, membership};
+            Sim sim;
+            PeerGroup loner = sim.createGroup(1);
+            PeerGroup friends = sim.createGroup(3);
+            loner.trust(loner + friends);
 
-            Sim sim(parms,
-                tg,
-                topology(
-                    tg, fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}));
+            PeerGroup others = sim.createGroup(6);
+            PeerGroup clique = friends + others;
+            clique.trust(clique);
+
+            PeerGroup network = loner + clique;
+            network.connect(
+                network, round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
 
             // initial round to set prior state
             sim.run(1);
-            for (auto& p : sim.peers)
-            {
-                // Nodes 0 - 3 see only Tx 0
-                if (p.id < NodeID{4})
-                    p.openTxs.insert(Tx(0));
-                else  // Nodes 4+ see Tx 1
-                    p.openTxs.insert(Tx(1));
+            for (Peer* peer : (loner + friends))
+                peer->openTxs.insert(Tx(0));
+            for (Peer* peer : others)
+                peer->openTxs.insert(Tx(1));
 
-                // Delay validation processing
-                p.delays.recvValidation = parms.ledgerGRANULARITY;
-            }
+            // Delay validation processing
+            for (Peer* peer : network)
+                peer->delays.recvValidation = parms.ledgerGRANULARITY;
+
             // additional rounds to generate wrongLCL and recover
             sim.run(2);
 
             // Check all peers recovered
-            for (auto& p : sim.peers)
-                BEAST_EXPECT(p.prevLedgerID() == sim.peers[0].prevLedgerID());
+            for (Peer * p: network)
+                BEAST_EXPECT(p->prevLedgerID() == network[0]->prevLedgerID());
         }
     }
 
@@ -559,36 +582,41 @@ public:
         using namespace csf;
         using namespace std::chrono;
 
-        int numPeers = 10;
-        for (int overlap = 0; overlap <= numPeers; ++overlap)
+        std::uint32_t numPeers = 10;
+        for (std::uint32_t overlap = 0; overlap <= numPeers; ++overlap)
         {
             ConsensusParms parms;
-            auto tg = TrustGraph::makeClique(numPeers, overlap);
-            Sim sim(
-                parms,
-                tg,
-                topology(
-                    tg,
-                    fixed{
-                        round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}));
+            Sim sim;
+
+            std::uint32_t numA = (numPeers - overlap) / 2;
+            std::uint32_t numB = numPeers - numA - overlap;
+
+            // Calculate size of groups
+            PeerGroup aOnly = sim.createGroup(numA);
+            PeerGroup bOnly = sim.createGroup(numB);
+            PeerGroup commonOnly = sim.createGroup(overlap);
+
+            PeerGroup a = aOnly + commonOnly;
+            PeerGroup b = bOnly + commonOnly;
+
+            PeerGroup network = a + b;
+
+            SimDuration delay =
+                round<milliseconds>(0.2 * parms.ledgerGRANULARITY);
+            a.trustAndConnect(a, delay);
+            b.trustAndConnect(b, delay);
 
             // Initial round to set prior state
             sim.run(1);
-            for (auto& p : sim.peers)
+            for (Peer* peer : network)
             {
                 // Nodes have only seen transactions from their neighbors
-                p.openTxs.insert(Tx{static_cast<std::uint32_t>(p.id)});
-                for (auto const link : sim.net.links(&p))
-                    p.openTxs.insert(Tx{static_cast<std::uint32_t>(link.to->id)});
+                peer->openTxs.insert(Tx{static_cast<std::uint32_t>(peer->id)});
+                for (Peer* to : sim.trustGraph.trustedPeers(peer))
+                    peer->openTxs.insert(
+                        Tx{static_cast<std::uint32_t>(to->id)});
             }
             sim.run(1);
-
-            // See if the network forked
-            std::set<Ledger::ID> ledgers;
-            for (auto& p : sim.peers)
-            {
-                ledgers.insert(p.prevLedgerID());
-            }
 
             // Fork should not happen for 40% or greater overlap
             // Since the overlapped nodes have a UNL that is the union of the
@@ -620,5 +648,5 @@ public:
 };
 
 BEAST_DEFINE_TESTSUITE(Consensus, consensus, ripple);
-}  // test
-}  // ripple
+}  // namespace test
+}  // namespace ripple

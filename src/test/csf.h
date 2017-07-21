@@ -24,8 +24,8 @@
 #include <test/csf/Scheduler.h>
 #include <test/csf/Sim.h>
 #include <test/csf/SimTime.h>
+#include <test/csf/TrustGraph.h>
 #include <test/csf/Tx.h>
-#include <test/csf/UNL.h>
 #include <test/csf/collectors.h>
 #include <test/csf/Digraph.h>
 #include <test/csf/events.h>

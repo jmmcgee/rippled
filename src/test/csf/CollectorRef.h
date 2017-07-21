@@ -35,7 +35,10 @@ namespace csf {
     for all events.
 
     This class is used to type-erase the actual collector used by each peer in
-    the simulation.
+    the simulation. The idea is to compose complicated and typed collectors using
+    the helpers in collectors.h, then store them fully composed in a CollectorRef
+    for use in the simulation.  This allows the compiler to optimize as much
+    as possible.
 
     The example code below demonstrates the reason for storing the collector
     as a reference.  The collector's lifetime will generally be be longer than
@@ -247,6 +250,36 @@ public:
     {
         impl_->on(node, when, e);
     }
+};
+
+/** A container of CollectorRefs
+
+    A set of CollectorRef instances that process events together. This can be
+    used to hold type-erased collectors. By contract, the Collectors/collectors
+    class/helper in collectors.h are not type erased and offer an opportunity
+    for improved compiler optimization.
+*/
+class CollectorRefs
+{
+    std::vector<CollectorRef> collectors_;
+public:
+
+    template <class Collector>
+    void add(Collector & collector)
+    {
+        collectors_.emplace_back(collector);
+    }
+
+    template <class E>
+    void
+    on(NodeID node, SimTime when, E const& e)
+    {
+        for (auto & c : collectors_)
+        {
+            c.on(node, when, e);
+        }
+    }
+
 };
 
 }  // namespace csf

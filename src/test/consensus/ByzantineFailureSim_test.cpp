@@ -37,47 +37,57 @@ class ByzantineFailureSim_test : public beast::unit_test::suite
         // different ledgers due to a simulated byzantine failure (injecting
         // an extra non-consensus transaction).
 
-        std::vector<UNL> unls;
-        unls.push_back({0, 1, 2, 6});
-        unls.push_back({1, 0, 2, 3, 4});
-        unls.push_back({2, 0, 1, 3, 4});
-        unls.push_back({3, 1, 2, 4, 5});
-        unls.push_back({4, 1, 2, 3, 5});
-        unls.push_back({5, 3, 4, 6});
-        unls.push_back({6, 0, 5});
+        Sim sim;
+        ConsensusParms parms;
 
-        std::vector<int> assignment(unls.size());
-        std::iota(assignment.begin(), assignment.end(), 0);
-        TrustGraph tg{unls, assignment};
+        SimDuration delay = round<milliseconds>(0.2 * parms.ledgerGRANULARITY);
+        PeerGroup a = sim.createGroup(1);
+        PeerGroup b = sim.createGroup(1);
+        PeerGroup c = sim.createGroup(1);
+        PeerGroup d = sim.createGroup(1);
+        PeerGroup e = sim.createGroup(1);
+        PeerGroup f = sim.createGroup(1);
+        PeerGroup g = sim.createGroup(1);
+
+        a.trustAndConnect(a + b + c + g, delay);
+        b.trustAndConnect(b + a + c + d + e, delay);
+        c.trustAndConnect(c + a + b + d + e, delay);
+        d.trustAndConnect(d + b + c + e + f, delay);
+        e.trustAndConnect(e + b + c + d + f, delay);
+        f.trustAndConnect(f + d + e + g, delay);
+        g.trustAndConnect(g + a + f, delay);
+
+        PeerGroup network = a + b + c + d + e + f + g;
+
         StreamCollector sc{std::cout};
 
-        for (TrustGraph::ForkInfo const& fi : tg.forkablePairs(0.8))
+        sim.collectors.add(sc);
+
+        for (TrustGraph<Peer*>::ForkInfo const& fi :
+             sim.trustGraph.forkablePairs(0.8))
         {
-            std::cout << "Can fork N" << fi.nodeA << " " << unls[fi.nodeA]
-                      << " " << fi.nodeB << " N" << unls[fi.nodeB]
+            std::cout << "Can fork " << PeerGroup{fi.unlA} << " "
+                      << " " << PeerGroup{fi.unlB}
                       << " overlap " << fi.overlap << " required "
                       << fi.required << "\n";
         };
 
-        ConsensusParms parms;
 
-        Sim sim(
-            parms,
-            tg,
-            topology(tg, fixed{round<milliseconds>(0.2 * parms.ledgerGRANULARITY)}),
-            sc);
+
         // set prior state
         sim.run(1);
 
+        PeerGroup byzantineNodes = a + b + c +g;
         // All peers see some TX 0
-        for (auto& p : sim.peers)
+        for (Peer * peer : network)
         {
-            p.submit(Tx(0));
+            peer->submit(Tx(0));
             // Peers 0,1,2,6 will close the next ledger differently by injecting
             // a non-consensus approved transaciton
-            if (p.id < NodeID{3} || p.id == NodeID{6})
+            if (byzantineNodes.exists(peer))
             {
-                p.txInjections.emplace(p.lastClosedLedger.get().seq(), Tx{42});
+                peer->txInjections.emplace(
+                    peer->lastClosedLedger.get().seq(), Tx{42});
             }
         }
         sim.run(4);

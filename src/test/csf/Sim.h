@@ -20,14 +20,17 @@
 #ifndef RIPPLE_TEST_CSF_SIM_H_INCLUDED
 #define RIPPLE_TEST_CSF_SIM_H_INCLUDED
 
+#include <test/csf/Digraph.h>
 #include <test/csf/SimTime.h>
 #include <test/csf/BasicNetwork.h>
 #include <test/csf/Scheduler.h>
 #include <test/csf/Peer.h>
-#include <test/csf/UNL.h>
-#include <test/csf/collectors.h>
+#include <test/csf/TrustGraph.h>
+#include <test/csf/CollectorRef.h>
 
 #include <iostream>
+#include <deque>
+
 namespace ripple {
 namespace test {
 namespace csf {
@@ -55,69 +58,66 @@ public:
     }
 };
 
-
 class Sim
 {
-    static NullCollector nullCollector;
+    // Use a deque to have stable pointers even when dynamically adding peers
+    //  - Alternatively consider using unique_ptrs allocated from arena
+    std::deque<Peer> peers;
 
 public:
     Scheduler scheduler;
     BasicSink sink;
     beast::Journal j;
     LedgerOracle oracle;
-
     BasicNetwork<Peer*> net;
-    std::vector<Peer> peers;
+    TrustGraph<Peer*> trustGraph;
+    CollectorRefs collectors;
 
-    /** Create a simulator for the given trust graph and network topology.
+    /** Create a simulation
 
-        Create a simulator for consensus over the given trust graph and connect
-        the network links between nodes based on the provided topology.
-
-        Topology is is a functor with signature
-
-               boost::optional<std::chrono::duration> (NodeId i, NodeId j)
-
-        that returns the delay sending messages from node i to node j.
-
-        In general, this network graph is distinct from the trust graph, but
-        users can use adaptors to present a TrustGraph as a Topology by
-        specifying the delay between nodes.
-
-        @param g The trust graph between peers.
-        @param top The network topology between peers.
+        Creates a new simulation. The simulation has no peers, no trust links
+        and no network connections.
 
     */
-    template <class Topology, class Collector>
-    Sim(ConsensusParms parms, TrustGraph const& g, Topology const& top, Collector & collector)
-        : sink{scheduler.clock()}, j{sink}, net{scheduler}
+    Sim() : sink{scheduler.clock()}, j{sink}, net{scheduler}
     {
-        peers.reserve(g.numPeers());
-        for (std::uint32_t i = 0; i < g.numPeers(); ++i)
-            peers.emplace_back(i, parms, scheduler, oracle, net, g.unl(i), collector, j);
-
-        for (std::uint32_t i = 0; i < peers.size(); ++i)
-        {
-            for (std::uint32_t j = 0; j < peers.size(); ++j)
-            {
-                if (i != j)
-                {
-                    auto d = top(i, j);
-                    if (d)
-                    {
-                        net.connect(&peers[i], &peers[j], *d);
-                    }
-                }
-            }
-        }
     }
 
-    /** Create a simulator using a NullCollector
+    /** Create a new group of peers.
+
+        Creates a new group of peers. The peers do not have any specific trust
+        or network connections by default. Those must be configured by the user.
+
+        @param numPeers The number of peers in the group
+        @return PeerGroup representing these new peers
+
+        @note This increases the number of peers in the simulation by numPeers.
     */
-    template <class Topology>
-    Sim(ConsensusParms parms, TrustGraph const& g, Topology const& top)
-        : Sim(parms, g, top, nullCollector)
+    PeerGroup
+    createGroup(std::size_t numPeers)
     {
+        std::vector<Peer*> newPeers;
+        newPeers.reserve(numPeers);
+        for (std::size_t i = 0; i < numPeers; ++i)
+        {
+            peers.emplace_back(
+                peers.size(),
+                scheduler,
+                oracle,
+                net,
+                trustGraph,
+                collectors,
+                j);
+            newPeers.emplace_back(&peers.back());
+        }
+        return PeerGroup{newPeers};
+    }
+
+    //! The number of peers in the simulation
+    std::size_t
+    size() const
+    {
+        return peers.size();
     }
 
     /** Run consensus protocol to generate the provided number of ledgers.
@@ -148,6 +148,7 @@ public:
     */
     std::size_t
     forks() const;
+
 };
 
 }  // namespace csf

@@ -4531,7 +4531,7 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\collectors.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\digraph.h">
+    <ClInclude Include="..\..\src\test\csf\Digraph.h">
     </ClInclude>
     <ClCompile Include="..\..\src\test\csf\Digraph_test.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
@@ -4550,10 +4550,6 @@
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
     <ClCompile Include="..\..\src\test\csf\impl\Sim.cpp">
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
-      <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
-    </ClCompile>
-    <ClCompile Include="..\..\src\test\csf\impl\UNL.cpp">
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='debug|x64'">True</ExcludedFromBuild>
       <ExcludedFromBuild Condition="'$(Configuration)|$(Platform)'=='release|x64'">True</ExcludedFromBuild>
     </ClCompile>
@@ -4577,9 +4573,9 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\submitters.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\Tx.h">
+    <ClInclude Include="..\..\src\test\csf\TrustGraph.h">
     </ClInclude>
-    <ClInclude Include="..\..\src\test\csf\UNL.h">
+    <ClInclude Include="..\..\src\test\csf\Tx.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Validation.h">
     </ClInclude>

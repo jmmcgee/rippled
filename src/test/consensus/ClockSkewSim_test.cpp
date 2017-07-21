@@ -48,33 +48,35 @@ class ClockSkewSim_test : public beast::unit_test::suite
 
         for (auto stagger : {800ms, 1600ms, 3200ms, 30000ms, 45000ms, 300000ms})
         {
-            auto tg = TrustGraph::makeComplete(5);
-            Sim sim(parms, tg, topology(tg, [](std::uint32_t i, std::uint32_t) {
-                        return 200ms * (i + 1);
-                    }));
+
+            Sim sim;
+
+            PeerGroup network = sim.createGroup(5);
+
+            network.trustAndConnect(network, 200ms);
 
             // all transactions submitted before starting
             // Initial round to set prior state
             sim.run(1);
 
-            for (auto& p : sim.peers)
+            for (Peer* peer : network)
             {
-                p.openTxs.insert(Tx{0});
-                p.targetLedgers = p.completedLedgers + 1;
+                peer->openTxs.insert(Tx{0});
+                peer->targetLedgers = peer->completedLedgers + 1;
             }
 
             // stagger start of consensus
-            for (auto& p : sim.peers)
+            for (Peer* peer : network)
             {
-                p.start();
+                peer->start();
                 sim.scheduler.step_for(stagger);
             }
 
             // run until all peers have accepted all transactions
             sim.scheduler.step_while([&]() {
-                for (auto& p : sim.peers)
+                for (Peer* peer : network)
                 {
-                    if (p.lastClosedLedger.get().txs().size() != 1)
+                    if (peer->lastClosedLedger.get().txs().size() != 1)
                     {
                         return true;
                     }
