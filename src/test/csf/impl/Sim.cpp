@@ -52,10 +52,10 @@ Sim::synchronized() const
         return true;
     Peer const& ref = peers.front();
     return std::all_of(peers.begin(), peers.end(), [&ref](Peer const& p) {
-        return p.lastClosedLedger.get().id() ==
-            ref.lastClosedLedger.get().id() &&
-            p.fullyValidatedLedger.get().id() ==
-            ref.fullyValidatedLedger.get().id();
+        return p.lastClosedLedger.id() ==
+            ref.lastClosedLedger.id() &&
+            p.fullyValidatedLedger.id() ==
+            ref.fullyValidatedLedger.id();
     });
 }
 
@@ -66,7 +66,7 @@ Sim::forks() const
         return 0;
     std::set<Ledger> ledgers;
     for(auto const & peer : peers)
-        ledgers.insert(peer.fullyValidatedLedger.get());
+        ledgers.insert(peer.fullyValidatedLedger);
 
     return oracle.forks(ledgers);
 }

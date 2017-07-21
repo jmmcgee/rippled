@@ -76,7 +76,7 @@ class ClockSkewSim_test : public beast::unit_test::suite
             sim.scheduler.step_while([&]() {
                 for (Peer* peer : network)
                 {
-                    if (peer->lastClosedLedger.get().txs().size() != 1)
+                    if (peer->lastClosedLedger.txs().size() != 1)
                     {
                         return true;
                     }

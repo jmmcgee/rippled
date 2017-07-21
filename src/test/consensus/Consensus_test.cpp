@@ -131,7 +131,7 @@ public:
         // Inspect that the proper ledger was created
         for (Peer const* p : peers)
         {
-            auto const& lcl = p->lastClosedLedger.get();
+            auto const& lcl = p->lastClosedLedger;
             BEAST_EXPECT(p->prevLedgerID() == lcl.id());
             BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
             BEAST_EXPECT(lcl.txs().size() == 1);
@@ -166,7 +166,7 @@ public:
             for (Peer const* peer : peers)
             {
                 // Inspect the first node's state
-                auto const& lcl = peer->lastClosedLedger.get();
+                auto const& lcl = peer->lastClosedLedger;
                 BEAST_EXPECT(lcl.id() == peer->prevLedgerID());
                 BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
                 // All peers proposed
@@ -219,7 +219,7 @@ public:
             {
                 for (Peer* peer : network)
                 {
-                    auto const& lcl = peer->lastClosedLedger.get();
+                    auto const& lcl = peer->lastClosedLedger;
                     BEAST_EXPECT(lcl.id() == peer->prevLedgerID());
                     BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
 
@@ -281,7 +281,7 @@ public:
                     for (Peer* peer : network)
                     {
                         // Closed ledger has all but transaction 0,1
-                        auto const& lcl = peer->lastClosedLedger.get();
+                        auto const& lcl = peer->lastClosedLedger;
                         BEAST_EXPECT(lcl.seq() == Ledger::Seq{1});
                         BEAST_EXPECT(lcl.txs().find(Tx{0}) == lcl.txs().end());
                         for (std::uint32_t i = slow.size(); i < network.size();
@@ -386,7 +386,7 @@ public:
         // Run consensus without skew until we have a short close time
         // resolution
         Peer* firstPeer = *groupA.begin();
-        while (firstPeer->lastClosedLedger.get().closeTimeResolution() >=
+        while (firstPeer->lastClosedLedger.closeTimeResolution() >=
                parms.proposeFRESHNESS)
             sim.run(1);
 
@@ -402,7 +402,7 @@ public:
         if (BEAST_EXPECT(sim.synchronized()))
         {
             for (Peer* peer : network)
-                BEAST_EXPECT(!peer->lastClosedLedger.get().closeAgree());
+                BEAST_EXPECT(!peer->lastClosedLedger.closeAgree());
         }
     }
 
@@ -452,6 +452,9 @@ public:
             minority.trustAndConnect(minority + majorityA, delay);
             majority.trustAndConnect(majority, delay);
 
+            CollectByNode<JumpCollector> jumps;
+            sim.collectors.add(jumps);
+
             // This topology can potentially fork, which is why we are using it
             // for this test.
             BEAST_EXPECT(sim.trustGraph.canFork(parms.minCONSENSUS_PCT / 100.));
@@ -494,21 +497,22 @@ public:
             // synchronized because nodes 0 and 1 are running one ledger behind
             if (BEAST_EXPECT(sim.forks() == 1))
             {
+
                 for(Peer const* peer : majority)
                 {
                     // No jumps
-                    BEAST_EXPECT(peer->fullyValidatedLedger.jumps().empty());
-                    BEAST_EXPECT(peer->lastClosedLedger.jumps().empty());
+                    BEAST_EXPECT(jumps[peer->id].closeJumps.empty());
+                    BEAST_EXPECT(jumps[peer->id].fullyValidatedJumps.empty());
                 }
                 for(Peer const* peer : minority)
                 {
+                    auto & peerJumps = jumps[peer->id];
                     // last closed ledger jump between chains
                     {
-                        if (BEAST_EXPECT(
-                                peer->lastClosedLedger.jumps().size() == 1))
+                        if (BEAST_EXPECT(peerJumps.closeJumps.size() == 1))
                         {
-                            LedgerState::Jump const& jump =
-                                peer->lastClosedLedger.jumps().front();
+                            JumpCollector::Jump const& jump =
+                                peerJumps.closeJumps.front();
                             // Jump is to a different chain
                             BEAST_EXPECT(jump.from.seq() <= jump.to.seq());
                             BEAST_EXPECT(
@@ -518,10 +522,10 @@ public:
                     // fully validted jump forward in same chain
                     {
                         if (BEAST_EXPECT(
-                                peer->fullyValidatedLedger.jumps().size() == 1))
+                                peerJumps.fullyValidatedJumps.size() == 1))
                         {
-                            LedgerState::Jump const& jump =
-                                peer->fullyValidatedLedger.jumps().front();
+                            JumpCollector::Jump const& jump =
+                                peerJumps.fullyValidatedJumps.front();
                             // Jump is to a different chain with same seq
                             BEAST_EXPECT(jump.from.seq() < jump.to.seq());
                             BEAST_EXPECT(

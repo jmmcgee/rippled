@@ -87,7 +87,7 @@ class ByzantineFailureSim_test : public beast::unit_test::suite
             if (byzantineNodes.exists(peer))
             {
                 peer->txInjections.emplace(
-                    peer->lastClosedLedger.get().seq(), Tx{42});
+                    peer->lastClosedLedger.seq(), Tx{42});
             }
         }
         sim.run(4);

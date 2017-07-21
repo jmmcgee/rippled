@@ -248,55 +248,6 @@ public:
 
 };
 
-/** Represents the current ledger and monitors when changing ledgers jumps
-    across ledger histories.
-*/
-class LedgerState
-{
-public:
-    // Represents changing to ledger 'to' when parent of 'to' is not 'from'
-    struct Jump
-    {
-        NetClock::time_point when;
-        Ledger from;
-        Ledger to;
-    };
-private:
-    // The current ledger
-    Ledger current_;
-
-    // History of jumps (might switch to map or multi-map by seq?)
-    std::vector<Jump> jumps_;
-
-public:
-
-    Ledger
-    get() const
-    {
-        return current_;
-    }
-
-    std::vector<Jump> const &
-    jumps() const
-    {
-        return jumps_;
-    }
-
-    /** Switch to a new current ledger
-
-        Switch to a new current ledger, recording a jump if the new ledger
-        is not the direct descendent of the current ledger.
-
-        @param now When the switcho ccurs
-        @param f The new ledger
-
-        @return Jump if the switch was a jump
-
-    */
-    boost::optional<Jump>
-    switchTo(NetClock::time_point const now, Ledger const& f);
-};
-
 }  // csf
 }  // test
 }  // ripple

@@ -135,28 +135,6 @@ LedgerOracle::forks(std::set<Ledger> const & ledgers) const
     // The size of tips is the number of forks
     return tips.size();
 }
-
-
-
-boost::optional<LedgerState::Jump>
-LedgerState::switchTo(NetClock::time_point const now, Ledger const& f)
-{
-    // No switch to the same ledger
-    if (current_.id() == f.id())
-        return boost::none;
-
-    boost::optional<Jump> res;
-    // This is a jump if current_ is not the parent of f
-    if (f.parentID() != current_.id())
-    {
-        jumps_.emplace_back(Jump{now, current_, f});
-        res = jumps_.back();
-    }
-
-    current_ = f;
-    return res;
-}
-
 }  // namespace csf
 }  // namespace test
 }  // namespace ripple

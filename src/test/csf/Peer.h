@@ -172,7 +172,7 @@ struct Peer
     TxSetType openTxs;
 
     //! The last ledger closed by this node
-    LedgerState lastClosedLedger;
+    Ledger lastClosedLedger;
 
     //! Ledgers this node has closed or loaded from the network
     hash_map<Ledger::ID, Ledger> ledgers;
@@ -181,7 +181,7 @@ struct Peer
     Validations<StalePolicy, Validation, NotAMutex> validations;
 
     //! The most recent ledger that has been fully validated by the network
-    LedgerState fullyValidatedLedger;
+    Ledger fullyValidatedLedger;
 
     //! Map from Ledger::ID to vector of Positions with that ledger
     //! as the prior ledger
@@ -240,7 +240,7 @@ struct Peer
         , validations{ValidationParms{}, s.clock(), j, *this}
         , collectors{c}
     {
-        ledgers[lastClosedLedger.get().id()] = lastClosedLedger.get();
+        ledgers[lastClosedLedger.id()] = lastClosedLedger;
 
         // nodes always trust themselves . . SHOULD THEY?
         trustGraph.trust(this, this);
@@ -404,10 +404,10 @@ struct Peer
                 result.position.closeTime());
             ledgers[newLedger.id()] = newLedger;
 
-            issue(AcceptLedger{newLedger, lastClosedLedger.get()});
+            issue(AcceptLedger{newLedger, lastClosedLedger});
             prevProposers = result.proposers;
             prevRoundTime = result.roundTime.read();
-            lastClosedLedger.switchTo(now(), newLedger);
+            lastClosedLedger = newLedger;
 
             auto it = std::remove_if(
                 openTxs.begin(), openTxs.end(), [&](Tx const& tx) {
@@ -448,8 +448,8 @@ struct Peer
     Ledger::Seq
     earliestAllowedSeq() const
     {
-        if (lastClosedLedger.get().seq() > Ledger::Seq{20})
-            return lastClosedLedger.get().seq() - 20;
+        if (lastClosedLedger.seq() > Ledger::Seq{20})
+            return lastClosedLedger.seq() - 20;
         return Ledger::Seq{0};
     }
     Ledger::ID
@@ -560,7 +560,7 @@ struct Peer
     handle(Tx const& tx)
     {
         // Ignore tranasctions already in our ledger
-        auto const& lastClosedTxs = lastClosedLedger.get().txs();
+        auto const& lastClosedTxs = lastClosedLedger.txs();
         if (lastClosedTxs.find(tx) != lastClosedTxs.end())
             return;
         // Only relay if it is new to us
@@ -613,21 +613,21 @@ struct Peer
     startRound()
     {
         auto valDistribution = validations.currentTrustedDistribution(
-            lastClosedLedger.get().id(),
-            lastClosedLedger.get().parentID(),
+            lastClosedLedger.id(),
+            lastClosedLedger.parentID(),
             earliestAllowedSeq());
 
         Ledger::ID bestLCL =
-            getPreferredLedger(lastClosedLedger.get().id(), valDistribution);
+            getPreferredLedger(lastClosedLedger.id(), valDistribution);
 
-        issue(StartRound{bestLCL, lastClosedLedger.get()});
+        issue(StartRound{bestLCL, lastClosedLedger});
 
         // TODO:
         //  - Get dominant peer ledger if no validated available?
         //  - Check that we are switching to something compatible with our
         //    (network) validated history of ledgers?
         consensus.startRound(
-            now(), bestLCL, lastClosedLedger.get(), runAsValidator);
+            now(), bestLCL, lastClosedLedger, runAsValidator);
     }
 
     void
@@ -677,7 +677,7 @@ struct Peer
     checkFullyValidated(Ledger const& ledger)
     {
         // Only consider ledgers newer than our last fully validated ledger
-        if (ledger.seq() <= fullyValidatedLedger.get().seq())
+        if (ledger.seq() <= fullyValidatedLedger.seq())
             return;
 
         auto count = validations.numTrustedForLedger(ledger.id());
@@ -685,8 +685,8 @@ struct Peer
         quorum = static_cast<std::size_t>(std::ceil(numTrustedPeers * 0.8));
         if (count >= quorum)
         {
-            issue(FullyValidateLedger{ledger, fullyValidatedLedger.get()});
-            fullyValidatedLedger.switchTo(now(), ledger);
+            issue(FullyValidateLedger{ledger, fullyValidatedLedger});
+            fullyValidatedLedger = ledger;
         }
     }
 

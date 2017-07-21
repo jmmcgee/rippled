@@ -84,6 +84,33 @@ collectors(Cs&... cs)
     return Collectors<Cs...>(cs...);
 }
 
+/** Maintain an instance of a Collector per peer
+*/
+template <class CollectorType>
+struct CollectByNode
+{
+    std::map<NodeID, CollectorType> byNode;
+
+    CollectorType&
+    operator[](NodeID who)
+    {
+        return byNode[who];
+    }
+
+    CollectorType const&
+    operator[](NodeID who) const
+    {
+        return byNode[who];
+    }
+    template <class E>
+    void
+    on(NodeID who, SimTime when, E const& e)
+    {
+        byNode[who].on(who, when, e);
+    }
+
+};
+
 /** Collector which ignores all events
  */
 struct NullCollector
@@ -321,8 +348,6 @@ struct LedgerCollector
     }
 };
 
-// Add LedgerJump collector?
-
 /** Write out stream of ledger activity
 
     Writes information about every accepted and fully-validated ledger to a
@@ -352,6 +377,44 @@ struct StreamCollector
         out << when.time_since_epoch().count() << ": Node " << who
             << " fully-validated " << "L"<< e.ledger.id() << " " << e.ledger.txs()
             << "\n";
+    }
+};
+
+struct JumpCollector
+{
+    struct Jump
+    {
+        NodeID id;
+        SimTime when;
+        Ledger from;
+        Ledger to;
+    };
+
+    std::vector<Jump> closeJumps;
+    std::vector<Jump> fullyValidatedJumps;
+
+    // Ignore most events by default
+    template <class E>
+    void
+    on(NodeID, SimTime, E const& e)
+    {
+    }
+
+    void
+    on(NodeID who, SimTime when, AcceptLedger const& e)
+    {
+        // Not a direct child -> parent switch
+        if(e.ledger.parentID() != e.prior.id())
+            closeJumps.emplace_back(Jump{who, when, e.prior, e.ledger});
+    }
+
+    void
+    on(NodeID who, SimTime when, FullyValidateLedger const& e)
+    {
+        // Not a direct child -> parent switch
+        if (e.ledger.parentID() != e.prior.id())
+            fullyValidatedJumps.emplace_back(
+                Jump{who, when, e.prior, e.ledger});
     }
 };
 
