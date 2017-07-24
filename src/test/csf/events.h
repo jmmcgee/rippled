@@ -67,7 +67,7 @@ struct Receive
 /** A value sent to all other nodes
  */
 template <class V>
-struct Relay
+struct Share
 {
     //! Event that is sent
     V val;

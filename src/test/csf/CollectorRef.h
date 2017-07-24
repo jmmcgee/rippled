@@ -90,19 +90,19 @@ class CollectorRef
         on(NodeID node, tp when, Receive<Proposal> const&) = 0;
 
         virtual void
-        on(NodeID node, tp when, Relay<Tx> const&) = 0;
+        on(NodeID node, tp when, Share<Tx> const&) = 0;
 
         virtual void
-        on(NodeID node, tp when, Relay<TxSet> const&) = 0;
+        on(NodeID node, tp when, Share<TxSet> const&) = 0;
 
         virtual void
-        on(NodeID node, tp when, Relay<Validation> const&) = 0;
+        on(NodeID node, tp when, Share<Validation> const&) = 0;
 
         virtual void
-        on(NodeID node, tp when, Relay<Ledger> const&) = 0;
+        on(NodeID node, tp when, Share<Ledger> const&) = 0;
 
         virtual void
-        on(NodeID node, tp when, Relay<Proposal> const&) = 0;
+        on(NodeID node, tp when, Share<Proposal> const&) = 0;
 
         virtual void
         on(NodeID node, tp when, StartRound const&) = 0;
@@ -168,31 +168,31 @@ class CollectorRef
         }
 
         virtual void
-        on(NodeID node, tp when, Relay<Tx> const& e) override
+        on(NodeID node, tp when, Share<Tx> const& e) override
         {
             t_.on(node, when, e);
         }
 
         virtual void
-        on(NodeID node, tp when, Relay<TxSet> const& e) override
+        on(NodeID node, tp when, Share<TxSet> const& e) override
         {
             t_.on(node, when, e);
         }
 
         virtual void
-        on(NodeID node, tp when, Relay<Validation> const& e) override
+        on(NodeID node, tp when, Share<Validation> const& e) override
         {
             t_.on(node, when, e);
         }
 
         virtual void
-        on(NodeID node, tp when, Relay<Ledger> const& e) override
+        on(NodeID node, tp when, Share<Ledger> const& e) override
         {
             t_.on(node, when, e);
         }
 
         virtual void
-        on(NodeID node, tp when, Relay<Proposal> const& e) override
+        on(NodeID node, tp when, Share<Proposal> const& e) override
         {
             t_.on(node, when, e);
         }

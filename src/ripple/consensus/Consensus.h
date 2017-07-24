@@ -257,14 +257,14 @@ checkConsensus(
       // Propose the position to peers.
       void propose(ConsensusProposal<...> const & pos);
 
-      // Relay a received peer proposal on to other peer's.
-      void relay(PeerPosition_t const & prop);
+      // Share a received peer proposal with other peer's.
+      void share(PeerPosition_t const & prop);
 
-      // Relay a disputed transaction to peers
-      void relay(Txn const & tx);
+      // Share a disputed transaction with peers
+      void share(Txn const & tx);
 
       // Share given transaction set with peers
-      void relay(TxSet const &s);
+      void share(TxSet const &s);
 
       // Consensus timing parameters and constants
       ConsensusParms const &
@@ -1035,7 +1035,7 @@ Consensus<Adaptor>::playbackProposals()
             if (pos.proposal().prevLedger() == prevLedgerID_)
             {
                 if (peerProposalInternal(now_, pos))
-                    adaptor_.relay(pos);
+                    adaptor_.share(pos);
             }
         }
     }
@@ -1155,7 +1155,7 @@ Consensus<Adaptor>::closeLedger()
     // Share the newly created transaction set if we haven't already
     // received it from a peer
     if (acquired_.emplace(result_->set.id(), result_->set).second)
-        adaptor_.relay(result_->set);
+        adaptor_.share(result_->set);
 
     if (mode_.get() == ConsensusMode::proposing)
         adaptor_.propose(result_->position);
@@ -1371,7 +1371,7 @@ Consensus<Adaptor>::updateOurPositions()
         if (acquired_.emplace(newID, result_->set).second)
         {
             if (!result_->position.isBowOut())
-                adaptor_.relay(result_->set);
+                adaptor_.share(result_->set);
 
             for (auto const& it : currPeerPositions_)
             {
@@ -1514,7 +1514,7 @@ Consensus<Adaptor>::createDisputes(TxSet_t const& o)
             if (cit != acquired_.end())
                 dtx.setVote(pit.first, cit->second.exists(txID));
         }
-        adaptor_.relay(dtx.tx());
+        adaptor_.share(dtx.tx());
 
         result_->disputes.emplace(txID, std::move(dtx));
     }

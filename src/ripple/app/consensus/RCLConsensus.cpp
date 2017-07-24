@@ -123,7 +123,7 @@ RCLConsensus::Adaptor::acquireLedger(LedgerHash const& ledger)
 
 
 void
-RCLConsensus::Adaptor::relay(RCLCxPeerPos const& peerPos)
+RCLConsensus::Adaptor::share(RCLCxPeerPos const& peerPos)
 {
     protocol::TMProposeSet prop;
 
@@ -147,7 +147,7 @@ RCLConsensus::Adaptor::relay(RCLCxPeerPos const& peerPos)
 }
 
 void
-RCLConsensus::Adaptor::relay(RCLCxTx const& tx)
+RCLConsensus::Adaptor::share(RCLCxTx const& tx)
 {
     // If we didn't relay this transaction recently, relay it to all peers
     if (app_.getHashRouter().shouldRelay(tx.id()))
@@ -196,7 +196,7 @@ RCLConsensus::Adaptor::propose(RCLCxPeerPos::Proposal const& proposal)
 }
 
 void
-RCLConsensus::Adaptor::relay(RCLTxSet const& set)
+RCLConsensus::Adaptor::share(RCLTxSet const& set)
 {
     inboundTransactions_.giveSet(set.id(), set.map_, false);
 }

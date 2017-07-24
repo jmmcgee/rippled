@@ -424,8 +424,8 @@ struct Peer
                              key,
                              id,
                              false};
-                // relay is not trusted
-                relay(v);
+                // share is not trusted
+                share(v);
                 // we trust ourselves
                 addTrustedValidation(v);
             }
@@ -484,7 +484,7 @@ struct Peer
     void
     propose(Proposal const& pos)
     {
-        relay(pos);
+        share(pos);
     }
 
     ConsensusParms const&
@@ -512,23 +512,23 @@ struct Peer
         handle(t);
     }
 
-    // Relay a message to all connected peers
+    // Share a message with all connected peers
     template <class T>
     void
-    relay(T const& t)
+    share(T const& t)
     {
-        issue(Relay<T>{t});
+        issue(Share<T>{t});
         for (auto const& link : net.links(this))
             net.send(this, link.to, [ msg = t, to = link.to, id = this->id ] {
                 to->receive(id, msg);
             });
     }
 
-    // Unwrap the Position before relaying
+    // Unwrap the Position before sharing
     void
-    relay(Position const & p)
+    share(Position const & p)
     {
-        relay(p.proposal());
+        share(p.proposal());
     }
 
     // Type specific receive handlers
@@ -563,10 +563,10 @@ struct Peer
         auto const& lastClosedTxs = lastClosedLedger.txs();
         if (lastClosedTxs.find(tx) != lastClosedTxs.end())
             return;
-        // Only relay if it is new to us
-        // TODO: Figure out better overlay model to manage relay/flood
+        // Only share if it is new to us
+        // TODO: Figure out better overlay model to manage share/flood
         if (openTxs.insert(tx).second)
-            relay(tx);
+            share(tx);
     }
 
     void
