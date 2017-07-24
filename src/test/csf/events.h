@@ -52,7 +52,29 @@ namespace csf {
 // any new events are added, the interface there needs to be updated.
 
 
-/** A value received from another node
+
+/** A value to be flooded to all other nodes starting from this node.
+ */
+template <class V>
+struct Share
+{
+    //! Event that is sent
+    V val;
+};
+
+/** A value relayed to another node as part of flooding
+ */
+template <class V>
+struct Relay
+{
+    //! Node we are realying to
+    NodeID to;
+
+    //! The value to relay
+    V val;
+};
+
+/** A value received from another node as part of flooding
  */
 template <class V>
 struct Receive
@@ -64,13 +86,12 @@ struct Receive
     V val;
 };
 
-/** A value sent to all other nodes
- */
-template <class V>
-struct Share
+
+/** A transaction submitted to a node */
+struct SubmitTx
 {
-    //! Event that is sent
-    V val;
+    //! The submitted transaction
+    Tx tx;
 };
 
 /** Node starts a new consensus round

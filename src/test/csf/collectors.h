@@ -186,16 +186,13 @@ struct TxCollector
     }
 
     void
-    on(NodeID who, SimTime when, Receive<Tx> const& e)
+    on(NodeID who, SimTime when, SubmitTx const& e)
     {
-        // externally submitted tx has self id
-        if (who == e.from)
+
+        // save first time it was seen
+        if (txs.emplace(e.tx.id(), Tracker{e.tx, when}).second)
         {
-            // save first time it was seen
-            if (txs.emplace(e.val.id(), Tracker{e.val, when}).second)
-            {
-                submitted++;
-            }
+            submitted++;
         }
     }
 

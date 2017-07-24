@@ -90,6 +90,20 @@ struct Peer
 
         //! Delay in processing validations from remote peers
         std::chrono::milliseconds recvValidation{0};
+
+        // Return the receive delay for message type M, default is no delay
+        template <class M>
+        SimDuration
+        onReceive(M const&) const
+        {
+            return SimDuration{};
+        }
+
+        SimDuration
+        onReceive(Validation const&) const
+        {
+            return recvValidation;
+        }
     };
 
     /** Generic Validations policy that simply ignores recently stale validations
@@ -179,6 +193,8 @@ struct Peer
 
     //! Validations from trusted nodes
     Validations<StalePolicy, Validation, NotAMutex> validations;
+    using AddOutcome =
+        Validations<StalePolicy, Validation, NotAMutex>::AddOutcome;
 
     //! The most recent ledger that has been fully validated by the network
     Ledger fullyValidatedLedger;
@@ -244,6 +260,30 @@ struct Peer
 
         // nodes always trust themselves . . SHOULD THEY?
         trustGraph.trust(this, this);
+    }
+
+    /**  Schedule the provided callback in `when` duration, but if
+        `when` is 0, call immediately
+    */
+    template <class T>
+    void
+    schedule(std::chrono::nanoseconds when, T&& what)
+    {
+        using namespace std::chrono_literals;
+
+        if (when == 0ns)
+            what();
+        else
+            scheduler.in(when, std::forward<T>(what));
+    }
+
+    // Issue a new event to the collectors
+    template <class E>
+    void
+    issue(E const & event)
+    {
+        // Use the scheduler time and not the peer's local time
+        collectors.on(id, scheduler.now(), event);
     }
 
     //--------------------------------------------------------------------------
@@ -499,96 +539,188 @@ struct Peer
     {
     }
 
-    //-------------------------------------------------------------------------
-    // Simulation members
-
-    // Receive a message from a specific peer
-    template <class T>
+    // Share a message by broadcasting to all connected peers
+    template <class M>
     void
-    receive(NodeID from, T const& t)
+    share(M const& m)
     {
-        issue(Receive<T>{from, t});
-
-        handle(t);
+        issue(Share<M>{m});
+        send(BroadcastMesg<M>{m,router.nextSeq++, this->id}, this->id);
     }
 
-    // Share a message with all connected peers
-    template <class T>
-    void
-    share(T const& t)
-    {
-        issue(Share<T>{t});
-        for (auto const& link : net.links(this))
-            net.send(this, link.to, [ msg = t, to = link.to, id = this->id ] {
-                to->receive(id, msg);
-            });
-    }
-
-    // Unwrap the Position before sharing
+    // Unwrap the Position and share the raw proposal
     void
     share(Position const & p)
     {
         share(p.proposal());
     }
 
-    // Type specific receive handlers
-    void
-    handle(Proposal const& p)
+    //--------------------------------------------------------------------------
+    // Validation members
+
+    /** Add a trusted validation and return true if it is worth forwarding */
+    bool
+    addTrustedValidation(Validation v)
     {
-        if(!trusts(p.nodeID()))
-            return;
+        v.setTrusted();
+        v.setSeen(now());
+        AddOutcome res = validations.add(v.key(), v);
 
-        // TODO: Supress repeats more efficiently
-        auto& dest = peerPositions[p.prevLedger()];
-        if (std::find(dest.begin(), dest.end(), p) != dest.end())
-            return;
+        if(res == AddOutcome::stale || res == AddOutcome::repeat)
+            return false;
 
-        dest.push_back(p);
-        consensus.peerProposal(now(), Position{p});
+        // Acquire will try to get from network if not already local
+        Ledger const* lgr = acquireLedger(v.ledgerID());
+        if (lgr)
+            checkFullyValidated(*lgr);
+        return true;
     }
 
+    /** Check if a new ledger can be deemed fully validated */
     void
+    checkFullyValidated(Ledger const& ledger)
+    {
+        // Only consider ledgers newer than our last fully validated ledger
+        if (ledger.seq() <= fullyValidatedLedger.seq())
+            return;
+
+        auto count = validations.numTrustedForLedger(ledger.id());
+        auto numTrustedPeers = trustGraph.graph().outDegree(this);
+        quorum = static_cast<std::size_t>(std::ceil(numTrustedPeers * 0.8));
+        if (count >= quorum)
+        {
+            issue(FullyValidateLedger{ledger, fullyValidatedLedger});
+            fullyValidatedLedger = ledger;
+        }
+    }
+
+    //-------------------------------------------------------------------------
+    // Peer messaging members
+
+    // Basic Sequence number router
+    //   A message that will be flooded across the network is tagged with a
+    //   seqeuence number by the origin node in a BroadcastMesg. Receivers will
+    //   ignore a message as stale if they've already processed a newer sequence
+    //   number,  or wil process and potentially relay the message along.
+    //
+    //  The various bool handle(MessageType) members do the actual processing
+    //  and should return true if the message should continue to be sent to peers.
+    //
+    //  WARN: This assumes messages are received and processed in the order they
+    //        are sent, so that a peer receives a message with seq 1 from node 0
+    //        before seq 2 from node 0, etc.
+    //  TODO: Break this out into a class and identify type interface to allow
+    //        alternate routing strategies
+    template <class M>
+    struct BroadcastMesg
+    {
+        M mesg;
+        std::size_t seq;
+        NodeID origin;
+    };
+
+    struct Router
+    {
+        std::size_t nextSeq = 1;
+        bc::flat_map<NodeID, std::size_t> lastObservedSeq;
+    };
+
+    Router router;
+
+    // Send a broadcast message to all peers
+    template <class M>
+    void
+    send(BroadcastMesg<M> const& bm, NodeID from)
+    {
+        for (auto const& link : net.links(this))
+        {
+            if (link.to->id != from && link.to->id != bm.origin)
+            {
+                // cheat and don't bother sending if we know it has already been
+                // used on the other end
+                if (link.to->router.lastObservedSeq[bm.origin] < bm.seq)
+                {
+                    issue(Relay<M>{link.to->id, bm.mesg});
+                    net.send(
+                        this, link.to, [ to = link.to, bm, id = this->id ] {
+                            to->receive(bm, id);
+                        });
+                }
+            }
+        }
+    }
+
+    // Receive a shared message, process it and consider continuing to relay it
+    template <class M>
+    void
+    receive(BroadcastMesg<M> const& bm, NodeID from)
+    {
+        issue(Receive<M>{from, bm.mesg});
+        if (router.lastObservedSeq[bm.origin] < bm.seq)
+        {
+            router.lastObservedSeq[bm.origin] = bm.seq;
+            schedule(delays.onReceive(bm.mesg), [this, bm, from]
+            {
+                if (handle(bm.mesg))
+                    send(bm, from);
+            });
+        }
+    }
+
+    // Type specific receive handlers, return true if the message should
+    // continue to be broadcast to peers
+    bool
+    handle(Proposal const& p)
+    {
+        // Only relay untrusted proposals on the same ledger
+        if(!trusts(p.nodeID()))
+            return p.prevLedger() == lastClosedLedger.id();
+
+        // TODO: This always suppresses relay of peer positions already seen
+        // Should it allow forwarding if for a recent ledger ?
+        auto& dest = peerPositions[p.prevLedger()];
+        if (std::find(dest.begin(), dest.end(), p) != dest.end())
+            return false;
+
+        dest.push_back(p);
+
+        // Rely on consensus to decide whether to relaying immediately
+        return consensus.peerProposal(now(), Position{p});
+    }
+
+    bool
     handle(TxSet const& txs)
     {
         // save and map complete?
         auto it = txSets.insert(std::make_pair(txs.id(), txs));
         if (it.second)
             consensus.gotTxSet(now(), txs);
+        // relay only if new
+        return it.second;
     }
 
-    void
+    bool
     handle(Tx const& tx)
     {
-        // Ignore tranasctions already in our ledger
+        // Ignore and suppress relay of tranasctions already in last ledger
         auto const& lastClosedTxs = lastClosedLedger.txs();
         if (lastClosedTxs.find(tx) != lastClosedTxs.end())
-            return;
-        // Only share if it is new to us
-        // TODO: Figure out better overlay model to manage share/flood
-        if (openTxs.insert(tx).second)
-            share(tx);
+            return false;
+
+        // only relay if it was new to our open ledger
+        return openTxs.insert(tx).second;
+
     }
 
-    void
-    addTrustedValidation(Validation v)
-    {
-        v.setTrusted();
-        v.setSeen(now());
-        validations.add(v.key(), v);
-
-        // Acquire will try to get from network if not already local
-        Ledger const* lgr = acquireLedger(v.ledgerID());
-        if (lgr)
-            checkFullyValidated(*lgr);
-    }
-
-    void
+    bool
     handle(Validation const& v)
     {
+        // TODO: This is not relaying untrusted validations
         if (!trusts(v.nodeID()))
-            return;
+            return false;
 
-        schedule(delays.recvValidation, [&, v]() { addTrustedValidation(v); });
+        // Will only relay if current
+        return addTrustedValidation(v);
     }
 
     //  A locally submitted transaction
@@ -596,10 +728,13 @@ struct Peer
     submit(Tx const& tx)
     {
         // Received this from ourselves
-        issue(Receive<Tx>{id, tx});
-        handle(tx);
+        issue(SubmitTx{tx});
+        if(handle(tx))
+            share(tx);
     }
 
+    //--------------------------------------------------------------------------
+    // Client/interaction members
     void
     timerEntry()
     {
@@ -652,19 +787,6 @@ struct Peer
             scheduler.now().time_since_epoch() + 86400s + clockSkew));
     }
 
-    // Schedule the provided callback in `when` duration, but if
-    // `when` is 0, call immediately
-    template <class T>
-    void
-    schedule(std::chrono::nanoseconds when, T&& what)
-    {
-        using namespace std::chrono_literals;
-
-        if (when == 0ns)
-            what();
-        else
-            scheduler.in(when, std::forward<T>(what));
-    }
 
     Ledger::ID
     prevLedgerID() const
@@ -672,32 +794,7 @@ struct Peer
         return consensus.prevLedgerID();
     }
 
-
-    void
-    checkFullyValidated(Ledger const& ledger)
-    {
-        // Only consider ledgers newer than our last fully validated ledger
-        if (ledger.seq() <= fullyValidatedLedger.seq())
-            return;
-
-        auto count = validations.numTrustedForLedger(ledger.id());
-        auto numTrustedPeers = trustGraph.graph().outDegree(this);
-        quorum = static_cast<std::size_t>(std::ceil(numTrustedPeers * 0.8));
-        if (count >= quorum)
-        {
-            issue(FullyValidateLedger{ledger, fullyValidatedLedger});
-            fullyValidatedLedger = ledger;
-        }
-    }
-
-    template <class E>
-    void
-    issue(E const & event)
-    {
-        // Use the scheduler time and not the peer's local time
-        collectors.on(id, scheduler.now(), event);
-    }
-
+    //-------------------------------------------------------------------------
     // Injects a specific transaction when generating the ledger following
     // the provided sequence.  This allows simulating a byzantine failure in
     // which a node generates the wrong ledger, even when consensus worked

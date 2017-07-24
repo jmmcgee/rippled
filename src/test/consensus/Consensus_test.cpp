@@ -637,6 +637,41 @@ public:
     }
 
     void
+    testHubNetwork()
+    {
+        using namespace csf;
+        using namespace std::chrono;
+
+        // Simulate a set of 5 validators that aren't directly connected but
+        // rely on a single hub node for communication
+
+        ConsensusParms parms;
+        Sim sim;
+        PeerGroup validators = sim.createGroup(5);
+        PeerGroup center = sim.createGroup(1);
+        validators.trust(validators);
+        center.trust(validators);
+
+        SimDuration delay =
+                round<milliseconds>(0.2 * parms.ledgerGRANULARITY);
+        validators.connect(center, delay);
+
+        center[0]->runAsValidator = false;
+
+        // prep round to set initial state.
+        sim.run(1);
+
+        // everyone submits their own ID as a TX and relay it to peers
+        for (Peer * p : validators)
+            p->submit(Tx(static_cast<std::uint32_t>(p->id)));
+
+        sim.run(1);
+
+        // All peers are in sync
+        BEAST_EXPECT(sim.synchronized());
+    }
+
+    void
     run() override
     {
         testShouldCloseLedger();
@@ -648,6 +683,7 @@ public:
         testCloseTimeDisagree();
         testWrongLCL();
         testFork();
+        testHubNetwork();
     }
 };
 
