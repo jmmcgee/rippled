@@ -29,10 +29,10 @@ namespace ripple {
 namespace test {
 namespace csf {
 
-struct NodeTag;
-using NodeID = tagged_integer<std::uint32_t, NodeTag>;
+struct PeerIDTag;
+using PeerID = tagged_integer<std::uint32_t, PeerIDTag>;
 
-using NodeKey =  std::pair<NodeID, std::uint32_t>;
+using PeerKey =  std::pair<PeerID, std::uint32_t>;
 
 /** Validation of a specific ledger.
 
@@ -45,8 +45,8 @@ class Validation
 
     NetClock::time_point signTime_;
     NetClock::time_point seenTime_;
-    NodeKey key_;
-    NodeID nodeID_{0};
+    PeerKey key_;
+    PeerID nodeID_{0};
     bool trusted_ = true;
     boost::optional<std::uint32_t> loadFee_;
 
@@ -55,8 +55,8 @@ public:
         Ledger::Seq seq,
         NetClock::time_point sign,
         NetClock::time_point seen,
-        NodeKey key,
-        NodeID nodeID,
+        PeerKey key,
+        PeerID nodeID,
         bool trusted,
         boost::optional<std::uint32_t> loadFee = boost::none)
         : ledgerID_{id}
@@ -94,13 +94,13 @@ public:
         return seenTime_;
     }
 
-    NodeKey
+    PeerKey
     key() const
     {
         return key_;
     }
 
-    NodeID
+    PeerID
     nodeID() const
     {
         return nodeID_;

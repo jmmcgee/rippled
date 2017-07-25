@@ -30,7 +30,7 @@ namespace csf {
 /** Proposal is a position taken in the consensus process and is represented
     directly from the generic types.
 */
-using Proposal = ConsensusProposal<NodeID, Ledger::ID, TxSet::ID>;
+using Proposal = ConsensusProposal<PeerID, Ledger::ID, TxSet::ID>;
 
 }  // namespace csf
 }  // namespace test

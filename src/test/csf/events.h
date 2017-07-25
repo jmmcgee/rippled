@@ -68,7 +68,7 @@ template <class V>
 struct Relay
 {
     //! Node we are realying to
-    NodeID to;
+    PeerID to;
 
     //! The value to relay
     V val;
@@ -80,7 +80,7 @@ template <class V>
 struct Receive
 {
     //! Node that sent the value
-    NodeID from;
+    PeerID from;
 
     //! The received value
     V val;

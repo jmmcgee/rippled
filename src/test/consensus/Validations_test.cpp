@@ -52,13 +52,13 @@ class Validations_test : public beast::unit_test::suite
     class Node
     {
         clock_type const& c_;
-        NodeID nodeID_;
+        PeerID nodeID_;
         bool trusted_ = true;
         std::size_t signIdx_ = 1;
         boost::optional<std::uint32_t> loadFee_;
 
     public:
-        Node(NodeID nodeID, clock_type const& c) : c_(c), nodeID_(nodeID)
+        Node(PeerID nodeID, clock_type const& c) : c_(c), nodeID_(nodeID)
         {
         }
 
@@ -80,7 +80,7 @@ class Validations_test : public beast::unit_test::suite
             loadFee_ = fee;
         }
 
-        NodeID
+        PeerID
         nodeID() const
         {
             return nodeID_;
@@ -92,13 +92,13 @@ class Validations_test : public beast::unit_test::suite
             signIdx_++;
         }
 
-        NodeKey
+        PeerKey
         currKey() const
         {
             return std::make_pair(nodeID_, signIdx_);
         }
 
-        NodeKey
+        PeerKey
         masterKey() const
         {
             return std::make_pair(nodeID_, 0);
@@ -135,7 +135,7 @@ class Validations_test : public beast::unit_test::suite
     struct StaleData
     {
         std::vector<Validation> stale;
-        hash_map<NodeKey, Validation> flushed;
+        hash_map<PeerKey, Validation> flushed;
     };
 
     // Generic Validations policy that saves stale/flushed data into
@@ -163,7 +163,7 @@ class Validations_test : public beast::unit_test::suite
         }
 
         void
-        flush(hash_map<NodeKey, Validation>&& remaining)
+        flush(hash_map<PeerKey, Validation>&& remaining)
         {
             staleData_.flushed = std::move(remaining);
         }
@@ -198,7 +198,7 @@ class Validations_test : public beast::unit_test::suite
         beast::manual_clock<std::chrono::steady_clock> clock_;
         beast::Journal j_;
         TestValidations tv_;
-        NodeID nextNodeId_{0};
+        PeerID nextNodeId_{0};
 
     public:
         TestHarness() : tv_(p_, clock_, j_, staleData_, clock_)
@@ -250,7 +250,7 @@ class Validations_test : public beast::unit_test::suite
             return staleData_.stale;
         }
 
-        hash_map<NodeKey, Validation> const&
+        hash_map<PeerKey, Validation> const&
         flushed() const
         {
             return staleData_.flushed;
@@ -510,7 +510,7 @@ class Validations_test : public beast::unit_test::suite
                 harness.add(node, Ledger::Seq{1}, Ledger::ID{1}));
 
         {
-            hash_set<NodeKey> const expectedKeys = {
+            hash_set<PeerKey> const expectedKeys = {
                 a.masterKey(), b.masterKey()};
             BEAST_EXPECT(harness.vals().getCurrentPublicKeys() == expectedKeys);
         }
@@ -526,7 +526,7 @@ class Validations_test : public beast::unit_test::suite
                 harness.add(node, Ledger::Seq{2}, Ledger::ID{2}));
 
         {
-            hash_set<NodeKey> const expectedKeys = {
+            hash_set<PeerKey> const expectedKeys = {
                 a.masterKey(), b.masterKey()};
             BEAST_EXPECT(harness.vals().getCurrentPublicKeys() == expectedKeys);
         }
@@ -744,7 +744,7 @@ class Validations_test : public beast::unit_test::suite
              c = harness.makeNode();
         c.untrust();
 
-        hash_map<NodeKey, Validation> expected;
+        hash_map<PeerKey, Validation> expected;
         for (auto const& node : {a, b, c})
         {
             auto const val = node.validation(Ledger::Seq{1}, Ledger::ID{1});

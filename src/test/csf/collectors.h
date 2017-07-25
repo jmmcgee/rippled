@@ -42,7 +42,7 @@ class Collectors
 
     template <class C, class E>
     static void
-    apply(C& c, NodeID who, SimTime when, E e)
+    apply(C& c, PeerID who, SimTime when, E e)
     {
         c.on(who, when, e);
     }
@@ -51,7 +51,7 @@ class Collectors
     static void
     apply(
         std::tuple<Cs&...>& cs,
-        NodeID who,
+        PeerID who,
         SimTime when,
         E e,
         std::index_sequence<Is...>)
@@ -69,7 +69,7 @@ public:
 
     template <class E>
     void
-    on(NodeID who, SimTime when, E e)
+    on(PeerID who, SimTime when, E e)
     {
         apply(cs, who, when, e, std::index_sequence_for<Cs...>{});
     }
@@ -89,22 +89,22 @@ collectors(Cs&... cs)
 template <class CollectorType>
 struct CollectByNode
 {
-    std::map<NodeID, CollectorType> byNode;
+    std::map<PeerID, CollectorType> byNode;
 
     CollectorType&
-    operator[](NodeID who)
+    operator[](PeerID who)
     {
         return byNode[who];
     }
 
     CollectorType const&
-    operator[](NodeID who) const
+    operator[](PeerID who) const
     {
         return byNode[who];
     }
     template <class E>
     void
-    on(NodeID who, SimTime when, E const& e)
+    on(PeerID who, SimTime when, E const& e)
     {
         byNode[who].on(who, when, e);
     }
@@ -117,7 +117,7 @@ struct NullCollector
 {
     template <class E>
     void
-    on(NodeID, SimTime, E const& e)
+    on(PeerID, SimTime, E const& e)
     {
     }
 };
@@ -181,12 +181,12 @@ struct TxCollector
     // Ignore most events by default
     template <class E>
     void
-    on(NodeID, SimTime when, E const& e)
+    on(PeerID, SimTime when, E const& e)
     {
     }
 
     void
-    on(NodeID who, SimTime when, SubmitTx const& e)
+    on(PeerID who, SimTime when, SubmitTx const& e)
     {
 
         // save first time it was seen
@@ -197,7 +197,7 @@ struct TxCollector
     }
 
     void
-    on(NodeID who, SimTime when, AcceptLedger const& e)
+    on(PeerID who, SimTime when, AcceptLedger const& e)
     {
         for (auto const& tx : e.ledger.txs())
         {
@@ -214,7 +214,7 @@ struct TxCollector
     }
 
     void
-    on(NodeID who, SimTime when, FullyValidateLedger const& e)
+    on(PeerID who, SimTime when, FullyValidateLedger const& e)
     {
         for (auto const& tx : e.ledger.txs())
         {
@@ -282,12 +282,12 @@ struct LedgerCollector
     // Ignore most events by default
     template <class E>
     void
-    on(NodeID, SimTime, E const& e)
+    on(PeerID, SimTime, E const& e)
     {
     }
 
     void
-    on(NodeID who, SimTime when, AcceptLedger const& e)
+    on(PeerID who, SimTime when, AcceptLedger const& e)
     {
         // First time this ledger accepted
         if (ledgers_.emplace(e.ledger.id(), Tracker{when}).second)
@@ -306,7 +306,7 @@ struct LedgerCollector
     }
 
     void
-    on(NodeID who, SimTime when, FullyValidateLedger const& e)
+    on(PeerID who, SimTime when, FullyValidateLedger const& e)
     {
         // ignore jumps
         if (e.prior.id() == e.ledger.parentID())
@@ -357,19 +357,19 @@ struct StreamCollector
     // Ignore most events by default
     template <class E>
     void
-    on(NodeID, SimTime, E const& e)
+    on(PeerID, SimTime, E const& e)
     {
     }
 
     void
-    on(NodeID who, SimTime when, AcceptLedger const& e)
+    on(PeerID who, SimTime when, AcceptLedger const& e)
     {
         out << when.time_since_epoch().count() << ": Node " << who << " accepted "
             << "L" << e.ledger.id() << " " << e.ledger.txs() << "\n";
     }
 
     void
-    on(NodeID who, SimTime when, FullyValidateLedger const& e)
+    on(PeerID who, SimTime when, FullyValidateLedger const& e)
     {
         out << when.time_since_epoch().count() << ": Node " << who
             << " fully-validated " << "L"<< e.ledger.id() << " " << e.ledger.txs()
@@ -381,7 +381,7 @@ struct JumpCollector
 {
     struct Jump
     {
-        NodeID id;
+        PeerID id;
         SimTime when;
         Ledger from;
         Ledger to;
@@ -393,12 +393,12 @@ struct JumpCollector
     // Ignore most events by default
     template <class E>
     void
-    on(NodeID, SimTime, E const& e)
+    on(PeerID, SimTime, E const& e)
     {
     }
 
     void
-    on(NodeID who, SimTime when, AcceptLedger const& e)
+    on(PeerID who, SimTime when, AcceptLedger const& e)
     {
         // Not a direct child -> parent switch
         if(e.ledger.parentID() != e.prior.id())
@@ -406,7 +406,7 @@ struct JumpCollector
     }
 
     void
-    on(NodeID who, SimTime when, FullyValidateLedger const& e)
+    on(PeerID who, SimTime when, FullyValidateLedger const& e)
     {
         // Not a direct child -> parent switch
         if (e.ledger.parentID() != e.prior.id())

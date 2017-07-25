@@ -129,7 +129,7 @@ struct Peer
         }
 
         void
-        flush(hash_map<NodeKey, Validation>&& remaining)
+        flush(hash_map<PeerKey, Validation>&& remaining)
         {
         }
     };
@@ -152,7 +152,7 @@ struct Peer
 
     //! Type definitions for generic consensus
     using Ledger_t = Ledger;
-    using NodeID_t = NodeID;
+    using NodeID_t = PeerID;
     using TxSet_t = TxSet;
     using PeerPosition_t = Position;
     using Result = ConsensusResult<Peer>;
@@ -165,10 +165,10 @@ struct Peer
     Consensus<Peer> consensus;
 
     //! Our unique ID
-    NodeID id;
+    PeerID id;
 
     //! Current signing key
-    NodeKey key;
+    PeerKey key;
 
     //! The oracle that manages unique ledgers
     LedgerOracle& oracle;
@@ -311,7 +311,7 @@ struct Peer
     }
 
     bool
-    trusts(NodeID const & oId)
+    trusts(PeerID const & oId)
     {
         for(auto const & p : trustGraph.trustedPeers(this))
             if(p->id == oId)
@@ -641,13 +641,13 @@ struct Peer
     {
         M mesg;
         std::size_t seq;
-        NodeID origin;
+        PeerID origin;
     };
 
     struct Router
     {
         std::size_t nextSeq = 1;
-        bc::flat_map<NodeID, std::size_t> lastObservedSeq;
+        bc::flat_map<PeerID, std::size_t> lastObservedSeq;
     };
 
     Router router;
@@ -655,7 +655,7 @@ struct Peer
     // Send a broadcast message to all peers
     template <class M>
     void
-    send(BroadcastMesg<M> const& bm, NodeID from)
+    send(BroadcastMesg<M> const& bm, PeerID from)
     {
         for (auto const& link : net.links(this))
         {
@@ -678,7 +678,7 @@ struct Peer
     // Receive a shared message, process it and consider continuing to relay it
     template <class M>
     void
-    receive(BroadcastMesg<M> const& bm, NodeID from)
+    receive(BroadcastMesg<M> const& bm, PeerID from)
     {
         issue(Receive<M>{from, bm.mesg});
         if (router.lastObservedSeq[bm.origin] < bm.seq)
