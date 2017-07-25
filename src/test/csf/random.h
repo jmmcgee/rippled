@@ -53,6 +53,23 @@ random_weighted_shuffle(std::vector<T> v, std::vector<double> w, G& g)
     return v;
 }
 
+/** Generate a random sample
+
+    @param size the size of the sample
+    @param pdf the distribution to sample
+    @param g the pseudo-random number generator
+
+    @return vector of samples
+*/
+template <class PDF, class Generator>
+std::vector<typename PDF::result_type>
+sample( std::size_t size, PDF pdf, Generator& g)
+{
+    std::vector<typename PDF::result_type> res(size);
+    std::generate(res.begin(), res.end(), [&pdf, &g]() { return pdf(g); });
+    return res;
+}
+
 //------------------------------------------------------------------------------
 // Additional distrubtions of interest not defined in in <random>
 
@@ -90,7 +107,7 @@ class PowerLawDistribution
 
 public:
 
-    using value_type = double;
+    using result_type = double;
 
     PowerLawDistribution(double xmin, double a) : xmin_{xmin}, a_{a}
     {

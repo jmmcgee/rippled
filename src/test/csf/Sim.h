@@ -30,6 +30,7 @@
 
 #include <iostream>
 #include <deque>
+#include <random>
 
 namespace ripple {
 namespace test {
@@ -65,6 +66,7 @@ class Sim
     std::deque<Peer> peers;
 
 public:
+    std::mt19937_64 rng;
     Scheduler scheduler;
     BasicSink sink;
     beast::Journal j;

@@ -27,47 +27,33 @@ namespace test {
 
 namespace csf
 {
-/** Generate a random trust graph based on random ranking of peers
+/** Randomly specify trust based on ranking of peers
 
-    Generate a random trust graph by
+    Generate a random trust graph based on a provided ranking of peers.
 
-        1. Randomly ranking the peers acording to RankPDF
-        2. Generating `numUNL` random UNLs by sampling without replacement
+        1. Generates  `numUNL` random UNLs by sampling without replacement
             from the ranked nodes.
-        3. Restricting the size of the random UNLs according to SizePDF
+        2. Restricts the size of the random UNLs according to SizePDF
+        3. Each node randomly selects one such generated UNL to use as its own.
 
-    @param size The number of nodes in the trust graph
+    @param peers The group of peers to create trust over
     @param numUNLs The number of UNLs to create
-    @param rankPDF Generates random positive real numbers to use as ranks
     @param unlSizePDF Generates random integeres between (0,size-1) to
                         restrict the size of generated PDF
     @param Generator The uniform random bit generator to use
 
-    @note RankPDF/SizePDF can model the full RandomDistribution concept
-            defined in the STL, but for the purposes of this function need
-            only provide:
-
-                auto operator()(Generator & g)
-
-            which should return the random sample.
-
-
 */
-template <class RankPDF, class SizePDF, class Generator>
+template <class SizePDF, class Generator>
 void
 randomRankedTrust(
     PeerGroup & peers,
+    std::vector<double> const & ranks,
     int numUNLs,
-    RankPDF rankPDF,
     SizePDF unlSizePDF,
     Generator& g)
 {
     std::size_t const size = peers.size();
-
-    // 1. Generate ranks
-    std::vector<double> weights(size);
-    std::generate(
-        weights.begin(), weights.end(), [&]() { return rankPDF(g); });
+    assert(size == ranks.size());
 
     // 2. Generate UNLs based on sampling without replacement according
     //    to weights.
@@ -75,7 +61,7 @@ randomRankedTrust(
     std::vector<Peer*> rawPeers(peers.begin(), peers.end());
     std::generate(unls.begin(), unls.end(), [&]() {
         std::vector<Peer*> res =
-            random_weighted_shuffle(rawPeers, weights, g);
+            random_weighted_shuffle(rawPeers, ranks, g);
         res.resize(unlSizePDF(g));
         return PeerGroup(std::move(res));
     });
@@ -88,6 +74,7 @@ randomRankedTrust(
             peer->trust(*target);
     }
 }
+
 }
 
 class ScaleFreeSim_test : public beast::unit_test::suite
@@ -109,15 +96,16 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         int numUNLs = 15;  //  UNL lists
         int minUNLSize = N / 4, maxUNLSize = N / 2;
 
-        std::mt19937_64 rng;
-
         ConsensusParms parms;
         Sim sim;
         PeerGroup network = sim.createGroup(N);
-        randomRankedTrust(network, numUNLs,
-            PowerLawDistribution{1, 3},
+
+        std::vector<double> ranks =
+            sample(network.size(), PowerLawDistribution{1, 3}, sim.rng);
+
+        randomRankedTrust(network, ranks, numUNLs,
             std::uniform_int_distribution<>{minUNLSize, maxUNLSize},
-            rng);
+            sim.rng);
 
         network.connectFromTrust(
             round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
@@ -142,7 +130,7 @@ class ScaleFreeSim_test : public beast::unit_test::suite
                           sim.scheduler.now() + (simDuration - quiet),
                           *(*network.begin()),
                           sim.scheduler,
-                          rng);
+                          sim.rng);
 
         // run simulation for given duration
         sim.run(simDuration);
