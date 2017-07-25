@@ -61,7 +61,7 @@ public:
 
     template <class Generator>
     SimDuration
-    next(Generator & g) const
+    next(Generator & g)
     {
         return SimDuration(static_cast<SimDuration::rep>(dist(g)));
     }
