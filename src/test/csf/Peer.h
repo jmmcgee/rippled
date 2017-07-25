@@ -205,6 +205,10 @@ struct Peer
     //! TxSet associated with a TxSet::ID
     bc::flat_map<TxSet::ID, TxSet> txSets;
 
+    // Ledgers and txSets that we have already attempted to acquire
+    bc::flat_set<Ledger::ID> acquiringLedgers;
+    bc::flat_set<TxSet::ID> acquiringTxSets;
+
     //! The number of ledgers this peer has completed
     int completedLedgers = 0;
     //! The number of ledges this peer should complete before stopping to run
@@ -337,16 +341,26 @@ struct Peer
         if (it != ledgers.end())
             return &(it->second);
 
-        // TODO Get from network properly!
+        // Don't retry if we already are acquiring it
+        if(!acquiringLedgers.emplace(ledgerHash).second)
+            return nullptr;
+
         for (auto const& link : net.links(this))
         {
-            auto const& p = *link.to;
-            auto it = p.ledgers.find(ledgerHash);
-            if (it != p.ledgers.end())
-            {
-                auto res = ledgers.emplace(ledgerHash, it->second);
-                return &res.first->second;
-            }
+            // Send a messsage to neighbors to find the ledger
+            net.send(
+                this, link.to, [ to = link.to, from = this, ledgerHash ]() {
+                    auto it = to->ledgers.find(ledgerHash);
+                    if (it != to->ledgers.end())
+                    {
+                        // if the ledger is found, send it back to the original
+                        // requesting peer where it is added to the available
+                        // ledgers
+                        to->net.send(to, from, [ from, ledger = it->second ]() {
+                            from->ledgers.emplace(ledger.id(), ledger);
+                        });
+                    }
+                });
         }
         return nullptr;
     }
@@ -357,16 +371,27 @@ struct Peer
         auto it = txSets.find(setId);
         if (it != txSets.end())
             return &(it->second);
-        // TODO Get from network properly!
+
+        // Don't retry if we already are acquiring it
+        if(!acquiringTxSets.emplace(setId).second)
+            return nullptr;
+
         for (auto const& link : net.links(this))
         {
-            auto const& p = *link.to;
-            auto it = p.txSets.find(setId);
-            if (it != p.txSets.end())
-            {
-                auto res = txSets.emplace(setId, it->second);
-                return &res.first->second;
-            }
+            // Send a message to neighbors to find the tx set
+            net.send(
+                this, link.to, [ to = link.to, from = this, setId ]() {
+                    auto it = to->txSets.find(setId);
+                    if (it != to->txSets.end())
+                    {
+                        // If the txSet is found, send it back to the original
+                        // requesting peer, where it is handled like a TxSet
+                        // that was broadcast over the network
+                        to->net.send(to, from, [ from, txSet = it->second ]() {
+                            from->handle(txSet);
+                        });
+                    }
+                });
         }
         return nullptr;
     }
