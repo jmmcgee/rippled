@@ -20,6 +20,7 @@
 #include <ripple/beast/clock/manual_clock.h>
 #include <ripple/beast/unit_test.h>
 #include <test/csf.h>
+#include <test/csf/random.h>
 #include <utility>
 
 namespace ripple {
@@ -100,24 +101,30 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         Sim sim;
         PeerGroup network = sim.createGroup(N);
 
+        // generate trust ranks
         std::vector<double> ranks =
             sample(network.size(), PowerLawDistribution{1, 3}, sim.rng);
 
+        // generate scale-free trust graph
         randomRankedTrust(network, ranks, numUNLs,
             std::uniform_int_distribution<>{minUNLSize, maxUNLSize},
             sim.rng);
 
+        // nodes with a trust line in either direction are network-connected
         network.connectFromTrust(
             round<milliseconds>(0.2 * parms.ledgerGRANULARITY));
 
+        // Initialize collectors to track statistics to report
         TxCollector txCollector;
         LedgerCollector ledgerCollector;
-
         auto colls = collectors(txCollector, ledgerCollector);
         sim.collectors.add(colls);
 
         // Initial round to set prior state
         sim.run(1);
+
+        // Initialize timers
+        HeartbeatTimer heart(sim.scheduler, seconds(10s));
 
         // Run for 10 minues, submitting 100 tx/second
         std::chrono::nanoseconds simDuration = 10min;
@@ -125,14 +132,19 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         Rate rate{100, 1000ms};
 
         // txs, start/stop/step, target
+        auto peerSelector = selector(network.begin(),
+                                     network.end(),
+                                     ranks,
+                                     sim.rng);
         auto txSubmitter = submitter(ConstantDistribution{rate.inv()},
                           sim.scheduler.now() + quiet,
                           sim.scheduler.now() + (simDuration - quiet),
-                          *(*network.begin()),
+                          peerSelector,
                           sim.scheduler,
                           sim.rng);
 
         // run simulation for given duration
+        heart.start();
         sim.run(simDuration);
 
         BEAST_EXPECT(sim.forks() == 1);

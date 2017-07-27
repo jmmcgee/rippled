@@ -69,6 +69,39 @@ sample( std::size_t size, PDF pdf, Generator& g)
     std::generate(res.begin(), res.end(), [&pdf, &g]() { return pdf(g); });
     return res;
 }
+template <class RAIter, class Generator>
+class Selector
+{
+    RAIter first_, last_;
+    //std::vector<T>& v_;
+    std::discrete_distribution<> dd_;
+    Generator g_;
+
+public:
+    Selector(RAIter first, RAIter last, std::vector<double>& w, Generator& g)
+      : first_{first}, last_{last}, dd_{w.begin(), w.end()}, g_{g}
+    {
+        using tag = typename std::iterator_traits<RAIter>::iterator_category;
+        static_assert(
+                std::is_same<tag, std::random_access_iterator_tag>::value,
+                "Selector only supports random access iterators.");
+        // TODO: Allow for forward iterators
+    }
+
+    typename std::iterator_traits<RAIter>::value_type
+    operator()()
+    {
+        auto idx = dd_(g_);
+        return *(first_ + idx);
+    }
+};
+
+template <typename Iter, typename Generator>
+Selector<Iter,Generator>
+selector(Iter first, Iter last, std::vector<double>& w, Generator& g)
+{
+    return Selector<Iter, Generator>(first, last, w, g);
+}
 
 //------------------------------------------------------------------------------
 // Additional distrubtions of interest not defined in in <random>

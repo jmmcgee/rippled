@@ -4573,6 +4573,8 @@
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\submitters.h">
     </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\timers.h">
+    </ClInclude>
     <ClInclude Include="..\..\src\test\csf\TrustGraph.h">
     </ClInclude>
     <ClInclude Include="..\..\src\test\csf\Tx.h">

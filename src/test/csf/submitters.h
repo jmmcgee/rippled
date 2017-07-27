@@ -58,13 +58,13 @@ struct Rate
             arithmetic T to SimDuration::rep units to allow using standard
             library distributions as a Distribution.
 */
-template <class Distribution, class Generator>
+template <class Distribution, class Generator, class Selector>
 class Submitter
 {
     Distribution dist_;
     SimTime stop_;
     std::uint32_t nextID_ = 0;
-    Peer & target_;
+    Selector selector_;
     Scheduler & scheduler_;
     Generator & g_;
 
@@ -87,7 +87,7 @@ class Submitter
     void
     submit()
     {
-        target_.submit(Tx{nextID_++});
+        selector_()->submit(Tx{nextID_++});
         if (scheduler_.now() < stop_)
         {
             scheduler_.in(asDuration(dist_(g_)), [&]() { submit(); });
@@ -99,26 +99,27 @@ public:
         Distribution dist,
         SimTime start,
         SimTime end,
-        Peer & t,
+        Selector & selector,
         Scheduler & s,
         Generator & g)
-        : dist_{dist}, stop_{end}, target_{t}, scheduler_{s}, g_{g}
+        : dist_{dist}, stop_{end}, selector_{selector}, scheduler_{s}, g_{g}
     {
         scheduler_.at(start, [&]() { submit(); });
     }
 };
 
-template <class Distribution, class Generator>
-Submitter<Distribution, Generator>
+template <class Distribution, class Generator, class Selector>
+Submitter<Distribution, Generator, Selector>
 submitter(
     Distribution dist,
     SimTime start,
     SimTime end,
-    Peer& t,
+    Selector& sel,
     Scheduler& s,
     Generator& g)
 {
-    return Submitter<Distribution, Generator>(dist, start ,end, t, s, g);
+    return Submitter<Distribution, Generator, Selector>(
+            dist, start ,end, sel, s, g);
 }
 
 }  // namespace csf

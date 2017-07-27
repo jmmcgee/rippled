@@ -766,7 +766,7 @@ struct Peer
         consensus.timerEntry(now());
         // only reschedule if not completed
         if (completedLedgers < targetLedgers)
-            scheduler.in(parms().ledgerGRANULARITY, [&]() { timerEntry(); });
+            scheduler.in(parms().ledgerGRANULARITY, [this]() { timerEntry(); });
     }
 
     void
