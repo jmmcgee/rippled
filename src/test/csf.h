@@ -32,3 +32,4 @@
 #include <test/csf/ledgers.h>
 #include <test/csf/random.h>
 #include <test/csf/submitters.h>
+#include <test/csf/timers.h>
