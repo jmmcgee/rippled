@@ -20,6 +20,7 @@
 #include <ripple/beast/clock/manual_clock.h>
 #include <ripple/beast/unit_test.h>
 #include <test/csf.h>
+#include <test/csf/random.h>
 #include <utility>
 
 namespace ripple {
@@ -123,7 +124,7 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         sim.run(1);
 
         // Initialize timers
-        HeartbeatTimer heart(sim.scheduler);
+        HeartbeatTimer heart(sim.scheduler, seconds(10s));
 
         // Run for 10 minues, submitting 100 tx/second
         std::chrono::nanoseconds simDuration = 10min;
@@ -131,10 +132,12 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         Rate rate{100, 1000ms};
 
         // txs, start/stop/step, target
+        std::vector<Peer*> peers{network.begin(), network.end()};
+        auto peerSelector = selector(peers, ranks, sim.rng);
         auto txSubmitter = submitter(ConstantDistribution{rate.inv()},
                           sim.scheduler.now() + quiet,
                           sim.scheduler.now() + (simDuration - quiet),
-                          *(*network.begin()),
+                          peerSelector,
                           sim.scheduler,
                           sim.rng);
 

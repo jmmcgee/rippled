@@ -69,6 +69,39 @@ sample( std::size_t size, PDF pdf, Generator& g)
     std::generate(res.begin(), res.end(), [&pdf, &g]() { return pdf(g); });
     return res;
 }
+template <class T, class Generator>
+class Selector
+{
+    std::vector<T>& v_;
+    std::discrete_distribution<> dd_;
+    Generator g_;
+
+public:
+    Selector(std::vector<T>& v, std::vector<double>& w, Generator& g)
+      : v_{v}, dd_{w.begin(), w.end()}, g_{g}
+    {
+    }
+
+    T&
+    select()
+    {
+        auto idx = dd_(g_);
+        return v_[idx];
+    }
+
+    T&
+    operator()()
+    {
+        return select();
+    }
+};
+
+template < typename T, typename Generator>
+Selector<T,Generator>
+selector(std::vector<T>& v, std::vector<double>& w, Generator& g)
+{
+    return Selector<T,Generator>(v,w,g);
+}
 
 //------------------------------------------------------------------------------
 // Additional distrubtions of interest not defined in in <random>
