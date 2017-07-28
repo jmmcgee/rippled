@@ -5334,6 +5334,9 @@
     <ClInclude Include="..\..\src\test\csf\submitters.h">
       <Filter>test\csf</Filter>
     </ClInclude>
+    <ClInclude Include="..\..\src\test\csf\timers.h">
+      <Filter>test\csf</Filter>
+    </ClInclude>
     <ClInclude Include="..\..\src\test\csf\TrustGraph.h">
       <Filter>test\csf</Filter>
     </ClInclude>
