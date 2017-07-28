@@ -103,14 +103,6 @@ selector(Iter first, Iter last, std::vector<double>& w, Generator& g)
     return Selector<Iter, Generator>(first, last, w, g);
 }
 
-template < typename T, typename Generator>
-Selector<typename std::vector<T>::iterator,Generator>
-selector(std::vector<T>& v, std::vector<double>& w, Generator& g)
-{
-    return Selector<typename std::vector<T>::iterator, Generator>(
-            v.begin(), v.end(), w, g);
-}
-
 //------------------------------------------------------------------------------
 // Additional distrubtions of interest not defined in in <random>
 
