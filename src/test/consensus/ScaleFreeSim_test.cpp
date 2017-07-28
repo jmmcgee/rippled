@@ -132,8 +132,10 @@ class ScaleFreeSim_test : public beast::unit_test::suite
         Rate rate{100, 1000ms};
 
         // txs, start/stop/step, target
-        std::vector<Peer*> peers{network.begin(), network.end()};
-        auto peerSelector = selector(peers, ranks, sim.rng);
+        auto peerSelector = selector(network.begin(),
+                                     network.end(),
+                                     ranks,
+                                     sim.rng);
         auto txSubmitter = submitter(ConstantDistribution{rate.inv()},
                           sim.scheduler.now() + quiet,
                           sim.scheduler.now() + (simDuration - quiet),
