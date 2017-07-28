@@ -83,16 +83,10 @@ public:
     }
 
     T&
-    select()
+    operator()()
     {
         auto idx = dd_(g_);
         return v_[idx];
-    }
-
-    T&
-    operator()()
-    {
-        return select();
     }
 };
 

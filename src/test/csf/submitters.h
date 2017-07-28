@@ -64,7 +64,7 @@ class Submitter
     Distribution dist_;
     SimTime stop_;
     std::uint32_t nextID_ = 0;
-    Selector & selector_;
+    Selector selector_;
     Scheduler & scheduler_;
     Generator & g_;
 

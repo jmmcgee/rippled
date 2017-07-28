@@ -30,7 +30,6 @@ namespace csf {
 
 /** Gives heartbeat of simulation to signal simulation progression
  */
-using namespace std::chrono;
 class HeartbeatTimer
 {
     Scheduler & scheduler_;
@@ -40,22 +39,25 @@ class HeartbeatTimer
     SimTime startSimTime_;
 
 public:
-    HeartbeatTimer(Scheduler& sched, SimDuration interval = 60s)
+    HeartbeatTimer(
+            Scheduler& sched,
+            SimDuration interval = std::chrono::seconds(60s))
             : scheduler_{sched}, interval_{interval},
               startRealTime_{RealClock::now()},
               startSimTime_{sched.now()}
     {
     };
 
-    inline void
+    void
     start()
     {
-        scheduler_.in(interval_, [this](){this->beat(scheduler_.now());});
+        scheduler_.in(interval_, [this](){beat(scheduler_.now());});
     };
 
-    inline void
+    void
     beat(SimTime when)
     {
+        using namespace std::chrono;
         RealTime realTime = RealClock::now();
         SimTime simTime = when;
 
@@ -67,7 +69,7 @@ public:
                   << duration_cast<seconds>(realDuration).count()
                   << "s}\n" << std::flush;
 
-        scheduler_.in(interval_, [this](){this->beat(scheduler_.now());});
+        scheduler_.in(interval_, [this](){beat(scheduler_.now());});
     }
 };
 
