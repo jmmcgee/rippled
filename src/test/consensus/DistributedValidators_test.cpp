@@ -83,12 +83,12 @@ class DistributedValidators_test : public beast::unit_test::suite
         using namespace std::chrono;
 
         // Initialize persistent collector logs specific to this method
-        std::string const prefix =
-                "DistributedValidators_"
-                "completeTrustCompleteConnectFixedDelay";
+        std::string prefix =
+            "DistributedValidators_"
+            "completeTrustCompleteConnectFixedDelay";
         std::fstream
-                txLog(prefix + "_tx.csv", std::ofstream::app),
-                ledgerLog(prefix + "_ledger.csv", std::ofstream::app);
+            txLog(prefix + "_tx.csv", std::ofstream::app),
+            ledgerLog(prefix + "_ledger.csv", std::ofstream::app);
 
         // title
         log << prefix << "(" << numPeers << "," << delay.count() << ")"
@@ -155,7 +155,9 @@ class DistributedValidators_test : public beast::unit_test::suite
         txCollector.report(simDuration, log, true);
         ledgerCollector.report(simDuration, log, false);
 
-        std::string tag = std::to_string(numPeers);
+        std::string tag = "|{"
+           "\"numPeers\":" +std::to_string(numPeers) + ","
+           "\"delay\":" + std::to_string(delay.count()) + "}|";
         txCollector.csv(simDuration, txLog, tag, printHeaders);
         ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
 
@@ -173,7 +175,7 @@ class DistributedValidators_test : public beast::unit_test::suite
 
         // Initialize persistent collector logs specific to this method
         std::string const prefix =
-                "DistributedValidators__"
+                "DistributedValidators_"
                 "completeTrustScaleFreeConnectFixedDelay";
         std::fstream
                 txLog(prefix + "_tx.csv", std::ofstream::app),
@@ -255,7 +257,9 @@ class DistributedValidators_test : public beast::unit_test::suite
         txCollector.report(simDuration, log, true);
         ledgerCollector.report(simDuration, log, false);
 
-        std::string tag = std::to_string(numPeers);
+        std::string tag = "|{"
+           "\"numPeers\":" +std::to_string(numPeers) + ","
+           "\"delay\":" + std::to_string(delay.count()) + "}|";
         txCollector.csv(simDuration, txLog, tag, printHeaders);
         ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
 
@@ -275,16 +279,17 @@ class DistributedValidators_test : public beast::unit_test::suite
     void
     run() override
     {
-        std::string defaultArgs = "5 200";
+        std::string defaultArgs = "5 100 200";
         std::string args = arg().empty() ? defaultArgs : arg();
         std::stringstream argStream(args);
 
         int maxNumValidators = 0;
+        std::vector<std::chrono::milliseconds> delays;
+
         int delayCount(200);
         argStream >> maxNumValidators;
-        argStream >> delayCount;
-
-        std::chrono::milliseconds delay(delayCount);
+        while(argStream >> delayCount)
+            delays.emplace_back(delayCount);
 
         log << "DistributedValidators: 1 to " << maxNumValidators << " Peers"
             << std::endl;
@@ -295,10 +300,14 @@ class DistributedValidators_test : public beast::unit_test::suite
          * - complete network connectivity
          * - fixed delay for network links
          */
-        completeTrustCompleteConnectFixedDelay(1, delay, true);
-        for(int i = 2; i <= maxNumValidators; i++)
+        bool printHeaders = true;
+        for(auto delay : delays)
         {
-            completeTrustCompleteConnectFixedDelay(i, delay);
+            for(int i = 1; i <= maxNumValidators; i++)
+            {
+                completeTrustCompleteConnectFixedDelay(i, delay, printHeaders);
+                printHeaders = false;
+            }
         }
 
         /**
@@ -307,10 +316,14 @@ class DistributedValidators_test : public beast::unit_test::suite
          * - scale-free network connectivity
          * - fixed delay for network links
          */
-        completeTrustScaleFreeConnectFixedDelay(1, delay, true);
-        for(int i = 2; i <= maxNumValidators; i++)
+        printHeaders = true;
+        for(auto delay : delays)
         {
-            completeTrustScaleFreeConnectFixedDelay(i, delay);
+            for(int i = 1; i <= maxNumValidators; i++, printHeaders = false)
+            {
+                completeTrustScaleFreeConnectFixedDelay(i, delay, printHeaders);
+                printHeaders = false;
+            }
         }
     }
 };

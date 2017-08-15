@@ -374,9 +374,9 @@ struct TxCollector
                 << "txLatencySubmitToAccept10Pctl" << ","
                 << "txLatencySubmitToAccept50Pctl" << ","
                 << "txLatencySubmitToAccept90Pctl" << ","
-                << "txLatencySubmitToValidatet10Pctl" << ","
-                << "txLatencySubmitToValidatet50Pctl" << ","
-                << "txLatencySubmitToValidatet90Pctl"
+                << "txLatencySubmitToValidate10Pctl" << ","
+                << "txLatencySubmitToValidate50Pctl" << ","
+                << "txLatencySubmitToValidate90Pctl"
                 << std::endl;
         }
 
@@ -409,7 +409,7 @@ struct TxCollector
             // txLatencySubmitToValidate50Pctl
             << std::setprecision(2) << fmtS(submitToValidate.percentile(0.5f)) << ","
             // txLatencySubmitToValidate90Pctl
-            << std::setprecision(2) << fmtS(submitToValidate.percentile(0.9f)) << ","
+            << std::setprecision(2) << fmtS(submitToValidate.percentile(0.9f))
             << std::endl;
     }
 };
