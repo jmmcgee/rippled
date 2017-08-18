@@ -28,6 +28,8 @@
 #include <sstream>
 #include <fstream>
 #include <string>
+#include <thread>
+#include <mutex>
 
 namespace ripple {
 namespace test {
@@ -45,8 +47,7 @@ randomRankedConnect(
         std::chrono::milliseconds delay,
         Generator &g)
 {
-    std::size_t const size = peers.size();
-    assert(size == ranks.size());
+    assert(peers.size() == ranks.size());
 
     // 2. Generate UNLs based on sampling without replacement according
     //    to weights.
@@ -155,11 +156,16 @@ class DistributedValidators_test : public beast::unit_test::suite
         txCollector.report(simDuration, log, true);
         ledgerCollector.report(simDuration, log, false);
 
-        std::string tag = "|{"
+        std::string tag = "{"
            "\"numPeers\":" +std::to_string(numPeers) + ","
-           "\"delay\":" + std::to_string(delay.count()) + "}|";
+           "\"delay\":" + std::to_string(delay.count()) + "}";
+
+        // lock mutex to maintain integrity of rows in csv
+        static std::mutex mutex;
+        mutex.lock();
         txCollector.csv(simDuration, txLog, tag, printHeaders);
         ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
+        mutex.unlock();
 
         log << std::endl;
     }
@@ -260,8 +266,13 @@ class DistributedValidators_test : public beast::unit_test::suite
         std::string tag = "|{"
            "\"numPeers\":" +std::to_string(numPeers) + ","
            "\"delay\":" + std::to_string(delay.count()) + "}|";
+
+        // lock mutex to maintain integrity of rows in csv
+        static std::mutex mutex;
+        mutex.lock();
         txCollector.csv(simDuration, txLog, tag, printHeaders);
         ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
+        mutex.unlock();
 
         log << std::endl;
     }
@@ -279,20 +290,22 @@ class DistributedValidators_test : public beast::unit_test::suite
     void
     run() override
     {
-        std::string defaultArgs = "5 100 200";
+        std::string defaultArgs = "4 5 100 200";
         std::string args = arg().empty() ? defaultArgs : arg();
         std::stringstream argStream(args);
 
+        int maxThreads = 0;
         int maxNumValidators = 0;
         std::vector<std::chrono::milliseconds> delays;
 
         int delayCount(200);
+        argStream >> maxThreads;
         argStream >> maxNumValidators;
         while(argStream >> delayCount)
             delays.emplace_back(delayCount);
 
         log << "DistributedValidators: 1 to " << maxNumValidators << " Peers"
-            << std::endl;
+            << " on " << maxThreads << " threads." << std::endl;
 
         /**
          * Simulate with N = 1 to N
@@ -301,12 +314,23 @@ class DistributedValidators_test : public beast::unit_test::suite
          * - fixed delay for network links
          */
         bool printHeaders = true;
+        std::vector<std::thread> threads(maxThreads);
         for(auto delay : delays)
         {
-            for(int i = 1; i <= maxNumValidators; i++)
+            for(int i = 1; i <= maxNumValidators;)
             {
-                completeTrustCompleteConnectFixedDelay(i, delay, printHeaders);
-                printHeaders = false;
+                for(int j = 0; j < maxThreads && i <= maxNumValidators;
+                        i++, j++)
+                {
+                    threads[j] = std::thread(
+                            &DistributedValidators_test::
+                                completeTrustCompleteConnectFixedDelay,
+                            this, i, delay, printHeaders);
+                    printHeaders = false;
+                }
+                for(int k = 0; k < maxThreads; k++)
+                    if(threads[k].joinable())
+                        threads[k].join();
             }
         }
 
@@ -316,13 +340,22 @@ class DistributedValidators_test : public beast::unit_test::suite
          * - scale-free network connectivity
          * - fixed delay for network links
          */
-        printHeaders = true;
         for(auto delay : delays)
         {
-            for(int i = 1; i <= maxNumValidators; i++, printHeaders = false)
+            for(int i = 1; i <= maxNumValidators;)
             {
-                completeTrustScaleFreeConnectFixedDelay(i, delay, printHeaders);
-                printHeaders = false;
+                for(int j = 0; j < maxThreads && i <= maxNumValidators;
+                        i++, j++)
+                {
+                    threads[j] = std::thread(
+                            &DistributedValidators_test::
+                                completeTrustScaleFreeConnectFixedDelay,
+                            this, i, delay, printHeaders);
+                    printHeaders = false;
+                }
+                for(int k = 0; k < maxThreads; k++)
+                    if(threads[k].joinable())
+                        threads[k].join();
             }
         }
     }
