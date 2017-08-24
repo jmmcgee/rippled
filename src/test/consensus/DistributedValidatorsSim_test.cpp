@@ -267,9 +267,9 @@ class DistributedValidatorsSim_test : public beast::unit_test::suite
         txCollector.report(simDuration, log, true);
         ledgerCollector.report(simDuration, log, false);
 
-        std::string tag = "|{"
+        std::string tag = "{"
            "\"numPeers\":" +std::to_string(numPeers) + ","
-           "\"delay\":" + std::to_string(delay.count()) + "}|";
+           "\"delay\":" + std::to_string(delay.count()) + "}";
 
         // lock mutex to maintain integrity of rows in csv
         static std::mutex mutex;
@@ -346,6 +346,7 @@ class DistributedValidatorsSim_test : public beast::unit_test::suite
          * - scale-free network connectivity
          * - fixed delay for network links
          */
+        printHeaders = true;
         for(auto delay : delays)
         {
             for(int i = 1; i <= maxNumValidators;)
