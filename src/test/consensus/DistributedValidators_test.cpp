@@ -117,20 +117,20 @@ class DistributedValidators_test : public beast::unit_test::suite
         // Initial round to set prior state
         sim.run(1);
 
-        // Run for 10 minues, submitting 100 tx/second
-        std::chrono::nanoseconds simDuration = 10min;
-        std::chrono::nanoseconds quiet = 10s;
-        Rate rate{100, 1000ms};
-
         // Initialize timers
         HeartbeatTimer heart(sim.scheduler);
 
-        // txs, start/stop/step, target
+        // Run for 10 minues, submitting 100 tx/second
+        std::chrono::nanoseconds simDuration = 10min;
+        std::chrono::nanoseconds quiet = 10s;
+        Rate avgSubmissionRate{1000, 1000ms};
+        std::exponential_distribution<double> submissionInterval(
+                avgSubmissionRate.ratio());
         auto peerSelector = selector(peers.begin(),
                                      peers.end(),
                                      std::vector<double>(numPeers, 1.),
                                      sim.rng);
-        auto txSubmitter = submitter(ConstantDistribution{rate.inv()},
+        auto txSubmitter = submitter(submissionInterval,
                                      sim.scheduler.now() + quiet,
                                      sim.scheduler.now() + simDuration - quiet,
                                      peerSelector,
@@ -224,20 +224,20 @@ class DistributedValidators_test : public beast::unit_test::suite
         // Initial round to set prior state
         sim.run(1);
 
-        // Run for 10 minues, submitting 100 tx/second
-        std::chrono::nanoseconds simDuration = 10min;
-        std::chrono::nanoseconds quiet = 10s;
-        Rate rate{100, 1000ms};
-
         // Initialize timers
         HeartbeatTimer heart(sim.scheduler);
 
-        // txs, start/stop/step, target
+        // Run for 10 minues, submitting 100 tx/second
+        std::chrono::nanoseconds simDuration = 10min;
+        std::chrono::nanoseconds quiet = 10s;
+        Rate avgSubmissionRate{1000, 1000ms};
+        std::exponential_distribution<double> submissionInterval(
+                avgSubmissionRate.ratio());
         auto peerSelector = selector(peers.begin(),
                                      peers.end(),
                                      std::vector<double>(numPeers, 1.),
                                      sim.rng);
-        auto txSubmitter = submitter(ConstantDistribution{rate.inv()},
+        auto txSubmitter = submitter(submissionInterval,
                                      sim.scheduler.now() + quiet,
                                      sim.scheduler.now() + simDuration - quiet,
                                      peerSelector,
