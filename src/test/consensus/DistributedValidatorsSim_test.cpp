@@ -28,6 +28,8 @@
 #include <sstream>
 #include <fstream>
 #include <string>
+#include <thread>
+#include <mutex>
 
 namespace ripple {
 namespace test {
@@ -73,7 +75,7 @@ randomRankedConnect(
 
 /** In progress simulations for diversifying and distributing validators
 */
-class DistributedValidators_test : public beast::unit_test::suite
+class DistributedValidatorsSim_test : public beast::unit_test::suite
 {
 
     void
@@ -87,7 +89,7 @@ class DistributedValidators_test : public beast::unit_test::suite
 
         // Initialize persistent collector logs specific to this method
         std::string const prefix =
-                "DistributedValidators_"
+                "DistributedValidatorsSim_"
                 "completeTrustCompleteConnectFixedDelay";
         std::fstream
                 txLog(prefix + "_tx.csv", std::ofstream::app),
@@ -158,9 +160,16 @@ class DistributedValidators_test : public beast::unit_test::suite
         txCollector.report(simDuration, log, true);
         ledgerCollector.report(simDuration, log, false);
 
-        std::string tag = std::to_string(numPeers);
+        std::string tag = "{"
+           "\"numPeers\":" +std::to_string(numPeers) + ","
+           "\"delay\":" + std::to_string(delay.count()) + "}";
+
+        // lock mutex to maintain integrity of rows in csv
+        static std::mutex mutex;
+        mutex.lock();
         txCollector.csv(simDuration, txLog, tag, printHeaders);
         ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
+        mutex.unlock();
 
         log << std::endl;
     }
@@ -176,7 +185,7 @@ class DistributedValidators_test : public beast::unit_test::suite
 
         // Initialize persistent collector logs specific to this method
         std::string const prefix =
-                "DistributedValidators__"
+                "DistributedValidatorsSim_"
                 "completeTrustScaleFreeConnectFixedDelay";
         std::fstream
                 txLog(prefix + "_tx.csv", std::ofstream::app),
@@ -258,9 +267,16 @@ class DistributedValidators_test : public beast::unit_test::suite
         txCollector.report(simDuration, log, true);
         ledgerCollector.report(simDuration, log, false);
 
-        std::string tag = std::to_string(numPeers);
+        std::string tag = "|{"
+           "\"numPeers\":" +std::to_string(numPeers) + ","
+           "\"delay\":" + std::to_string(delay.count()) + "}|";
+
+        // lock mutex to maintain integrity of rows in csv
+        static std::mutex mutex;
+        mutex.lock();
         txCollector.csv(simDuration, txLog, tag, printHeaders);
         ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
+        mutex.unlock();
 
         log << std::endl;
     }
@@ -268,7 +284,7 @@ class DistributedValidators_test : public beast::unit_test::suite
     void
     ringGrouped(std::size_t numGroups, std::size_t peersPerGroup)
     {
-        log << "DistributedValidators_test::ringGrouped not implemented"
+        log << "DistributedValidatorsSim_test::ringGrouped not implemented"
             << std::endl;
     }
 
@@ -278,19 +294,24 @@ class DistributedValidators_test : public beast::unit_test::suite
     void
     run() override
     {
-        std::string defaultArgs = "5 200";
+        std::string defaultArgs = "4 5 100 200";
         std::string args = arg().empty() ? defaultArgs : arg();
         std::stringstream argStream(args);
 
+        int maxThreads = 0;
         int maxNumValidators = 0;
+        std::vector<std::chrono::milliseconds> delays;
+
         int delayCount(200);
+        argStream >> maxThreads;
         argStream >> maxNumValidators;
-        argStream >> delayCount;
+        while(argStream >> delayCount)
+            delays.emplace_back(delayCount);
 
         std::chrono::milliseconds delay(delayCount);
 
-        log << "DistributedValidators: 1 to " << maxNumValidators << " Peers"
-            << std::endl;
+        log << "DistributedValidatorsSim: 1 to " << maxNumValidators << " Peers"
+            << " on " << maxThreads << " threads." << std::endl;
 
         /**
          * Simulate with N = 1 to N
@@ -298,10 +319,25 @@ class DistributedValidators_test : public beast::unit_test::suite
          * - complete network connectivity
          * - fixed delay for network links
          */
-        completeTrustCompleteConnectFixedDelay(1, delay, true);
-        for(int i = 2; i <= maxNumValidators; i++)
+        bool printHeaders = true;
+        std::vector<std::thread> threads(maxThreads);
+        for(auto delay : delays)
         {
-            completeTrustCompleteConnectFixedDelay(i, delay);
+            for(int i = 1; i <= maxNumValidators;)
+            {
+                for(int j = 0; j < maxThreads && i <= maxNumValidators;
+                        i++, j++)
+                {
+                    threads[j] = std::thread(
+                            &DistributedValidatorsSim_test::
+                                completeTrustCompleteConnectFixedDelay,
+                            this, i, delay, printHeaders);
+                    printHeaders = false;
+                }
+                for(int k = 0; k < maxThreads; k++)
+                    if(threads[k].joinable())
+                        threads[k].join();
+            }
         }
 
         /**
@@ -310,15 +346,28 @@ class DistributedValidators_test : public beast::unit_test::suite
          * - scale-free network connectivity
          * - fixed delay for network links
          */
-        completeTrustScaleFreeConnectFixedDelay(1, delay, true);
-        for(int i = 2; i <= maxNumValidators; i++)
+        for(auto delay : delays)
         {
-            completeTrustScaleFreeConnectFixedDelay(i, delay);
+            for(int i = 1; i <= maxNumValidators;)
+            {
+                for(int j = 0; j < maxThreads && i <= maxNumValidators;
+                        i++, j++)
+                {
+                    threads[j] = std::thread(
+                            &DistributedValidatorsSim_test::
+                                completeTrustScaleFreeConnectFixedDelay,
+                            this, i, delay, printHeaders);
+                    printHeaders = false;
+                }
+                for(int k = 0; k < maxThreads; k++)
+                    if(threads[k].joinable())
+                        threads[k].join();
+            }
         }
     }
 };
 
-BEAST_DEFINE_TESTSUITE_MANUAL(DistributedValidators, consensus, ripple);
+BEAST_DEFINE_TESTSUITE_MANUAL(DistributedValidatorsSim, consensus, ripple);
 
 }  // namespace test
 }  // namespace ripple
