@@ -153,7 +153,14 @@ public:
 
     */
     void
-    connect(PeerGroup const& o, SimDuration delay)
+    connect(PeerGroup const& o, SimDuration const & delay)
+    {
+        return connect(o,
+                DurationDistributionRef{ConstantDuration{delay}});
+    }
+
+    void
+    connect(PeerGroup const& o, DurationDistributionRef delayGen)
     {
         for(Peer * p : peers_)
         {
@@ -161,7 +168,7 @@ public:
             {
                 // cannot send messages to self over network
                 if(p != target)
-                    p->connect(*target, delay);
+                    p->connect(*target, delayGen);
             }
         }
     }
@@ -193,11 +200,19 @@ public:
         @param delay The fixed messaging delay for all established connections
     */
     void
-    trustAndConnect(PeerGroup const & o, SimDuration delay)
+    trustAndConnect(PeerGroup const & o, SimDuration const & delay)
+    {
+        return trustAndConnect(o,
+                DurationDistributionRef{ConstantDuration{delay}});
+    }
+
+    void
+    trustAndConnect(PeerGroup const & o, DurationDistributionRef delayGen)
     {
         trust(o);
-        connect(o, delay);
+        connect(o, delayGen);
     }
+
 
     /** Establish network connections based on trust relations
 
@@ -209,13 +224,20 @@ public:
 
     */
     void
-    connectFromTrust(SimDuration delay)
+    connectFromTrust(SimDuration const & delay)
+    {
+        return connectFromTrust(
+                DurationDistributionRef{ConstantDuration{delay}});
+    }
+
+    void
+    connectFromTrust(DurationDistributionRef delayGen)
     {
         for (Peer * peer : peers_)
         {
             for (Peer * to : peer->trustGraph.trustedPeers(peer))
             {
-                peer->connect(*to, delay);
+                peer->connect(*to, delayGen);
             }
         }
     }

@@ -22,6 +22,7 @@
 
 #include <test/csf/Scheduler.h>
 #include <test/csf/Digraph.h>
+#include <test/csf/timers.h>
 
 namespace ripple {
 namespace test {
@@ -93,11 +94,17 @@ class BasicNetwork
     struct link_type
     {
         bool inbound = false;
-        duration delay{};
+        DurationDistributionRef delayGen;
         time_point established{};
         link_type() = default;
-        link_type(bool inbound_, duration delay_, time_point established_)
-            : inbound(inbound_), delay(delay_), established(established_)
+
+        template <class DurationDistribution>
+        link_type(bool inbound_,
+                  DurationDistribution delayGen_,
+                  time_point established_)
+            : inbound(inbound_),
+              delayGen(delayGen_),
+              established(established_)
         {
         }
     };
@@ -136,9 +143,19 @@ public:
     */
     bool
     connect(
-        Peer const& from,
-        Peer const& to,
-        duration const& delay = std::chrono::seconds{0});
+            Peer const& from,
+            Peer const& to,
+            duration const& delay = std::chrono::seconds{0})
+    {
+        connect(from, to,
+                DurationDistributionRef(ConstantDuration{delay}));
+    }
+
+    bool
+    connect(
+            Peer const& from,
+            Peer const& to,
+            DurationDistributionRef delayGen);
 
     /** Break a link.
 
@@ -208,14 +225,14 @@ bool
 BasicNetwork<Peer>::connect(
     Peer const& from,
     Peer const& to,
-    duration const& delay)
+    DurationDistributionRef delayGen)
 {
     if (to == from)
         return false;
-    time_point const now = scheduler.now();
-    if(!links_.connect(from, to, link_type{false, delay, now}))
+    auto const now = scheduler.now();
+    if(!links_.connect(from, to, link_type{false, delayGen, now}))
         return false;
-    auto const result = links_.connect(to, from, link_type{true, delay, now});
+    auto const result =links_.connect(to, from, link_type{true, delayGen, now});
     (void)result;
     assert(result);
     return true;
@@ -245,7 +262,7 @@ BasicNetwork<Peer>::send(Peer const& from, Peer const& to, Function&& f)
         return;
     time_point const sent = scheduler.now();
     scheduler.in(
-        link->delay,
+        link->delayGen(),
         [ from, to, sent, f = std::forward<Function>(f), this ] {
             // only process if still connected and connection was
             // not broken since the message was sent
