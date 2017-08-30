@@ -28,6 +28,145 @@ namespace ripple {
 namespace test {
 namespace csf {
 
+/*
+    We should consider making DurationDistribution conform to
+    RandomNumberDistribution concept and moving to beast.
+
+    struct DurationDistribution
+    {
+        SimDuration
+        operator()();
+    };
+
+    Note T should be light-weight, trivially copyable and movable, etc.
+*/
+
+
+/*
+    ConstantDuration is a DurationDistribution
+*/
+struct ConstantDuration
+{
+    SimDuration value;
+
+    SimDuration
+    operator()()
+    {
+        return value;
+    }
+};
+
+
+/*
+    RandomDuration is a DurationDistribution which takes a Generator, passes it
+    through a RandomNumberDistribution to produce a random number, and then uses
+    it generate a Duration.
+*/
+template<class RandomNumberDistribution, class UniformRandomBitGenerator>
+struct RandomDuration
+{
+    RandomNumberDistribution dist;
+    UniformRandomBitGenerator & g;
+
+    //------------------------
+    // Convert generated durations to SimDuration
+    static SimDuration
+    asDuration(SimDuration d)
+    {
+        return d;
+    }
+
+    template <class T>
+    static
+    std::enable_if_t<std::is_arithmetic<T>::value, SimDuration>
+    asDuration(T t)
+    {
+        return SimDuration{static_cast<SimDuration::rep>(t)};
+    }
+
+    SimDuration
+    operator()()
+    {
+        return asDuration(dist(g));
+    }
+};
+
+template<class RandomNumberDistribution, class UniformRandomBitGenerator>
+RandomDuration<RandomNumberDistribution, UniformRandomBitGenerator>
+randomDuration(RandomNumberDistribution dist, UniformRandomBitGenerator& gen)
+{
+    return RandomDuration<RandomNumberDistribution, UniformRandomBitGenerator>{
+            dist, gen};
+};
+
+class DurationDistributionRef
+{
+    using tp = SimTime;
+    using dur = SimDuration;
+
+    struct IDurationDistribution
+    {
+        virtual ~IDurationDistribution() = default;
+
+        virtual SimDuration
+        operator()() = 0;
+    };
+
+    template <class T>
+    class Any final : public IDurationDistribution
+    {
+        T & t_;
+
+    public:
+        Any(T & t) : t_{t}
+        {
+        }
+
+        // Can't copy
+        Any(Any const & ) = delete;
+        Any& operator=(Any const & ) = delete;
+
+        Any(Any && ) = default;
+        Any& operator=(Any && ) = default;
+
+        virtual SimDuration
+        operator()()
+        {
+            return t_();
+        }
+    };
+
+    std::shared_ptr<IDurationDistribution> impl_;
+
+public:
+    template <class T>
+    explicit
+    DurationDistributionRef(T& t) : impl_{new Any<T>(t)}
+    {
+    }
+
+    template <class T>
+    explicit
+    DurationDistributionRef(T&& t) : impl_{new Any<T>(t)}
+    {
+    }
+
+    // copyable
+    DurationDistributionRef(DurationDistributionRef const&) = default;
+    DurationDistributionRef& operator=(DurationDistributionRef&) = default;
+
+    // non-movable
+    DurationDistributionRef(DurationDistributionRef&&) = default;
+    DurationDistributionRef& operator=(DurationDistributionRef&&) = default;
+
+    SimDuration
+    operator()()
+    {
+        return (*impl_)();
+    }
+};
+
+
 /** Gives heartbeat of simulation to signal simulation progression
  */
 class HeartbeatTimer
@@ -43,7 +182,7 @@ class HeartbeatTimer
 public:
     HeartbeatTimer(
             Scheduler& sched,
-            SimDuration interval = std::chrono::seconds(60s),
+            SimDuration interval = std::chrono::seconds(60),
             std::ostream& out = std::cerr)
             : scheduler_{sched}, interval_{interval}, out_{out},
               startRealTime_{RealClock::now()},

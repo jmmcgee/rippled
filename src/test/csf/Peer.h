@@ -320,9 +320,15 @@ struct Peer
     }
 
     bool
-    connect(Peer & o, SimDuration dur)
+    connect(Peer & o, SimDuration const & delay)
     {
-        return net.connect(this, &o, dur);
+        return connect(o,
+                DurationDistributionRef{ConstantDuration{delay}});
+    }
+    bool
+    connect(Peer & o, DurationDistributionRef delayGen)
+    {
+        return net.connect(this, &o, delayGen);
     }
 
     bool
@@ -943,7 +949,14 @@ public:
     }
 
     void
-    connect(PeerGroup const& o, SimDuration delay)
+    connect(PeerGroup const& o, SimDuration const & delay)
+    {
+        return connect(o,
+                DurationDistributionRef{ConstantDuration{delay}});
+    }
+
+    void
+    connect(PeerGroup const& o, DurationDistributionRef delayGen)
     {
         for(Peer * p : peers_)
         {
@@ -951,7 +964,7 @@ public:
             {
                 // cannot send messages to self over network
                 if(p != target)
-                    p->connect(*target, delay);
+                    p->connect(*target, delayGen);
             }
         }
     }
@@ -969,20 +982,34 @@ public:
     }
 
     void
-    trustAndConnect(PeerGroup const & o, SimDuration delay)
+    trustAndConnect(PeerGroup const & o, SimDuration const & delay)
     {
-        trust(o);
-        connect(o, delay);
+        return trustAndConnect(o,
+                DurationDistributionRef{ConstantDuration{delay}});
     }
 
     void
-    connectFromTrust(SimDuration delay)
+    trustAndConnect(PeerGroup const & o, DurationDistributionRef delayGen)
+    {
+        trust(o);
+        connect(o, delayGen);
+    }
+
+    void
+    connectFromTrust(SimDuration const & delay)
+    {
+        return connectFromTrust(
+                DurationDistributionRef{ConstantDuration{delay}});
+    }
+
+    void
+    connectFromTrust(DurationDistributionRef delayGen)
     {
         for (Peer * peer : peers_)
         {
             for (Peer * to : peer->trustGraph.trustedPeers(peer))
             {
-                peer->connect(*to, delay);
+                peer->connect(*to, delayGen);
             }
         }
     }
