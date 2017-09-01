@@ -86,6 +86,7 @@ class DistributedValidatorsSim_test : public beast::unit_test::suite
     {
         using namespace csf;
         using namespace std::chrono;
+        static std::mutex mutex;
 
         // Initialize persistent collector logs specific to this method
         std::string const prefix =
@@ -96,8 +97,11 @@ class DistributedValidatorsSim_test : public beast::unit_test::suite
                 ledgerLog(prefix + "_ledger.csv", std::ofstream::app);
 
         // title
-        log << prefix << "(" << numPeers << "," << delay.count() << ")"
-            << std::endl;
+        {
+            std::lock_guard<std::mutex> guard(mutex);
+            log << prefix << "(" << numPeers << "," << delay.count() << ")"
+                << std::endl;
+        }
 
         // number of peers, UNLs, connections
         BEAST_EXPECT(numPeers >= 1);
@@ -116,7 +120,7 @@ class DistributedValidatorsSim_test : public beast::unit_test::suite
         std::normal_distribution<double> delayDistribution(
                 avgConnectionDelay.count(),
                 stddevConnectionDelay.count());
-        peers.connect(peers, DurationDistributionRef{
+        peers.connect(peers, DurationDistribution{
                 randomDuration(delayDistribution, sim.rng)});
 
         // Initialize collectors to track statistics to report
@@ -155,30 +159,30 @@ class DistributedValidatorsSim_test : public beast::unit_test::suite
         //BEAST_EXPECT(sim.branches() == 1);
         //BEAST_EXPECT(sim.synchronized());
 
-        log << std::right;
-        log << "| Peers: "<< std::setw(2) << peers.size();
-        log << " | Duration: " << std::setw(6)
-            << duration_cast<milliseconds>(simDuration).count() << " ms";
-        log << " | Branches: " << std::setw(1) << sim.branches();
-        log << " | Synchronized: " << std::setw(1)
-            << (sim.synchronized() ? "Y" : "N");
-        log << " |" << std::endl;
+        {
+            std::lock_guard<std::mutex> guard(mutex);
+            log << std::right;
+            log << "| Peers: " << std::setw(2) << peers.size();
+            log << " | Duration: " << std::setw(6)
+                << duration_cast<milliseconds>(simDuration).count() << " ms";
+            log << " | Branches: " << std::setw(1) << sim.branches();
+            log << " | Synchronized: " << std::setw(1)
+                << (sim.synchronized() ? "Y" : "N");
+            log << " |" << std::endl;
 
-        txCollector.report(simDuration, log, true);
-        ledgerCollector.report(simDuration, log, false);
+            txCollector.report(simDuration, log, true);
+            ledgerCollector.report(simDuration, log, false);
 
-        std::string tag = "{"
-           "\"numPeers\":" +std::to_string(numPeers) + ","
-           "\"delay\":" + std::to_string(delay.count()) + "}";
+            std::string tag = "{"
+                   "\"numPeers\":" + std::to_string(numPeers) + ","
+                   "\"delay\":" + std::to_string(delay.count()) + "}";
 
-        // lock mutex to maintain integrity of rows in csv
-        static std::mutex mutex;
-        mutex.lock();
-        txCollector.csv(simDuration, txLog, tag, printHeaders);
-        ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
-        mutex.unlock();
+            // lock mutex to maintain integrity of rows in csv
+            txCollector.csv(simDuration, txLog, tag, printHeaders);
+            ledgerCollector.csv(simDuration, ledgerLog, tag, printHeaders);
 
-        log << std::endl;
+            log << std::endl;
+        }
     }
 
     void

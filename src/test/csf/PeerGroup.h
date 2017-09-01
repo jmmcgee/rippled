@@ -156,11 +156,11 @@ public:
     connect(PeerGroup const& o, SimDuration const & delay)
     {
         return connect(o,
-                DurationDistributionRef{ConstantDuration{delay}});
+                DurationDistribution{ConstantDuration{delay}});
     }
 
     void
-    connect(PeerGroup const& o, DurationDistributionRef delayGen)
+    connect(PeerGroup const& o, DurationDistribution delayGen)
     {
         for(Peer * p : peers_)
         {
@@ -203,11 +203,11 @@ public:
     trustAndConnect(PeerGroup const & o, SimDuration const & delay)
     {
         return trustAndConnect(o,
-                DurationDistributionRef{ConstantDuration{delay}});
+                DurationDistribution{ConstantDuration{delay}});
     }
 
     void
-    trustAndConnect(PeerGroup const & o, DurationDistributionRef delayGen)
+    trustAndConnect(PeerGroup const & o, DurationDistribution delayGen)
     {
         trust(o);
         connect(o, delayGen);
@@ -227,11 +227,11 @@ public:
     connectFromTrust(SimDuration const & delay)
     {
         return connectFromTrust(
-                DurationDistributionRef{ConstantDuration{delay}});
+                DurationDistribution{ConstantDuration{delay}});
     }
 
     void
-    connectFromTrust(DurationDistributionRef delayGen)
+    connectFromTrust(DurationDistribution delayGen)
     {
         for (Peer * peer : peers_)
         {

@@ -358,10 +358,10 @@ struct Peer
     connect(Peer & o, SimDuration const & delay)
     {
         return connect(o,
-                DurationDistributionRef{ConstantDuration{delay}});
+                DurationDistribution{ConstantDuration{delay}});
     }
     bool
-    connect(Peer & o, DurationDistributionRef delayGen)
+    connect(Peer & o, DurationDistribution delayGen)
     {
         return net.connect(this, &o, delayGen);
     }

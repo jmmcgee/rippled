@@ -101,7 +101,7 @@ randomDuration(RandomNumberDistribution dist, UniformRandomBitGenerator& gen)
             dist, gen};
 };
 
-class DurationDistributionRef
+class DurationDistribution
 {
     using tp = SimTime;
     using dur = SimDuration;
@@ -117,10 +117,10 @@ class DurationDistributionRef
     template <class T>
     class Any final : public IDurationDistribution
     {
-        T & t_;
+        T t_;
 
     public:
-        Any(T & t) : t_{t}
+        Any(T t) : t_{t}
         {
         }
 
@@ -143,23 +143,25 @@ class DurationDistributionRef
 public:
     template <class T>
     explicit
-    DurationDistributionRef(T& t) : impl_{new Any<T>(t)}
+    DurationDistribution(T& t) : impl_{new Any<T>(t)}
     {
     }
 
     template <class T>
     explicit
-    DurationDistributionRef(T&& t) : impl_{new Any<T>(t)}
+    DurationDistribution(T&& t) : impl_{new Any<T>(t)}
     {
     }
 
     // copyable
-    DurationDistributionRef(DurationDistributionRef const&) = default;
-    DurationDistributionRef& operator=(DurationDistributionRef&) = default;
+    DurationDistribution(DurationDistribution&) = default;
+    DurationDistribution(DurationDistribution const&) = default;
+    DurationDistribution& operator=(DurationDistribution&) = default;
+    DurationDistribution& operator=(DurationDistribution const&) = default;
 
     // non-movable
-    DurationDistributionRef(DurationDistributionRef&&) = default;
-    DurationDistributionRef& operator=(DurationDistributionRef&&) = default;
+    DurationDistribution(DurationDistribution&&) = default;
+    DurationDistribution& operator=(DurationDistribution&&) = default;
 
     SimDuration
     operator()()

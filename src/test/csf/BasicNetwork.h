@@ -94,7 +94,7 @@ class BasicNetwork
     struct link_type
     {
         bool inbound = false;
-        DurationDistributionRef delayGen;
+        DurationDistribution delayGen;
         time_point established{};
         link_type() = default;
 
@@ -148,14 +148,14 @@ public:
             duration const& delay = std::chrono::seconds{0})
     {
         connect(from, to,
-                DurationDistributionRef(ConstantDuration{delay}));
+                DurationDistribution(ConstantDuration{delay}));
     }
 
     bool
     connect(
             Peer const& from,
             Peer const& to,
-            DurationDistributionRef delayGen);
+            DurationDistribution delayGen);
 
     /** Break a link.
 
@@ -225,7 +225,7 @@ bool
 BasicNetwork<Peer>::connect(
     Peer const& from,
     Peer const& to,
-    DurationDistributionRef delayGen)
+    DurationDistribution delayGen)
 {
     if (to == from)
         return false;
