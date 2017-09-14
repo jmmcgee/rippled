@@ -96,6 +96,7 @@ class BasicNetwork
         bool inbound = false;
         DurationDistribution delayGen;
         time_point established{};
+        time_point nextDelivery{};
         link_type() = default;
 
         template <class DurationDistribution>
@@ -259,8 +260,12 @@ BasicNetwork<Peer>::send(Peer const& from, Peer const& to, Function&& f)
     if(!link)
         return;
     time_point const sent = scheduler.now();
-    scheduler.in(
-        std::max(0ns, link->delayGen()),
+
+    SimTime delivered = scheduler.now() + std::max(0ns, link->delayGen());
+    delivered = std::max(delivered, link->nextDelivery + 1ns);
+    link->nextDelivery = delivered;
+    scheduler.at(
+        delivered,
         [ from, to, sent, f = std::forward<Function>(f), this ] {
             // only process if still connected and connection was
             // not broken since the message was sent
